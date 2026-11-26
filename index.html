@@ -919,9 +919,16 @@ function lifeAnimation(v) {
     const s = player.skin;
     // Grundhaltung mit Atmen
     for (const k of ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg']) s[k].rotation.set(0, 0, 0);
-    s.rightArm.rotation.z = -(0.06 + Math.cos(t * 1.6) * 0.03); s.leftArm.rotation.z = 0.06 + Math.cos(t * 1.6) * 0.03;
-    s.rightArm.rotation.x = Math.sin(t * 0.9) * 0.03; s.leftArm.rotation.x = -Math.sin(t * 0.9) * 0.03;
+    // Atmen: Brustkorb hebt sich, Arme gehen leicht nach aussen, Kopf wippt mit
+    const br = (Math.sin(t * 1.9) + 1) / 2; // 0..1, etwa ein Atemzug alle 3,3 Sekunden
+    s.rightArm.rotation.z = -(0.05 + br * 0.07); s.leftArm.rotation.z = 0.05 + br * 0.07;
+    s.rightArm.rotation.x = Math.sin(t * 0.8) * 0.05; s.leftArm.rotation.x = -Math.sin(t * 0.8) * 0.05;
+    s.body.scale.set(1 + br * 0.025, 1, 1 + br * 0.04);
+    const bob = br * 0.35;
     player.position.y = 0;
+    s.head.position.y = (s.__hy ??= s.head.position.y) + bob;
+    s.rightArm.position.y = (s.__ry ??= s.rightArm.position.y) + bob * 0.6;
+    s.leftArm.position.y = (s.__ly ??= s.leftArm.position.y) + bob * 0.6;
 
     // Wohin schaut die Maus? (relativ zur Kamera und zur Drehung der Figur)
     let tyaw = 0, tpitch = 0;
@@ -959,7 +966,7 @@ function lifeAnimation(v) {
     }
     const k = Math.min(1, delta * 7);
     st.yaw += (tyaw - st.yaw) * k; st.pitch += (tpitch - st.pitch) * k;
-    s.head.rotation.y = st.yaw; s.head.rotation.x = st.pitch; s.head.rotation.z = (o.headZ || 0) * w;
+    s.head.rotation.y = st.yaw; s.head.rotation.x = st.pitch - br * 0.04; s.head.rotation.z = (o.headZ || 0) * w;
     s.body.rotation.y = st.yaw * 0.15;
   });
 }
@@ -980,7 +987,9 @@ async function mountSkin(sk, name) {
   if (data.cape && S.showCape !== false) { try { await v.loadCape(data.cape); } catch {} }
   v.fov = 50; v.zoom = 0.72;
   if (S.nameTag !== false && skinview3d.NameTagObject) { try { v.nameTag = new skinview3d.NameTagObject(data.name || name, { textStyle: 'white', backgroundStyle: 'rgba(0,0,0,0.45)', font: '44px "Segoe UI", Arial, sans-serif' }); } catch {} }
-  v.playerObject.rotation.y = 0.35;
+  v.playerObject.rotation.y = 0;
+  if (v.resetCameraPose) v.resetCameraPose();
+  v.camera.position.set(0, 6, v.camera.position.length() || 60); v.camera.lookAt(0, 0, 0); if (v.controls.update) v.controls.update();
   v.controls.enableZoom = false; v.controls.enablePan = false;
   v.autoRotate = false;
   v.animation = S.animations === false ? null : lifeAnimation(v);
