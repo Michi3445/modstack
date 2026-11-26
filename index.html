@@ -472,6 +472,14 @@
   .icpal.on { border-color: #fff; box-shadow: 0 0 0 2px var(--c1); }
   .ava { overflow: hidden; } .ava.editable { cursor: pointer; position: relative; }
   .ava.editable:hover::after { content: '✎'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); font-size: 18px; color: #fff; }
+  /* Teilen */
+  #shareDlg { width: 560px; }
+  .shopt { margin-top: 14px; padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07); }
+  .shopt h4 { margin: 0 0 4px; font-size: 13.5px; }
+  .shopt p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+  .shopt textarea { font-family: "Cascadia Code", Consolas, monospace; font-size: 11.5px; word-break: break-all; resize: none; }
+  .shrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+  .shskip { color: var(--warn); font-size: 11.5px; }
   #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
   .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
   .toast.err { border-left-color: var(--danger); }
@@ -500,7 +508,7 @@
     <div id="list"></div>
     <div id="sideFoot">
       <button class="primary" id="newBtn">+ Neue Instanz</button>
-      <button class="ghost" id="cfBtn">CurseForge-Profil importieren</button>
+      <button class="ghost" id="cfBtn">Importieren (Code oder Datei)</button>
     </div>
   </div>
   <div id="main">
@@ -508,7 +516,7 @@
       <div class="ava" id="headAva"></div>
       <div class="ttl"><h1 id="title"></h1><div class="badges" id="badges"></div></div>
       <div id="headBtns">
-        <button class="ghost" id="folderBtn" title="Instanzordner öffnen">Ordner</button>
+        <button class="ghost" id="shareBtn" title="Instanz teilen">Teilen</button><button class="ghost" id="folderBtn" title="Instanzordner öffnen">Ordner</button>
         <button class="primary big" id="playBtn">▶ Spielen</button>
       </div>
     </div>
@@ -541,14 +549,14 @@
 </dialog>
 
 <dialog id="cfDlg">
-  <div class="dh">CurseForge-Profil importieren</div>
+  <div class="dh">Importieren</div>
   <div class="db">
-    <p>In der CurseForge-App beim Profil auf „Teilen“ klicken und den Code hier einfügen. Codes gelten 7 Tage.</p>
-    <label>Profil-Code</label>
-    <input id="cfCode" placeholder="z.B. AbCd1234" spellcheck="false">
+    <p>Füge einen Modstack-Code von einem Freund ein (beginnt mit MS1-). Oder einen CurseForge-Code: In der CurseForge-App beim Profil auf „Teilen“ klicken, diese Codes gelten 7 Tage.</p>
+    <label>Code</label>
+    <input id="cfCode" placeholder="Modstack-Code (MS1-...) oder CurseForge-Code" spellcheck="false">
   </div>
   <div class="df">
-    <button class="ghost left" id="cfZip">ZIP-Datei wählen ...</button>
+    <button class="ghost left" id="cfZip">Datei wählen (.mrpack / .zip) ...</button>
     <button class="ghost" id="cfCancel">Abbrechen</button><button class="primary" id="cfOk">Importieren</button>
   </div>
 </dialog>
@@ -567,6 +575,25 @@
     <input type="file" id="icFile" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
   </div>
   <div class="df"><button class="ghost left" id="icUpload">Eigenes Bild ...</button><button class="ghost" id="icRandom" title="Zufällig">Zufall</button><button class="ghost" id="icLetter" title="Nur Anfangsbuchstabe">Buchstabe</button><button class="ghost" id="icCancel">Abbrechen</button><button class="primary" id="icSave">Speichern</button></div>
+</dialog>
+
+<dialog id="shareDlg">
+  <div class="dh">Instanz teilen</div>
+  <div class="db">
+    <div class="ichead"><div class="ava big" id="shAva"></div><div><b id="shName"></b><p id="shInfo" style="margin:4px 0 0;color:var(--muted);font-size:12px"></p></div></div>
+    <div class="shopt">
+      <h4>Als Code</h4>
+      <p>Kopieren und zum Beispiel in Discord schicken. Dein Freund fügt ihn in Modstack unter „Importieren“ ein. Enthält Version, Loader und alle Modrinth-Mods, Ressourcenpakete und Shader.</p>
+      <textarea id="shCode" rows="3" readonly spellcheck="false"></textarea>
+      <div class="shrow"><span id="shSkip" class="shskip"></span><button class="primary" id="shCopy">Code kopieren</button></div>
+    </div>
+    <div class="shopt">
+      <h4>Als Datei (.mrpack)</h4>
+      <p>Standardformat, das auch Modrinth, Prism und andere Launcher öffnen. Enthält zusätzlich Mods, die nicht auf Modrinth sind.</p>
+      <div class="shrow"><label class="check" style="margin:0"><input type="checkbox" id="shCfg" checked> Einstellungen der Mods (config) mitnehmen</label><button class="ghost" id="shFile">Datei speichern ...</button></div>
+    </div>
+  </div>
+  <div class="df"><button class="ghost" id="shClose">Schließen</button></div>
 </dialog>
 
 <dialog id="askDlg">
@@ -628,7 +655,7 @@ const MENUS = [
   ['Datei', () => [
     { l: 'Neue Instanz ...', k: 'Strg+N', a: newInstance },
     { l: 'Einstellungen ...', k: 'Strg+,', a: openSettings },
-    { l: 'CurseForge-Profil importieren ...', k: 'Strg+I', a: () => openCf() },
+    { l: 'Code importieren (Modstack / CurseForge) ...', k: 'Strg+I', a: () => openCf() },
     { l: 'Datei importieren (.mrpack / .zip) ...', a: () => cfRun('cf:importZip') },
     '-',
     { l: 'Modpacks entdecken', k: 'Strg+M', a: showPacks },
@@ -679,6 +706,7 @@ function instItems(i) {
     '-',
     { l: 'Umbenennen ...', k: 'F2', d: n, a: () => renameInst(i) },
     { l: 'Ordner öffnen', k: 'Strg+O', d: n, a: () => call('instances:openFolder', i.id) },
+    { l: 'Teilen ...', d: n, a: () => openShare(i) },
     { l: 'Bild ändern ...', d: n, a: () => openIconPicker(i) },
     { l: 'Duplizieren', d: n || busy, a: () => duplicateInst(i) },
     { l: 'Einstellungen', d: n, a: () => { select(i); setTab('settings'); } },
@@ -1079,6 +1107,38 @@ async function installPack(h, btn) {
   } catch { btn.disabled = false; btn.textContent = 'Installieren'; }
 }
 
+// ---------- Teilen ----------
+let shareInst = null;
+async function openShare(i) {
+  if (!i || document.querySelector('dialog[open]')) return;
+  shareInst = i;
+  ava($('#shAva'), i); $('#shName').textContent = i.name;
+  $('#shInfo').textContent = `Minecraft ${i.mc} · ${LNAME[i.loader] || i.loader} · ${i.mods.length} Einträge`;
+  $('#shCode').value = 'Erstelle Code ...'; $('#shSkip').textContent = '';
+  $('#shareDlg').showModal(); document.activeElement && document.activeElement.blur();
+  try {
+    const r = await call('share:code', i.id);
+    $('#shCode').value = r.code;
+    $('#shSkip').textContent = r.skipped.length ? `${r.skipped.length} Eintrag/Einträge nicht enthalten (nicht auf Modrinth): ${r.skipped.slice(0, 3).join(', ')}${r.skipped.length > 3 ? ' …' : ''}. Nutze dafür die Datei.` : `${r.included} Einträge enthalten`;
+    if (!r.skipped.length) $('#shSkip').style.color = 'var(--muted)'; else $('#shSkip').style.color = '';
+  } catch { $('#shCode').value = ''; }
+}
+$('#shCopy').onclick = async () => {
+  const v = $('#shCode').value; if (!v.startsWith('MS1-')) return;
+  try { await navigator.clipboard.writeText(v); } catch { $('#shCode').select(); document.execCommand('copy'); }
+  $('#shCopy').textContent = '✓ Kopiert'; setTimeout(() => { $('#shCopy').textContent = 'Code kopieren'; }, 1800);
+};
+$('#shCode').onclick = () => $('#shCode').select();
+$('#shFile').onclick = async () => {
+  const b = $('#shFile'); b.disabled = true; b.innerHTML = '<span class="spin"></span> Erstelle ...';
+  try {
+    const r = await work('Exportiere Modpack ...', () => call('share:exportMrpack', { id: shareInst.id, includeConfig: $('#shCfg').checked }));
+    if (r) toast(`Gespeichert: ${r.linked} Downloads, ${r.embedded} Dateien eingebettet`);
+  } catch {}
+  b.disabled = false; b.textContent = 'Datei speichern ...';
+};
+$('#shClose').onclick = () => $('#shareDlg').close();
+
 // ---------- Eigene Instanz-Bilder (selbst gezeichnet) ----------
 // Jedes Motiv ist SVG in einem 64er-Raster, weiss auf Farbverlauf
 const ICONS = {
@@ -1475,7 +1535,7 @@ async function drawDetails(i) {
     <div class="det-sec"><h4>Welten</h4><div id="dWorldList"><div class="det-empty"><span class="spin"></span></div></div></div>
     <div class="det-sec"><h4>Mods</h4><div class="det-mods" id="dMods"></div></div>
     ${i.notes ? '<div class="det-sec"><h4>Notizen</h4><div class="det-notes" id="dNotes"></div></div>' : ''}
-    <div class="det-btns"><button class="ghost" id="dMan">Mods verwalten</button><button class="ghost" id="dSet">Einstellungen</button><button class="ghost" id="dDir">Ordner</button></div>
+    <div class="det-btns"><button class="ghost" id="dMan">Mods verwalten</button><button class="ghost" id="dSet">Einstellungen</button><button class="ghost" id="dShare">Teilen</button></div>
   </div>`;
   ava(el.querySelector('.ava'), i);
   { const a = el.querySelector('.ava'); a.classList.add('editable'); a.title = 'Bild ändern'; a.onclick = () => openIconPicker(i); }
@@ -1484,7 +1544,7 @@ async function drawDetails(i) {
   if ($('#dUpd')) $('#dUpd').onclick = () => { kindFilter = 'upd'; tab = 'mods'; select(i); };
   $('#dMan').onclick = () => { tab = 'mods'; select(i); };
   $('#dSet').onclick = () => { tab = 'settings'; select(i); };
-  $('#dDir').onclick = () => call('instances:openFolder', i.id);
+  $('#dShare').onclick = () => openShare(i);
   // Mod-Icons
   const mb = $('#dMods'); const withIcon = i.mods.filter((m) => kindOf(m) === 'mod');
   if (!withIcon.length) mb.innerHTML = '<div class="det-empty">Noch keine Mods</div>';
@@ -2145,13 +2205,14 @@ async function cfRun(ch, data) {
   try {
     const inst = await work('Importiere Profil ...', () => call(ch, data));
     if (inst) { tab = 'mods'; await load(inst.id); toast('„' + inst.name + '“ importiert'); }
-  } catch {} finally { b.disabled = false; b.textContent = 'CurseForge-Profil importieren'; }
+  } catch {} finally { b.disabled = false; b.textContent = 'Importieren (Code oder Datei)'; }
 }
-$('#cfOk').onclick = () => { const c = $('#cfCode').value.trim(); if (!c) { $('#cfCode').focus(); return; } $('#cfCode').value = ''; cfRun('cf:importCode', c); };
+$('#cfOk').onclick = () => { const c = $('#cfCode').value.trim().replace(/\s+/g, ''); if (!c) { $('#cfCode').focus(); return; } $('#cfCode').value = ''; cfRun(/^MS1-/i.test(c) ? 'share:importCode' : 'cf:importCode', c.replace(/^ms1-/i, 'MS1-')); };
 $('#cfCode').onkeydown = (e) => { if (e.key === 'Enter') $('#cfOk').click(); };
 $('#cfZip').onclick = () => cfRun('cf:importZip');
 
 $('#folderBtn').onclick = () => call('instances:openFolder', cur.id);
+$('#shareBtn').onclick = () => openShare(cur);
 $('#playBtn').onclick = () => play(cur);
 document.addEventListener('contextmenu', (e) => { if (!/INPUT|TEXTAREA/.test(e.target.tagName)) e.preventDefault(); });
 document.addEventListener('dragover', (e) => e.preventDefault());

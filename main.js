@@ -811,6 +811,142 @@ ipcMain.handle('cf:importZip', async () => {
   return importProfileZip(fs.readFileSync(p), path.basename(p).replace(/\.(zip|mrpack)$/i, ''));
 });
 
+// ---------- Teilen ----------
+// ZIP schreiben (Deflate), ohne Fremdbibliothek
+const CRC_T = (() => { const t = new Int32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
+const crc32 = (b) => { let c = -1; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; };
+function writeZip(files) { // files: [{name, data(Buffer)}]
+  const parts = [], central = []; let off = 0;
+  for (const f of files) {
+    const name = Buffer.from(f.name.replace(/\\/g, '/'), 'utf8');
+    const comp = zlib.deflateRawSync(f.data), crc = crc32(f.data);
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0x0800, 6); lh.writeUInt16LE(8, 8);
+    lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(comp.length, 18); lh.writeUInt32LE(f.data.length, 22); lh.writeUInt16LE(name.length, 26);
+    parts.push(lh, name, comp);
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(0x0800, 8); ch.writeUInt16LE(8, 10);
+    ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(comp.length, 20); ch.writeUInt32LE(f.data.length, 24); ch.writeUInt16LE(name.length, 28); ch.writeUInt32LE(off, 42);
+    central.push(ch, name);
+    off += 30 + name.length + comp.length;
+  }
+  const cd = Buffer.concat(central), end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(off, 16);
+  return Buffer.concat([...parts, cd, end]);
+}
+
+// Loader-Version herausfinden, ohne etwas zu installieren
+async function resolveLoaderVersion(inst) {
+  if (inst.loaderVersion) return inst.loaderVersion;
+  try {
+    if (inst.loader === 'fabric' || inst.loader === 'quilt') {
+      const base = inst.loader === 'fabric' ? 'https://meta.fabricmc.net/v2/versions/loader' : 'https://meta.quiltmc.org/v3/versions/loader';
+      const list = await getJson(`${base}/${inst.mc}`);
+      const pick = list.find((x) => x.loader && x.loader.stable !== false && !/beta|pre|rc/i.test(x.loader.version)) || list[0];
+      return pick && pick.loader.version;
+    }
+    if (inst.loader === 'forge') { const p = (await getJson('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json')).promos; return p[inst.mc + '-recommended'] || p[inst.mc + '-latest']; }
+    if (inst.loader === 'neoforge') {
+      const parts = inst.mc.split('.'); const prefix = parts[0] === '1' ? `${parts[1]}.${parts[2] || '0'}.` : `${parts[0]}.${parts[1] || '0'}.`;
+      const all = ((await getJson('https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge')).versions || []).filter((x) => x.startsWith(prefix));
+      const st = all.filter((x) => !/beta|alpha/i.test(x)); return (st.length ? st : all).slice(-1)[0];
+    }
+  } catch {}
+  return null;
+}
+
+// Teilen-Code: Name, Version, Loader und die Modrinth-Versionen, komprimiert. Kein Server noetig.
+ipcMain.handle('share:code', (id) => {
+  const inst = readInst(id);
+  const pick = (k) => inst.mods.filter((m) => m.versionId && kindOf(m) === k && !m.disabled).map((m) => m.versionId);
+  const data = { n: inst.name, mc: inst.mc, l: inst.loader, lv: inst.loaderVersion || undefined, m: pick('mod'), r: pick('resourcepack'), s: pick('shader') };
+  if (inst.iconGen) data.ig = inst.iconGen;
+  if (inst.icon && /^https:\/\/cdn\.modrinth\.com\//.test(inst.icon) && inst.icon.length < 300) data.ic = inst.icon;
+  const code = 'MS1-' + zlib.deflateRawSync(Buffer.from(JSON.stringify(data)), { level: 9 }).toString('base64url');
+  const skipped = inst.mods.filter((m) => !m.versionId && !m.disabled).map((m) => m.title);
+  return { code, included: data.m.length + data.r.length + data.s.length, skipped };
+});
+
+ipcMain.handle('share:importCode', async (code) => {
+  const m = /^MS1-([A-Za-z0-9_-]+)$/.exec(String(code || '').trim().replace(/\s+/g, ''));
+  if (!m) throw new Error('Das ist kein gueltiger Modstack-Code');
+  let d; try { d = JSON.parse(zlib.inflateRawSync(Buffer.from(m[1], 'base64url')).toString('utf8')); } catch { throw new Error('Code ist beschaedigt oder unvollstaendig'); }
+  if (!d.mc || !LOADERS.includes(d.l)) throw new Error('Code enthaelt keine gueltige Version');
+  const id = newInstId(d.n || 'Geteilte Instanz');
+  fs.mkdirSync(path.join(instDir(id), 'mods'), { recursive: true });
+  const inst = { id, name: String(d.n || 'Geteilte Instanz').slice(0, 80), mc: d.mc, loader: d.l, loaderVersion: d.lv || undefined, mods: [], created: new Date().toISOString(), source: 'shared' };
+  if (d.ig) inst.iconGen = d.ig;
+  if (typeof d.ic === 'string' && /^https:\/\/cdn\.modrinth\.com\/[^"'\s]+$/.test(d.ic)) inst.icon = d.ic;
+  saveInst(inst);
+  const want = [...(d.m || []).map((v) => [v, 'mod']), ...(d.r || []).map((v) => [v, 'resourcepack']), ...(d.s || []).map((v) => [v, 'shader'])];
+  const kindOfV = new Map(want);
+  const versions = [];
+  for (let i = 0; i < want.length; i += 100) {
+    try { versions.push(...await getJson(`${MR}/versions?ids=${encodeURIComponent(JSON.stringify(want.slice(i, i + 100).map((x) => x[0])))}`)); } catch {}
+  }
+  const projs = {};
+  const pids = [...new Set(versions.map((v) => v.project_id))];
+  for (let i = 0; i < pids.length; i += 100) { try { for (const p of await getJson(`${MR}/projects?ids=${encodeURIComponent(JSON.stringify(pids.slice(i, i + 100)))}`)) projs[p.id] = p; } catch {} }
+  const failed = []; let n = 0;
+  await pool(versions, conc(), async (v) => {
+    const kind = kindOfV.get(v.id) || 'mod';
+    const f = v.files.find((x) => x.primary) || v.files[0];
+    try {
+      await download(f.url, path.join(instDir(id), KIND_DIR[kind], f.filename), f.hashes && f.hashes.sha1);
+      const p = projs[v.project_id] || {};
+      inst.mods.push({ file: f.filename, projectId: v.project_id, versionId: v.id, version: v.version_number, title: p.title || f.filename, icon: p.icon_url || undefined, kind });
+    } catch (e) { failed.push((projs[v.project_id] || {}).title || f.filename); }
+    status(`Lade geteilte Instanz ${++n}/${versions.length} ...`);
+  });
+  const missing = want.length - versions.length;
+  saveInst(inst);
+  status(`Import fertig: ${inst.mods.length} Dateien` + (failed.length || missing ? `, ${failed.length + missing} nicht gefunden` : ''));
+  return inst;
+});
+
+// Export als .mrpack (Modrinth-Format): Modrinth-Dateien als Download-Links, Rest als Overrides
+ipcMain.handle('share:exportMrpack', async ({ id, includeConfig }) => {
+  const inst = readInst(id);
+  const res = await dialog.showSaveDialog(win, { title: 'Modpack exportieren', defaultPath: path.join(app.getPath('downloads'), safeName(inst.name) + '.mrpack'), filters: [{ name: 'Modrinth-Modpack', extensions: ['mrpack'] }] });
+  if (res.canceled || !res.filePath) return null;
+  status('Erstelle Modpack ...');
+  const active = inst.mods.filter((m) => !m.disabled);
+  const vids = active.filter((m) => m.versionId).map((m) => m.versionId);
+  const vmap = {};
+  for (let i = 0; i < vids.length; i += 100) { try { for (const v of await getJson(`${MR}/versions?ids=${encodeURIComponent(JSON.stringify(vids.slice(i, i + 100)))}`)) vmap[v.id] = v; } catch {} }
+  const files = [], zipFiles = [];
+  for (const m of active) {
+    const v = m.versionId && vmap[m.versionId];
+    const f = v && (v.files.find((x) => x.filename === m.file) || v.files.find((x) => x.primary) || v.files[0]);
+    const rel = KIND_DIR[kindOf(m)] + '/' + m.file;
+    if (f && f.hashes && f.hashes.sha512) {
+      files.push({ path: rel, hashes: { sha1: f.hashes.sha1, sha512: f.hashes.sha512 }, env: { client: 'required', server: kindOf(m) === 'mod' ? 'required' : 'unsupported' }, downloads: [f.url], fileSize: f.size });
+    } else {
+      try { zipFiles.push({ name: 'overrides/' + rel, data: fs.readFileSync(entryPath(id, m)) }); } catch {}
+    }
+  }
+  if (includeConfig) {
+    const add = (dirRel) => {
+      const abs = path.join(instDir(id), dirRel);
+      if (!fs.existsSync(abs)) return;
+      for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
+        const r = dirRel + '/' + e.name;
+        if (e.isDirectory()) add(r); else { try { zipFiles.push({ name: 'overrides/' + r, data: fs.readFileSync(path.join(abs, e.name)) }); } catch {} }
+      }
+    };
+    add('config');
+    if (fs.existsSync(path.join(instDir(id), 'options.txt'))) zipFiles.push({ name: 'overrides/options.txt', data: fs.readFileSync(path.join(instDir(id), 'options.txt')) });
+  }
+  const lv = await resolveLoaderVersion(inst);
+  const depKey = { fabric: 'fabric-loader', quilt: 'quilt-loader', forge: 'forge', neoforge: 'neoforge' }[inst.loader];
+  const index = { formatVersion: 1, game: 'minecraft', versionId: '1.0.0', name: inst.name, summary: 'Exportiert aus Modstack', files, dependencies: { minecraft: inst.mc, ...(lv ? { [depKey]: lv } : {}) } };
+  zipFiles.unshift({ name: 'modrinth.index.json', data: Buffer.from(JSON.stringify(index, null, 2)) });
+  fs.writeFileSync(res.filePath, writeZip(zipFiles));
+  status('Modpack gespeichert: ' + path.basename(res.filePath));
+  shell.showItemInFolder(res.filePath);
+  return { path: res.filePath, linked: files.length, embedded: zipFiles.length - 1 };
+});
+
 // ---------- Loader-Installation ----------
 async function ensureVanilla(mc) {
   const dir = path.join(mcDir(), 'versions', mc);
