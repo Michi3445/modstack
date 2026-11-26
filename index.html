@@ -458,6 +458,21 @@
   .theme.on { border-color: transparent; background: linear-gradient(var(--bg2), var(--bg2)) padding-box, var(--grad) border-box; }
   .theme .pv { height: 54px; position: relative; }
   .theme b { display: block; padding: 7px 10px 8px; font-size: 12.5px; }
+  /* Bild-Waehler */
+  #iconDlg { width: 560px; }
+  .ichead { display: flex; gap: 14px; align-items: center; margin-bottom: 4px; }
+  .icprev { width: 72px; height: 72px; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 700; color: #fff; flex-shrink: 0; box-shadow: 0 8px 22px rgba(0,0,0,.4); }
+  .icprev img { width: 100%; height: 100%; object-fit: cover; }
+  .icgrid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 7px; }
+  .icopt { aspect-ratio: 1; border-radius: 11px; overflow: hidden; cursor: pointer; border: 2px solid transparent; transition: transform .12s; }
+  .icopt img { width: 100%; height: 100%; display: block; }
+  .icopt:hover { transform: scale(1.07); }
+  .icopt.on { border-color: #fff; box-shadow: 0 0 0 2px var(--c1); }
+  .icpals { display: flex; gap: 7px; flex-wrap: wrap; }
+  .icpal { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+  .icpal.on { border-color: #fff; box-shadow: 0 0 0 2px var(--c1); }
+  .ava { overflow: hidden; } .ava.editable { cursor: pointer; position: relative; }
+  .ava.editable:hover::after { content: '✎'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); font-size: 18px; color: #fff; }
   #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
   .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
   .toast.err { border-left-color: var(--danger); }
@@ -542,6 +557,17 @@
 <dialog id="setDlg">
   <div class="sh"><b>Einstellungen</b><button class="ghost" id="setDir">Datenordner öffnen</button><button class="iconbtn" id="setClose" title="Schließen">✕</button></div>
   <div class="sbody"><div class="snav" id="snav"></div><div class="scont" id="scont"></div></div>
+</dialog>
+
+<dialog id="iconDlg">
+  <div class="dh">Bild ändern</div>
+  <div class="db">
+    <div class="ichead"><div class="icprev" id="icPrev"></div><div><b id="icName"></b><p style="margin:4px 0 0;color:var(--muted);font-size:12px">Motiv und Farbe wählen oder ein eigenes Bild hochladen.</p></div></div>
+    <label>Motiv</label><div class="icgrid" id="icGrid"></div>
+    <label>Farbe</label><div class="icpals" id="icPal"></div>
+    <input type="file" id="icFile" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+  </div>
+  <div class="df"><button class="ghost left" id="icUpload">Eigenes Bild ...</button><button class="ghost" id="icRandom" title="Zufällig">Zufall</button><button class="ghost" id="icLetter" title="Nur Anfangsbuchstabe">Buchstabe</button><button class="ghost" id="icCancel">Abbrechen</button><button class="primary" id="icSave">Speichern</button></div>
 </dialog>
 
 <dialog id="askDlg">
@@ -654,6 +680,7 @@ function instItems(i) {
     '-',
     { l: 'Umbenennen ...', k: 'F2', d: n, a: () => renameInst(i) },
     { l: 'Ordner öffnen', k: 'Strg+O', d: n, a: () => call('instances:openFolder', i.id) },
+    { l: 'Bild ändern ...', d: n, a: () => openIconPicker(i) },
     { l: 'Duplizieren', d: n || busy, a: () => duplicateInst(i) },
     { l: 'Einstellungen', d: n, a: () => { select(i); setTab('settings'); } },
     '-',
@@ -753,7 +780,8 @@ document.querySelectorAll('.ri[data-v]').forEach((r) => r.onclick = () => setVie
 
 function ava(el, i) {
   el.textContent = ''; el.style.background = `linear-gradient(135deg, ${LCOL[i.loader] || '#555'}, #20242c 140%)`;
-  if (i.icon) { const im = document.createElement('img'); im.src = i.icon; im.onerror = () => { im.remove(); el.textContent = (i.name.trim()[0] || '?').toUpperCase(); }; el.appendChild(im); }
+  const src = instIconUrl(i);
+  if (src) { const im = document.createElement('img'); im.src = src; im.onerror = () => { im.remove(); el.textContent = (i.name.trim()[0] || '?').toUpperCase(); }; el.appendChild(im); }
   else el.textContent = (i.name.trim()[0] || '?').toUpperCase();
 }
 
@@ -1052,6 +1080,114 @@ async function installPack(h, btn) {
   } catch { btn.disabled = false; btn.textContent = 'Installieren'; }
 }
 
+// ---------- Eigene Instanz-Bilder (selbst gezeichnet) ----------
+// Jedes Motiv ist SVG in einem 64er-Raster, weiss auf Farbverlauf
+const ICONS = {
+  block: '<path d="M32 10 54 21 32 32 10 21Z" opacity=".95"/><path d="M10 21 32 32v22L10 43Z" opacity=".7"/><path d="M54 21 32 32v22l22-11Z" opacity=".45"/>',
+  sword: '<g transform="rotate(45 32 32)"><path d="M29 6h6v34h-6z"/><path d="M32 3l3 3h-6z"/><rect x="21" y="40" width="22" height="5" rx="2"/><rect x="29.5" y="45" width="5" height="11" rx="1.5" opacity=".8"/><circle cx="32" cy="58" r="3" opacity=".8"/></g>',
+  pickaxe: '<g transform="rotate(45 32 32)"><rect x="29.5" y="16" width="5" height="42" rx="2" opacity=".8"/><path d="M8 20c8-8 40-8 48 0l-4 4c-8-5-32-5-40 0z"/></g>',
+  heart: '<path d="M32 54 12 34c-6-6-6-16 1-21s15-3 19 4c4-7 12-9 19-4s7 15 1 21z"/>',
+  gem: '<path d="M20 12h24l10 12-22 30L10 24z"/><path d="M10 24h44L32 54z" opacity=".55"/><path d="M20 12l6 12h12l6-12" opacity=".35" fill="none" stroke="#000" stroke-width="1.5"/>',
+  tree: '<path d="M32 6 46 26h-6l10 14h-7l9 12H12l9-12h-7l10-14h-6z"/><rect x="28" y="50" width="8" height="9" rx="1" opacity=".75"/>',
+  house: '<path d="M32 8 56 28h-6v26H14V28H8z"/><rect x="27" y="38" width="10" height="16" rx="1" fill="#000" opacity=".35"/><rect x="17" y="32" width="7" height="7" fill="#000" opacity=".25"/><rect x="40" y="32" width="7" height="7" fill="#000" opacity=".25"/>',
+  star: '<path d="m32 6 7.6 16.4L57 24.6 44 37l3.2 18L32 46.6 16.8 55 20 37 7 24.6l17.4-2.2z"/>',
+  moon: '<path d="M40 8a24 24 0 1 0 16 38A20 20 0 1 1 40 8z"/><circle cx="48" cy="18" r="2" opacity=".7"/><circle cx="54" cy="30" r="1.5" opacity=".6"/>',
+  flame: '<path d="M32 4c4 12 18 18 18 34a18 18 0 0 1-36 0c0-8 4-13 8-17 0 6 3 9 6 10-2-10 0-19 4-27z"/><path d="M32 34c2 5 8 7 8 13a8 8 0 0 1-16 0c0-4 2-6 4-8 0 3 1 4 3 5-1-4 0-7 1-10z" fill="#000" opacity=".22"/>',
+  crown: '<path d="M8 20l12 10 12-18 12 18 12-10-5 30H13z"/><rect x="13" y="50" width="38" height="6" rx="2" opacity=".75"/><circle cx="32" cy="38" r="3.5" fill="#000" opacity=".25"/>',
+  shield: '<path d="M32 6 52 13v15c0 13-8 23-20 29C20 51 12 41 12 28V13z"/><path d="M32 6v51C20 51 12 41 12 28V13z" opacity=".25" fill="#000"/>',
+  potion: '<path d="M26 6h12v4h-2v12l14 18a10 10 0 0 1-8 16H22a10 10 0 0 1-8-16l14-18V10h-2z"/><path d="M19 42h26l2 3a6 6 0 0 1-5 9H22a6 6 0 0 1-5-9z" fill="#000" opacity=".22"/><circle cx="28" cy="46" r="2" fill="#000" opacity=".2"/><circle cx="36" cy="49" r="1.5" fill="#000" opacity=".2"/>',
+  rocket: '<path d="M32 4c10 8 14 20 12 34H20c-2-14 2-26 12-34z"/><circle cx="32" cy="22" r="5" fill="#000" opacity=".3"/><path d="M20 30 10 42v8l10-4zM44 30l10 12v8l-10-4z" opacity=".75"/><path d="M26 42h12l-2 8h-8z" opacity=".6"/><path d="M28 52h8l-4 9z" opacity=".5"/>',
+  bolt: '<path d="M36 4 14 36h14l-4 24 26-34H36z"/>',
+  leaf: '<path d="M52 10C20 10 10 28 12 50c22 2 40-8 40-40z"/><path d="M14 50 44 20" stroke="#000" stroke-opacity=".25" stroke-width="2.5" fill="none"/>',
+  mountain: '<path d="M4 54 24 20l10 16 8-10 18 28z"/><path d="M24 20l-6 10 6-3 4 4z" fill="#000" opacity=".2"/><circle cx="48" cy="14" r="5" opacity=".8"/>',
+  snow: '<g stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"><path d="M32 6v52M9.5 19l45 26M9.5 45l45-26"/><path d="M26 10l6 6 6-6M26 54l6-6 6 6M10 27l8-1-3-7M54 37l-8 1 3 7M10 37l8 1-3 7M54 27l-8-1 3-7" stroke-width="3"/></g>',
+  mushroom: '<path d="M8 32C8 18 19 8 32 8s24 10 24 24z"/><rect x="24" y="32" width="16" height="22" rx="5" opacity=".8"/><circle cx="22" cy="20" r="4" fill="#000" opacity=".25"/><circle cx="38" cy="16" r="3" fill="#000" opacity=".25"/><circle cx="44" cy="26" r="3.5" fill="#000" opacity=".25"/>',
+  gamepad: '<path d="M18 18h28c8 0 12 8 14 20s-2 16-6 16-8-8-12-8H22c-4 0-8 8-12 8s-8-4-6-16 6-20 14-20z"/><path d="M18 28v10M13 33h10" stroke="#000" stroke-opacity=".3" stroke-width="3.5" stroke-linecap="round"/><circle cx="43" cy="30" r="2.6" fill="#000" opacity=".3"/><circle cx="49" cy="36" r="2.6" fill="#000" opacity=".3"/>',
+  skull: '<path d="M32 6C18 6 10 15 10 28c0 7 3 12 8 15v9h28v-9c5-3 8-8 8-15C54 15 46 6 32 6z"/><circle cx="23" cy="29" r="6" fill="#000" opacity=".35"/><circle cx="41" cy="29" r="6" fill="#000" opacity=".35"/><path d="M29 40l3-5 3 5z" fill="#000" opacity=".3"/><path d="M24 52v6M32 52v6M40 52v6" stroke="#000" stroke-opacity=".3" stroke-width="2.5"/>',
+  fish: '<path d="M6 32c8-12 22-16 34-10l14-10v40L40 42C28 48 14 44 6 32z"/><circle cx="18" cy="29" r="2.8" fill="#000" opacity=".35"/>',
+  castle: '<path d="M8 22h8v-6h6v6h6v-6h8v6h6v-6h6v6h8v34H8z"/><path d="M26 56V44a6 6 0 0 1 12 0v12z" fill="#000" opacity=".3"/><rect x="15" y="30" width="5" height="8" fill="#000" opacity=".22"/><rect x="44" y="30" width="5" height="8" fill="#000" opacity=".22"/>',
+  planet: '<circle cx="32" cy="32" r="16"/><ellipse cx="32" cy="34" rx="28" ry="8" fill="none" stroke="#fff" stroke-width="3.5" opacity=".75" transform="rotate(-18 32 32)"/><circle cx="26" cy="26" r="3" fill="#000" opacity=".18"/>',
+};
+const PALETTES = {
+  smaragd: ['#3fb950', '#1a7f5a'], ozean: ['#2f80ff', '#22c3ee'], lila: ['#8b5cf6', '#c026d3'], sunset: ['#ff8a3d', '#ff3d81'],
+  lava: ['#ef4444', '#f59e0b'], gold: ['#f5c542', '#d97706'], eis: ['#67e8f9', '#6366f1'], kirsche: ['#f43f5e', '#9d174d'],
+  wald: ['#16a34a', '#365314'], nacht: ['#334155', '#0f172a'], candy: ['#f472b6', '#8b5cf6'], minze: ['#34d399', '#06b6d4'],
+};
+const iconSvg = (ik, pk, size = 128) => {
+  const [a, b] = PALETTES[pk] || PALETTES.smaragd;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient><radialGradient id="s" cx=".3" cy=".2" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs><rect width="64" height="64" fill="url(#g)"/><rect width="64" height="64" fill="url(#s)"/><g fill="#fff" transform="translate(9.6 9.6) scale(.7)" style="filter:drop-shadow(0 1.5px 1.5px rgba(0,0,0,.35))">${ICONS[ik] || ICONS.block}</g></svg>`;
+};
+const iconUrl = (ik, pk) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(iconSvg(ik, pk));
+const hashStr = (s) => { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+function autoIcon(i) { const h = hashStr(i.id || i.name), ik = Object.keys(ICONS), pk = Object.keys(PALETTES); return { i: ik[h % ik.length], p: pk[(h >>> 8) % pk.length] }; }
+// Welches Bild bekommt eine Instanz? Eigenes/Modpack-Bild > gewaehltes Motiv > automatisches Motiv
+function instIconUrl(i) {
+  if (i.icon) return i.icon;
+  if (i.iconGen && i.iconGen.i === 'none') return null;
+  if (i.iconGen && ICONS[i.iconGen.i]) return iconUrl(i.iconGen.i, i.iconGen.p);
+  if (S.autoIcons !== false) { const a = autoIcon(i); return iconUrl(a.i, a.p); }
+  return null;
+}
+
+// Bild-Wähler
+let iconPick = null;
+function openIconPicker(inst) {
+  if (!inst || document.querySelector('dialog[open]')) return;
+  const start = inst.iconGen || (inst.icon ? null : autoIcon(inst));
+  iconPick = { inst, mode: inst.icon ? 'upload' : 'gen', icon: inst.icon || null, i: (start && start.i) || 'block', p: (start && start.p) || 'smaragd' };
+  drawIconPicker();
+  $('#iconDlg').showModal(); document.activeElement && document.activeElement.blur();
+}
+function drawIconPicker() {
+  const st = iconPick, d = $('#iconDlg');
+  const cur = st.mode === 'upload' && st.icon ? st.icon : st.mode === 'letter' ? null : iconUrl(st.i, st.p);
+  const pv = $('#icPrev');
+  pv.innerHTML = cur ? `<img src="${cur}" alt="">` : `<span>${(st.inst.name.trim()[0] || '?').toUpperCase()}</span>`;
+  pv.style.background = cur ? 'none' : `linear-gradient(135deg, ${LCOL[st.inst.loader] || '#555'}, #20242c 140%)`;
+  $('#icName').textContent = st.inst.name;
+  const g = $('#icGrid'); g.innerHTML = '';
+  for (const k of Object.keys(ICONS)) {
+    const b = document.createElement('div'); b.className = 'icopt' + (st.mode === 'gen' && st.i === k ? ' on' : '');
+    b.innerHTML = `<img src="${iconUrl(k, st.p)}" alt="">`;
+    b.onclick = () => { st.mode = 'gen'; st.i = k; drawIconPicker(); };
+    g.appendChild(b);
+  }
+  const p = $('#icPal'); p.innerHTML = '';
+  for (const [k, [a, b2]] of Object.entries(PALETTES)) {
+    const s = document.createElement('div'); s.className = 'icpal' + (st.p === k ? ' on' : ''); s.style.background = `linear-gradient(135deg, ${a}, ${b2})`; s.title = k;
+    s.onclick = () => { st.p = k; if (st.mode !== 'gen') st.mode = 'gen'; drawIconPicker(); };
+    p.appendChild(s);
+  }
+}
+async function iconFromFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const s = Math.min(img.width, img.height), ctx = cv.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 128, 128);
+    return cv.toDataURL('image/png');
+  } finally { URL.revokeObjectURL(url); }
+}
+$('#icUpload').onclick = () => $('#icFile').click();
+$('#icFile').onchange = async () => {
+  const f = $('#icFile').files[0]; $('#icFile').value = '';
+  if (!f) return;
+  try { iconPick.icon = await iconFromFile(f); iconPick.mode = 'upload'; drawIconPicker(); } catch { toast('Bild konnte nicht gelesen werden', true); }
+};
+$('#icLetter').onclick = () => { iconPick.mode = 'letter'; drawIconPicker(); };
+$('#icRandom').onclick = () => { const ik = Object.keys(ICONS), pk = Object.keys(PALETTES); iconPick.mode = 'gen'; iconPick.i = ik[Math.floor(Math.random() * ik.length)]; iconPick.p = pk[Math.floor(Math.random() * pk.length)]; drawIconPicker(); };
+$('#icCancel').onclick = () => $('#iconDlg').close();
+$('#icSave').onclick = async () => {
+  const st = iconPick;
+  const patch = st.mode === 'upload' ? { icon: st.icon, iconGen: null } : st.mode === 'letter' ? { icon: null, iconGen: { i: 'none' } } : { icon: null, iconGen: { i: st.i, p: st.p } };
+  try {
+    const inst = await call('instances:setIcon', { id: st.inst.id, ...patch });
+    $('#iconDlg').close(); await load(cur && cur.id); if (view === 'home') renderHome(); toast('Bild geändert');
+  } catch {}
+};
+
 // ---------- Eigene Auswahlliste (ersetzt die graue Windows-Liste) ----------
 function fancySelect(sel) {
   if (sel.__fs) { sel.__fs.refresh(); return sel.__fs; }
@@ -1188,7 +1324,7 @@ async function renderSettings() {
     <div class="card iscard span2 danger-zone"><h3>Verwalten</h3><p>Erstellt am ${fmtDate(i.created)} · Ordner: ${i.id}</p>
       <div class="line"><button class="ghost" id="sRen">Umbenennen</button><button class="ghost" id="sDup">Duplizieren</button><button class="danger" id="sDel" style="margin-left:auto">Instanz löschen</button></div></div>
   </div>`;
-  ava($('#isAva'), i);
+  ava($('#isAva'), i); $('#isAva').classList.add('editable'); $('#isAva').title = 'Bild ändern'; $('#isAva').onclick = () => openIconPicker(i);
   $('#isName').textContent = i.name; $('#isName').onclick = () => renameInst(i);
   $('#isPlay').onclick = () => play(i);
   // RAM
@@ -1343,6 +1479,7 @@ async function drawDetails(i) {
     <div class="det-btns"><button class="ghost" id="dMan">Mods verwalten</button><button class="ghost" id="dSet">Einstellungen</button><button class="ghost" id="dDir">Ordner</button></div>
   </div>`;
   ava(el.querySelector('.ava'), i);
+  { const a = el.querySelector('.ava'); a.classList.add('editable'); a.title = 'Bild ändern'; a.onclick = () => openIconPicker(i); }
   el.querySelector('.det-name').textContent = i.name;
   if (i.notes) $('#dNotes').textContent = i.notes;
   if ($('#dUpd')) $('#dUpd').onclick = () => { kindFilter = 'upd'; tab = 'mods'; select(i); };
@@ -1741,6 +1878,7 @@ const SET_BUILD = {
     c.appendChild(sec('Verhalten', '', toggles([
       ['Animationen', 'Übergänge, bewegte Hintergründe, Skin-Animationen', S.animations !== false, (v) => setS({ animations: v })],
       ['Kompakte Listen', 'Mehr Einträge auf einmal sehen', !!S.compact, (v) => setS({ compact: v })],
+      ['Automatische Instanz-Bilder', 'Instanzen ohne eigenes Bild bekommen ein gezeichnetes Motiv', S.autoIcons !== false, (v) => setS({ autoIcons: v }).then(() => { renderList(); renderHead(); if (view === 'home') renderHome(); })],
       ['Beschriftung in der Seitenleiste', 'Text unter den Symbolen links', S.railLabels !== false, (v) => setS({ railLabels: v })],
       ['Update-Zähler anzeigen', 'Zahl der Updates an Instanzen und in der Seitenleiste', S.showBadges !== false, (v) => setS({ showBadges: v }).then(refreshUpdBadges)],
       ['Vor dem Löschen nachfragen', 'Bei Mods und Instanzen', S.confirmDelete !== false, (v) => setS({ confirmDelete: v })],

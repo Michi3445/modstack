@@ -366,6 +366,18 @@ ipcMain.handle('instances:settings', (p) => {
   return inst;
 });
 
+ipcMain.handle('instances:setIcon', ({ id, icon, iconGen }) => {
+  const inst = readInst(id);
+  if (icon) {
+    if (!/^data:image\/(png|jpeg|webp|gif|svg\+xml)[;,]/.test(icon) || icon.length > 400000) throw new Error('Bild ungueltig oder zu gross');
+    inst.icon = icon;
+  } else delete inst.icon;
+  if (iconGen && typeof iconGen.i === 'string') inst.iconGen = { i: iconGen.i.slice(0, 20), p: String(iconGen.p || '').slice(0, 20) };
+  else delete inst.iconGen;
+  saveInst(inst);
+  return inst;
+});
+
 const SUBDIRS = { root: '', mods: 'mods', saves: 'saves', screenshots: 'screenshots', resourcepacks: 'resourcepacks', shaderpacks: 'shaderpacks', config: 'config', logs: 'logs' };
 ipcMain.handle('instances:openSub', ({ id, sub }) => {
   if (!(sub in SUBDIRS)) throw new Error('Unbekannter Ordner');
