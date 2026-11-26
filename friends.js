@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash, randomBytes } = require('node:crypto');
 const project = require('./friends-project.json');
+const streamInbox = require('./friends-stream');
 
 const UID = /^[A-Za-z0-9_-]{1,128}$/;
 const ROOT = '/modstackFriends';
@@ -25,7 +26,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   const sessionFile = path.join(userData, 'friends-session');
   let config, session;
   let queue = Promise.resolve();
-  let inbox, contactSignature;
+  let inbox, contactSignature, live, retry;
 
   function launcherName() {
     const name = readMinecraftAccount()?.name;
@@ -56,7 +57,15 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   }
 
   function setSession(data) {
-    if (!data || data.uid !== session?.uid) { inbox = undefined; contactSignature = undefined; }
+    const changed = data?.uid !== session?.uid;
+    if (changed) {
+      inbox = undefined;
+      contactSignature = undefined;
+      live?.controller.abort();
+      live = undefined;
+      clearTimeout(retry);
+      retry = undefined;
+    }
     session = data;
     if (!data) fs.rmSync(sessionFile, { force: true });
     else if (safeStorage.isEncryptionAvailable()) {
@@ -64,6 +73,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
         databaseURL: config.databaseURL, uid: data.uid, refreshToken: data.refreshToken,
       })));
     }
+    if (changed && data) startInboxStream();
   }
 
   function init() {
@@ -110,10 +120,15 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     return session.idToken;
   }
 
-  async function db(location, { method = 'GET', value, query, headers = {} } = {}) {
+  async function dbUrl(location, query) {
     const url = new URL(ROOT + location + '.json', config.databaseURL);
     url.searchParams.set('auth', await token());
     for (const [key, field] of Object.entries(query || {})) url.searchParams.set(key, JSON.stringify(field));
+    return url;
+  }
+
+  async function db(location, { method = 'GET', value, query, headers = {} } = {}) {
+    const url = await dbUrl(location, query);
     const res = await request(url, { method, headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(value) });
     if (res.status === 412) throw new Error('Die Anfrage hat sich geändert. Aktualisiere die Liste.');
     if (res.status === 401 || res.status === 403) throw new Error('Firebase verweigert den Zugriff. Prüfe die Datenbankregeln oder aktualisiere die Liste.');
@@ -311,6 +326,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   handle('friendState', () => {
     init();
     if (!session) return { unread: [], requests: [] };
+    startInboxStream();
     const state = chatInbox();
     return { unread: unreadChats(state), requests: state.requests };
   });
@@ -327,6 +343,50 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     return unreadChats(state);
   });
 
+  const inboxQuery = (state) => state.cursor ? { ...CHAT_QUERY, startAt: state.cursor } : CHAT_QUERY;
+
+  function applyInboxMarks(state, entries) {
+    const arrived = [];
+    for (const [id, mark] of entries) {
+      if (!LINK_ID.test(id) || !mark || !MESSAGE_ID.test(mark.messageId) ||
+          !Number.isSafeInteger(mark.at) || !['text', 'pack'].includes(mark.kind)) continue;
+      const previous = state.entries[id];
+      state.cursor = Math.max(state.cursor, mark.at);
+      if (previous && (previous.messageId === mark.messageId || previous.at > mark.at)) continue;
+      state.entries[id] = { messageId: mark.messageId, at: mark.at, unread: true };
+      arrived.push({ id, kind: mark.kind });
+    }
+    return arrived;
+  }
+
+  function startInboxStream() {
+    if (live || retry || !session || process.env.MODSTACK_UPDATE_VERIFY_ONLY === '1') return;
+    const uid = session.uid;
+    const listening = { controller: new AbortController(), connected: false };
+    live = listening;
+    enqueue(() => live === listening ? dbUrl('/inbox/' + uid, inboxQuery(chatInbox())) : null)
+      .then(async (url) => {
+        if (!url || live !== listening) return;
+        const result = await streamInbox(url, listening.controller, (entries) => {
+          if (live !== listening) return;
+          listening.connected = true;
+          const state = chatInbox();
+          const arrived = applyInboxMarks(state, entries);
+          if (!arrived.length) return;
+          saveInbox(state);
+          notifyChat({ arrived, unread: unreadChats(state), requests: state.requests, requested: 0 });
+        });
+        if (result === 'auth_revoked' && live === listening && session.idToken === url.searchParams.get('auth')) {
+          delete session.idToken;
+        }
+      }).catch(() => {}).finally(() => {
+        if (live !== listening) return;
+        live = undefined;
+        retry = setTimeout(() => { retry = undefined; startInboxStream(); }, listening.connected ? 1000 : 10000);
+        retry.unref();
+      });
+  }
+
   let polling = false;
   function pollChat() {
     if (polling) return;
@@ -335,18 +395,14 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
       init();
       if (!session) return;
       const state = chatInbox();
-      const query = state.cursor ? { ...CHAT_QUERY, startAt: state.cursor } : CHAT_QUERY;
       const uid = session.uid;
+      startInboxStream();
       await token();
-      const [messages, contacts] = await Promise.allSettled([db('/inbox/' + uid, { query }), readLinks(uid)]);
-      const arrived = [];
-      for (const [id, mark] of Object.entries(messages.value?.value || {})) {
-        const previous = state.entries[id];
-        state.cursor = Math.max(state.cursor, mark.at);
-        if (previous && (previous.messageId === mark.messageId || previous.at > mark.at)) continue;
-        state.entries[id] = { messageId: mark.messageId, at: mark.at, unread: true };
-        arrived.push({ id, kind: mark.kind });
-      }
+      const [messages, contacts] = await Promise.allSettled([
+        live?.connected ? null : db('/inbox/' + uid, { query: inboxQuery(state) }),
+        readLinks(uid),
+      ]);
+      const arrived = applyInboxMarks(state, Object.entries(messages.value?.value || {}));
       let contactsChanged = false, requested = 0, requestListChanged = false;
       if (contacts.status === 'fulfilled') {
         const links = Object.entries(contacts.value).sort(([a], [b]) => a.localeCompare(b, 'en'));
