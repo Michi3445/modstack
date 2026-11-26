@@ -252,6 +252,23 @@
   .key-row + .key-row { border-top: 1px solid var(--line); }
   .key-row button { min-width: 42px; max-width: 52%; display: block; overflow: hidden; text-overflow: ellipsis; }
   .key-row .key-inherited { color: var(--muted); }
+  .minecraft-default-tabs { display: flex; flex-wrap: wrap; gap: 5px; padding-bottom: 13px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .minecraft-default-tabs button { padding: 5px 10px; font-size: 12px; }
+  .minecraft-default-tabs button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 17%, var(--bg2)); border-color: color-mix(in srgb, var(--accent) 42%, transparent); }
+  .minecraft-java-args { width: 100%; }
+  .minecraft-option-list { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .minecraft-option-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, 46%); gap: 10px 14px; align-items: center; min-height: 52px; padding: 8px 12px; }
+  .minecraft-option-row + .minecraft-option-row { border-top: 1px solid var(--line); }
+  .minecraft-option-row label { margin: 0; color: var(--text); }
+  .minecraft-option-row small { display: block; margin-top: 3px; font-size: 10.5px; color: var(--muted); }
+  .minecraft-option-field { display: flex; align-items: center; gap: 5px; }
+  .minecraft-option-field input, .minecraft-option-field select { min-width: 0; width: 100%; flex: 1 1 auto; }
+  .minecraft-option-range { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; }
+  .minecraft-option-range input { grid-column: 1 / -1; grid-row: 2; margin: 0; }
+  .minecraft-option-range output { justify-self: end; font-size: 12px; text-align: right; }
+  .minecraft-option-range button { min-width: 27px; height: 23px; padding: 0 6px; }
+  .minecraft-option-range[data-unset] output { color: var(--muted); }
+  .minecraft-option-range[data-unset] input:not(:focus-visible) { opacity: .58; }
   .key-capture { width: 390px; max-width: 92vw; }
   .key-capture-zone { padding: 23px 12px; text-align: center; border: 1px dashed var(--accent); border-radius: 8px; background: var(--bg3); cursor: crosshair; }
   .key-feedback { min-height: 1.4em; margin: 8px 0; color: var(--muted); }
@@ -687,6 +704,8 @@
 <script src="node_modules/skinview3d/bundles/skinview3d.bundle.js"></script>
 <script src="friends-ui.js"></script>
 <script src="keybinds-ui.js"></script>
+<script src="minecraft-option-definitions.js"></script>
+<script src="minecraft-options-ui.js"></script>
 
 <dialog id="dlg">
   <div class="dh">Neue Instanz</div>
@@ -2358,24 +2377,7 @@ const SET_BUILD = {
       ['Benötigte Mods automatisch mitinstallieren', 'Zum Beispiel Fabric API, wenn ein Mod sie braucht', S.autoDeps !== false, (v) => setS({ autoDeps: v })],
     ])));
   },
-  defaults(c, searching) {
-    const ram = document.createElement('div');
-    ram.append(toggleLine('Eigenen Standard-RAM verwenden', 'Aus = Launcher-Standard', !!S.defaultRam, (v) => setS({ defaultRam: v ? 4096 : 0 })));
-    if (S.defaultRam) ram.append(slider('Standard-RAM', 1, Math.max(16, Math.ceil(S.defaultRam / 1024)), 0.5, S.defaultRam / 1024, (v) => v + ' GB', null, (v) => saveQuiet({ defaultRam: Math.round(v * 1024) })));
-    c.append(sec('Arbeitsspeicher', 'Vorgabe für neu erstellte und importierte Instanzen.', ram));
-    const view = document.createElement('div');
-    const fovOn = Number.isInteger(S.defaultFov);
-    view.append(toggleLine('Eigenes Sichtfeld verwenden', 'Aus = Sichtfeld des Modpacks oder von Minecraft', fovOn, (v) => setS({ defaultFov: v ? 70 : null })));
-    if (fovOn) view.append(slider('Sichtfeld (FOV)', 30, 110, 1, S.defaultFov, (v) => v + '°', null, (v) => saveQuiet({ defaultFov: v })));
-    c.append(sec('Sichtfeld (FOV)', '', view));
-    const ja = document.createElement('input'); ja.style.width = '100%'; ja.placeholder = 'z.B. -XX:+UseG1GC'; ja.spellcheck = false; ja.value = S.defaultJavaArgs || '';
-    ja.onchange = () => saveQuiet({ defaultJavaArgs: ja.value.trim() });
-    c.append(sec('Standard-Java-Argumente', 'Für neue Instanzen. Nur für Fortgeschrittene.', ja));
-    const keys = document.createElement('div');
-    if (searching) keys.append(btns([['Modpack-Standards öffnen', () => selectSetting('defaults')]]));
-    c.append(sec('Standard-Tastenbelegung', 'Eigene Vorgaben für Tastatur und Maus überschreiben beim Import die jeweilige Modpack-Belegung.', keys));
-    if (!searching) renderKeybinds(keys, { preset: true });
-  },
+  defaults: renderMinecraftDefaults,
   play(c) {
     c.appendChild(sec('Beim Spielen', '', toggles([
       ['Modstack minimieren', 'Nach dem Klick auf Spielen', !!S.minimizeOnPlay, (v) => setS({ minimizeOnPlay: v })],

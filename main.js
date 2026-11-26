@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const { execFile, spawn } = require('child_process');
 const { bindings, writeBinding, presetBindings, savePresetBinding, applyOptionDefaults } = require('./minecraft-keybinds');
+const { updateOptionDefaults } = require('./minecraft-options');
 
 // ipcMain.handle ruft (event, daten) auf; die Handler unten erwarten nur die Daten.
 const ipcMain = { handle: (ch, fn) => rawIpc.handle(ch, (_e, data) => fn(data)) };
@@ -548,6 +549,10 @@ ipcMain.handle('settings:keybinds:save', (change) => {
   const defaultKeybinds = savePresetBinding(appSettings().defaultKeybinds, change);
   saveAppSettings({ defaultKeybinds });
   return presetBindings(defaultKeybinds);
+});
+ipcMain.handle('settings:minecraft-option:set', (change) => {
+  const defaultMinecraftOptions = updateOptionDefaults(appSettings().defaultMinecraftOptions, change);
+  return saveAppSettings({ defaultMinecraftOptions });
 });
 
 // Eigenes Hintergrundbild: wird in den Datenordner kopiert und als data-URL geliefert

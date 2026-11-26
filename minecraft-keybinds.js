@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { encodeOptionDefaults, freshOptionsDataVersion } = require('./minecraft-options');
 
 const controls = [
   ['Bewegung', [
@@ -126,11 +127,11 @@ function savePresetBinding(preset, { action, code, expected }) {
   return Object.fromEntries(list.map(({ id, value }) => [id, id === action ? code : value]).filter(([, value]) => value !== null));
 }
 
-function optionBindingValue(entries, mc, code) {
+function optionBindingValue(dataVersion, mc, code) {
   const [modern, legacy] = keys[code];
   const legacyGame = /^1\.(?:[0-9]|1[0-2])(?:\.|$|[-_])/.test(mc);
   // Pre-1.13 files and files with no data version use the original numeric format.
-  return !legacyGame && Number(entries.get('version')?.value) >= 1519 ? modern : String(legacy);
+  return !legacyGame && Number(dataVersion) >= 1519 ? modern : String(legacy);
 }
 
 function writeOptions(file, { bom, lines, entries }, changes) {
@@ -165,16 +166,20 @@ function writeBinding(file, mc, { action, code, expected }) {
   const current = options(file);
   const name = 'key_key.' + action;
   if ((current.entries.get(name)?.value ?? null) !== expected) throw new Error('Die Belegung wurde inzwischen geändert. Wähle die Aktion erneut aus.');
-  writeOptions(file, current, [[name, optionBindingValue(current.entries, mc, code)]]);
+  writeOptions(file, current, [[name, optionBindingValue(current.entries.get('version')?.value, mc, code)]]);
 }
 
-function applyOptionDefaults(file, mc, { defaultFov, defaultKeybinds }) {
+function applyOptionDefaults(file, mc, { defaultFov, defaultKeybinds, defaultMinecraftOptions }) {
   const fov = Number.isInteger(defaultFov) && defaultFov >= 30 && defaultFov <= 110 ? defaultFov : null;
   const assigned = availableControls(mc).flatMap(([, list]) => list)
     .filter(([id]) => validCode(defaultKeybinds?.[id]));
-  if (fov === null && !assigned.length) return;
+  const changes = encodeOptionDefaults(defaultMinecraftOptions, mc);
+  if (fov === null && !assigned.length && !changes.length) return;
   const current = options(file);
-  const changes = assigned.map(([id]) => ['key_key.' + id, optionBindingValue(current.entries, mc, defaultKeybinds[id])]);
+  const freshVersion = current.entries.size === 0 ? freshOptionsDataVersion(mc) : undefined;
+  if (freshVersion) changes.unshift(['version', String(freshVersion)]);
+  const dataVersion = current.entries.get('version')?.value ?? freshVersion;
+  for (const [id] of assigned) changes.push(['key_key.' + id, optionBindingValue(dataVersion, mc, defaultKeybinds[id])]);
   // Minecraft stores this as an offset from its normal 70° FOV.
   if (fov !== null) changes.push(['fov', String((fov - 70) / 40)]);
   writeOptions(file, current, changes);
