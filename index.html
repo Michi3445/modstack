@@ -430,6 +430,34 @@
   .mic img { width: 100%; height: 100%; object-fit: cover; } .mic.more { font-size: 11px; }
   .det-notes { white-space: pre-wrap; color: #c9ced8; font-size: 12.5px; background: rgba(255,255,255,.04); border-radius: 10px; padding: 9px 11px; user-select: text; }
   .det-btns { display: flex; gap: 6px; flex-wrap: wrap; } .det-btns button { flex: 1; }
+  /* Raum-Stile */
+  .room.synth .floor { top: 63%; background-image: linear-gradient(color-mix(in srgb, var(--c1) 55%, transparent) 2px, transparent 2px), linear-gradient(90deg, color-mix(in srgb, var(--c2) 55%, transparent) 2px, transparent 2px); background-size: 64px 64px; -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,.15) 0%, #000 25%, rgba(0,0,0,.4) 75%, transparent 100%); }
+  .room.synth .sun { position: absolute; left: 50%; top: 63%; width: 380px; height: 380px; margin-left: -190px; transform: translateY(-72%); border-radius: 50%; background: linear-gradient(180deg, var(--c2), var(--c1) 70%); opacity: .5; -webkit-mask-image: linear-gradient(to bottom, #000 0 48%, transparent 48%), repeating-linear-gradient(to bottom, transparent 0 9px, #000 9px 22px); -webkit-mask-composite: source-over; }
+  .room.synth .sunglow { position: absolute; left: 50%; top: 63%; width: 560px; height: 300px; margin-left: -280px; transform: translateY(-80%); border-radius: 50%; background: radial-gradient(color-mix(in srgb, var(--c1) 35%, transparent), transparent 65%); filter: blur(10px); }
+  .room.synth .horizon { position: absolute; left: 0; right: 0; top: 63%; height: 2px; background: linear-gradient(90deg, transparent, var(--c1) 20%, var(--c2) 80%, transparent); box-shadow: 0 0 22px 3px color-mix(in srgb, var(--c1) 70%, transparent); }
+  .room.winter .floor { top: 64%; background: linear-gradient(rgba(255,255,255,.07) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,.05) 1.5px, transparent 1.5px), linear-gradient(to bottom, rgba(225,238,255,.30), rgba(225,238,255,.10)); background-size: 70px 70px, 70px 70px, 100% 100%; -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.6) 60%, transparent 100%); animation: none !important; }
+  .room.winter .snowline { position: absolute; left: 0; right: 0; top: calc(64% - 6px); height: 14px; background: linear-gradient(to bottom, transparent, rgba(235,244,255,.35)); filter: blur(3px); }
+  .room.winter .moon { position: absolute; top: 9%; right: 13%; width: 84px; height: 84px; border-radius: 50%; background: radial-gradient(circle at 38% 38%, #ffffff, #dfe9ff 55%, #b9c9ef); box-shadow: 0 0 60px 18px rgba(200,220,255,.25); opacity: .9; }
+  .room.winter .trees { position: absolute; bottom: 36%; height: 130px; width: 42%; background-repeat: repeat-x; background-position: bottom; background-size: auto 100%; opacity: .9;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='130'><g fill='%23081019'><path d='M30 10 L50 50 H40 L58 85 H44 L64 125 H-4 L16 85 H2 L20 50 H10 Z'/><path d='M92 40 L106 68 H99 L112 95 H102 L116 126 H68 L82 95 H72 L85 68 H78 Z'/></g><g fill='%23e8f1ff' opacity='.55'><path d='M30 10 L38 26 H22 Z'/><path d='M92 40 L98 52 H86 Z'/></g></svg>"); }
+  .room.winter .trees.l { left: 0; } .room.winter .trees.r { right: 0; transform: scaleX(-1); }
+  .room canvas.rsnow { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .roomBtn { position: absolute; top: 14px; right: 16px; z-index: 2; font-size: 12px; padding: 6px 11px; }
+
+  /* Weihnachts-Lichterkette */
+  #titlebar { z-index: 3; }
+  #lights { position: absolute; left: 0; right: 0; top: 33px; height: 22px; pointer-events: none; z-index: 5;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='38' height='10'><path d='M0 1 Q19 11 38 1' fill='none' stroke='%23223' stroke-width='1.6'/></svg>") repeat-x 0 0; }
+  #lights i { position: absolute; top: 5px; width: 8px; height: 12px; border-radius: 50% 50% 45% 45%; animation: bulb 1.6s ease-in-out infinite; }
+  #lights i::before { content: ''; position: absolute; top: -3px; left: 2px; width: 4px; height: 4px; background: #445; border-radius: 1px; }
+  #lights i.c0 { background: #ff4d4d; color: #ff4d4d; } #lights i.c1 { background: #39d353; color: #39d353; } #lights i.c2 { background: #ffd34d; color: #ffd34d; } #lights i.c3 { background: #4db8ff; color: #4db8ff; }
+  @keyframes bulb { 0%, 100% { box-shadow: 0 0 10px 2px currentColor; opacity: 1; } 50% { box-shadow: 0 0 2px 0 currentColor; opacity: .45; } }
+  .themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .theme { border-radius: 12px; overflow: hidden; cursor: pointer; border: 1.5px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); }
+  .theme:hover { border-color: rgba(255,255,255,.2); }
+  .theme.on { border-color: transparent; background: linear-gradient(var(--bg2), var(--bg2)) padding-box, var(--grad) border-box; }
+  .theme .pv { height: 54px; position: relative; }
+  .theme b { display: block; padding: 7px 10px 8px; font-size: 12.5px; }
   #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
   .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
   .toast.err { border-left-color: var(--danger); }
@@ -1231,7 +1259,8 @@ async function renderHome() {
   const showDet = S.showDetails !== false && !!last;
   c.innerHTML = `<div class="home"${showDet ? '' : ' style="grid-template-columns:1fr"'}>
     <div class="home-l">
-      ${S.room === false ? '' : '<div class="room"><i class="ceil"></i><i class="floor"></i></div>'}
+      ${roomHTML()}
+      <button class="ghost roomBtn" id="hRoom" title="Raum-Stil wechseln">▦ Raum: ${ROOMS[roomStyle()]}</button>
       <div class="hero">
         <div class="home-hi">${hi}${name ? ',' : ''}</div>
         <div class="home-name" id="hName"></div>
@@ -1247,6 +1276,8 @@ async function renderHome() {
     </div>
     ${showDet ? '<div class="home-r" id="hDet"></div>' : ''}
   </div>`;
+  $('#hRoom').onclick = () => { const k = Object.keys(ROOMS); setS({ roomStyle: k[(k.indexOf(roomStyle()) + 1) % k.length], room: true }); };
+  { const rs = document.querySelector('.room canvas.rsnow'); if (rs) snowfall(rs, { density: 4200 }); }
   $('#hName').textContent = name || 'Willkommen';
   if (name && S.nameTag !== false && S.showSkin !== false) { $('#hName').style.display = 'none'; document.querySelector('.home-hi').textContent = hi + ', ' + name; }
   const sk = $('#hSkin');
@@ -1451,7 +1482,7 @@ async function mountSkin(sk, name) {
 
 // ---------- Design / Einstellungen ----------
 const ACCENTS = { gruen: ['Grün', '#3fb950', '#2ea043'], blau: ['Blau', '#4c8dff', '#2f6fe0'], lila: ['Lila', '#a371f7', '#8957e5'], tuerkis: ['Türkis', '#2bc4b4', '#1c9c8f'], orange: ['Orange', '#f0883e', '#cf6a22'], pink: ['Pink', '#ec6cb9', '#c94f9b'], rot: ['Rot', '#f85149', '#d03530'] };
-const GRADS = { neon: ['Neon', '#3fb950', '#22c3ee'], aurora: ['Aurora', '#2bd4a4', '#7b5cff'], ozean: ['Ozean', '#2f80ff', '#22d3ee'], sunset: ['Sonnenuntergang', '#ff8a3d', '#ff3d81'], candy: ['Candy', '#ec6cb9', '#8b5cf6'], lava: ['Lava', '#f85149', '#f5a524'], galaxy: ['Galaxie', '#6d5cff', '#e04fd0'], gold: ['Gold', '#f5c542', '#e0782b'] };
+const GRADS = { neon: ['Neon', '#3fb950', '#22c3ee'], aurora: ['Aurora', '#2bd4a4', '#7b5cff'], ozean: ['Ozean', '#2f80ff', '#22d3ee'], sunset: ['Sonnenuntergang', '#ff8a3d', '#ff3d81'], candy: ['Candy', '#ec6cb9', '#8b5cf6'], lava: ['Lava', '#f85149', '#f5a524'], galaxy: ['Galaxie', '#6d5cff', '#e04fd0'], gold: ['Gold', '#f5c542', '#e0782b'], weihnachten: ['Weihnachten', '#e5383b', '#2fa84f'], frost: ['Frost', '#8fd3ff', '#c9b8ff'] };
 const accentOf = (k) => { const g = GRADS[k]; if (g) return { c1: g[1], c2: g[2], grad: true }; const a = ACCENTS[k] || GRADS.neon; return ACCENTS[k] ? { c1: a[1], c2: a[2], grad: false } : { c1: a[1], c2: a[2], grad: true }; };
 const BASES = {
   dunkel: ['Dunkel', { bg0: '#101216', bg1: '#14161b', bg2: '#1a1d23', bg3: '#21252d', bg4: '#2a2f39', line: '#2a2e37' }],
@@ -1461,7 +1492,66 @@ const BASES = {
   schwarz: ['Schwarz', { bg0: '#000000', bg1: '#060708', bg2: '#0d0f12', bg3: '#16191e', bg4: '#21252c', line: '#1b1e24' }],
 };
 const FONTS = { system: ['System', '"Segoe UI Variable Display", "Segoe UI", Arial, sans-serif'], rund: ['Rund', '"Trebuchet MS", "Segoe UI", sans-serif'], mono: ['Mono', '"Cascadia Code", Consolas, monospace'] };
-const FX = { aurora: 'Aurora', stars: 'Sterne', waves: 'Wellen', flow: 'Farbfluss', glow: 'Leuchten', grid: 'Raster', image: 'Eigenes Bild', none: 'Keiner' };
+const FX = { aurora: 'Aurora', snow: 'Schneefall', stars: 'Sterne', waves: 'Wellen', flow: 'Farbfluss', glow: 'Leuchten', grid: 'Raster', image: 'Eigenes Bild', none: 'Keiner' };
+
+// Schneefall auf einem Canvas; stoppt von selbst, wenn das Canvas entfernt wird
+function snowfall(cv, opt = {}) {
+  const ctx = cv.getContext('2d');
+  let w = 0, h = 0, flakes = [], last = performance.now();
+  const mk = (any) => ({ x: Math.random() * w, y: any ? Math.random() * h : -6, r: Math.random() * 2.3 + 0.5, s: 14 + Math.random() * 34, p: Math.random() * 6.3, a: 0.35 + Math.random() * 0.6 });
+  const resize = () => {
+    const dpr = window.devicePixelRatio || 1;
+    w = cv.clientWidth; h = cv.clientHeight; cv.width = w * dpr; cv.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    flakes = Array.from({ length: Math.round(w * h / (opt.density || 8000)) }, () => mk(true));
+  };
+  const draw = (now) => {
+    if (!cv.isConnected) return;
+    const t = now / 1000, dt = Math.min(0.05, (now - last) / 1000); last = now;
+    ctx.clearRect(0, 0, w, h);
+    for (const f of flakes) {
+      f.y += f.s * dt * (0.5 + f.r / 2.5); f.x += Math.sin(t * 0.7 + f.p) * 14 * dt + 4 * dt;
+      if (f.y > h + 6 || f.x > w + 6) Object.assign(f, mk(false));
+      ctx.globalAlpha = f.a; ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 6.283); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (S.animations !== false) requestAnimationFrame(draw);
+  };
+  resize(); new ResizeObserver(resize).observe(cv);
+  requestAnimationFrame(draw);
+}
+
+// 3D-Raum auf der Startseite
+const ROOMS = { synth: 'Synthwave', winter: 'Winter', none: 'Aus' };
+const roomStyle = () => (S.room === false ? 'none' : (ROOMS[S.roomStyle] ? S.roomStyle : 'synth'));
+function roomHTML() {
+  const st = roomStyle();
+  if (st === 'winter') return '<div class="room winter"><div class="moon"></div><div class="trees l"></div><div class="trees r"></div><div class="snowline"></div><i class="floor"></i><canvas class="rsnow"></canvas></div>';
+  if (st === 'synth') return '<div class="room synth"><div class="sunglow"></div><div class="sun"></div><div class="horizon"></div><i class="floor"></i></div>';
+  return '';
+}
+
+// Weihnachts-Lichterkette unter der Titelleiste
+function lights() {
+  let el = $('#lights');
+  if (!S.xmas) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'lights'; $('#titlebar').appendChild(el); window.addEventListener('resize', () => S.xmas && lights()); }
+  el.innerHTML = '';
+  const n = Math.ceil(innerWidth / 38);
+  for (let k = 0; k < n; k++) { const b = document.createElement('i'); b.className = 'c' + (k % 4); b.style.left = (k * 38 + 15) + 'px'; b.style.animationDelay = ((k % 4) * 0.4) + 's'; el.appendChild(b); }
+}
+
+// Themen: mehrere Einstellungen mit einem Klick
+const THEMES = {
+  standard: ['Standard', { accent: 'neon', base: 'dunkel', fx: 'aurora', roomStyle: 'synth', room: true, xmas: false }],
+  weihnachten: ['Weihnachten', { accent: 'weihnachten', base: 'mitternacht', fx: 'snow', roomStyle: 'winter', room: true, xmas: true }],
+  synthwave: ['Synthwave', { accent: 'sunset', base: 'lila', fx: 'grid', roomStyle: 'synth', room: true, xmas: false }],
+  frost: ['Frost', { accent: 'frost', base: 'mitternacht', fx: 'snow', roomStyle: 'winter', room: true, xmas: false }],
+  nacht: ['Sternennacht', { accent: 'galaxy', base: 'schwarz', fx: 'stars', roomStyle: 'synth', room: true, xmas: false }],
+  ozean: ['Ozean', { accent: 'ozean', base: 'mitternacht', fx: 'waves', roomStyle: 'none', room: true, xmas: false }],
+  wald: ['Wald', { accent: 'gruen', base: 'wald', fx: 'glow', roomStyle: 'none', room: true, xmas: false }],
+};
+const themeActive = (k) => Object.entries(THEMES[k][1]).every(([a, b]) => (a === 'roomStyle' ? roomStyle() === b : a === 'xmas' ? !!S.xmas === b : a === 'room' ? true : (S[a] || { accent: 'neon', base: 'dunkel', fx: 'aurora' }[a]) === b));
 
 let stopStars = null;
 function starfield(cv) {
@@ -1508,6 +1598,7 @@ async function renderBg() {
   bg.className = 'fx-' + fx; bg.innerHTML = '';
   bg.style.opacity = Math.max(0.1, (S.fxStrength ?? 100) / 100);
   if (fx === 'aurora') bg.innerHTML = '<div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>';
+  else if (fx === 'snow') { bg.innerHTML = '<div class="blob b1" style="opacity:.16"></div><div class="blob b2" style="opacity:.12"></div>'; const cv = document.createElement('canvas'); bg.appendChild(cv); snowfall(cv, { density: 7000 }); }
   else if (fx === 'waves') bg.innerHTML = '<div class="wave w1"></div><div class="wave w2"></div><div class="wave w3"></div>';
   else if (fx === 'stars') { const cv = document.createElement('canvas'); bg.appendChild(cv); stopStars = starfield(cv); bg.insertAdjacentHTML('afterbegin', '<div class="blob b1" style="opacity:.18"></div><div class="blob b2" style="opacity:.14"></div>'); }
   else if (fx === 'image') {
@@ -1533,12 +1624,13 @@ function applySettings() {
   document.body.classList.toggle('compact', !!S.compact);
   r.setProperty('--fs', (S.fontSize || 13) + 'px');
   $('#main').className = '';
+  lights();
   const key = [S.fx, S.accent, S.animations, S.bgBlur, S.bgVer].join('|');
   if (key !== lastBgKey) { lastBgKey = key; renderBg(); }
   $('#bg').style.opacity = Math.max(0.1, (S.fxStrength ?? 100) / 100);
   call('win:overlay', { color: b.bg0 }, true).catch(() => {});
 }
-async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'showCape' in patch || 'animations' in patch || 'room' in patch || 'showDetails' in patch || 'showCards' in patch || 'skinActions' in patch)) renderHome(); }
+async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'showCape' in patch || 'animations' in patch || 'room' in patch || 'showDetails' in patch || 'roomStyle' in patch || 'showCards' in patch || 'skinActions' in patch)) renderHome(); }
 
 let setSec = 'look', setQuery = '';
 const SECS = [['look', 'Darstellung'], ['ui', 'Oberfläche'], ['home', 'Startseite'], ['general', 'Allgemein'], ['updates', 'Updates'], ['downloads', 'Downloads'], ['play', 'Spielen'], ['data', 'Daten & Speicher'], ['about', 'Über']];
@@ -1602,6 +1694,17 @@ const fmtBytes = (b) => b > 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : b
 
 const SET_BUILD = {
   look(c) {
+    const th = document.createElement('div'); th.className = 'themes';
+    for (const [k, [label, set]] of Object.entries(THEMES)) {
+      const a = accentOf(set.accent), b = BASES[set.base][1];
+      const d = document.createElement('div'); d.className = 'theme' + (themeActive(k) ? ' on' : '');
+      d.innerHTML = `<div class="pv" style="background:radial-gradient(ellipse at 30% 30%, ${a.c1}55, transparent 60%), radial-gradient(ellipse at 80% 90%, ${a.c2}55, transparent 60%), ${b.bg1}"><span style="position:absolute;left:10px;bottom:9px;width:42px;height:12px;border-radius:6px;background:linear-gradient(135deg, ${a.c1}, ${a.c2})"></span>${set.xmas ? '<span style="position:absolute;right:10px;top:8px;font-size:15px">❄</span>' : ''}</div><b></b>`;
+      d.querySelector('b').textContent = label;
+      d.onclick = () => setS({ ...set, bgVer: Date.now() });
+      th.appendChild(d);
+    }
+    c.appendChild(sec('Themen', 'Stellt Farben, Hintergrund und 3D-Raum mit einem Klick passend ein. Danach kannst du alles einzeln anpassen.', th));
+    c.appendChild(sec('Extras', '', toggles([['Weihnachts-Lichterkette', 'Blinkende Lichter unter der Titelleiste', !!S.xmas, (v) => setS({ xmas: v })]])));
     const curA = S.accent || 'neon';
     c.appendChild(sec('Farbverlauf', 'Verlauf für Knöpfe, Markierungen und Hintergrund-Effekte.',
       optRow(curA, Object.entries(GRADS).map(([k, v]) => [k, v[0]]), (k) => setS({ accent: k }), (k) => dot(`linear-gradient(135deg, ${GRADS[k][1]}, ${GRADS[k][2]})`))));
@@ -1649,8 +1752,9 @@ const SET_BUILD = {
       ['Zufällige Aktionen', 'Kopf kratzen, winken, strecken und mehr', S.skinActions !== false, (v) => setS({ skinActions: v })],
       ['Namensschild', 'Name über dem Kopf', S.nameTag !== false, (v) => setS({ nameTag: v })],
       ['Umhang', 'Falls dein Konto einen hat', S.showCape !== false, (v) => setS({ showCape: v })],
-      ['3D-Raum', 'Bodenraster hinter der Figur', S.room !== false, (v) => setS({ room: v })],
     ])));
+    c.appendChild(sec('3D-Raum', 'Szene hinter deiner Spielfigur. Auch direkt auf der Startseite oben rechts umschaltbar.',
+      optRow(roomStyle(), Object.entries(ROOMS), (k) => setS({ roomStyle: k, room: true }))));
     c.appendChild(sec('Inhalte', '', toggles([
       ['Instanz-Details', 'Spalte rechts mit Spielzeit, Welten und Mods', S.showDetails !== false, (v) => setS({ showDetails: v })],
       ['Instanz-Karten', 'Alle Instanzen als Karten unter dem Spielen-Knopf', S.showCards !== false, (v) => setS({ showCards: v })],
