@@ -334,6 +334,28 @@ ipcMain.handle('settings:set', (patch) => {
   return s;
 });
 
+// Eigenes Hintergrundbild: wird in den Datenordner kopiert und als data-URL geliefert
+const BG_EXT = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
+function bgFile() {
+  for (const e of Object.keys(BG_EXT)) { const p = path.join(app.getPath('userData'), 'background' + e); if (fs.existsSync(p)) return p; }
+  return null;
+}
+const bgData = (p) => 'data:' + BG_EXT[path.extname(p).toLowerCase()] + ';base64,' + fs.readFileSync(p).toString('base64');
+ipcMain.handle('bg:get', () => { const p = bgFile(); return p ? bgData(p) : null; });
+ipcMain.handle('bg:pick', async () => {
+  const res = await dialog.showOpenDialog(win, { title: 'Hintergrundbild waehlen', filters: [{ name: 'Bilder', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }], properties: ['openFile'] });
+  if (res.canceled || !res.filePaths.length) return null;
+  const src = res.filePaths[0];
+  const ext = path.extname(src).toLowerCase();
+  if (!BG_EXT[ext]) throw new Error('Dateityp nicht unterstuetzt');
+  if (fs.statSync(src).size > 20 * 1048576) throw new Error('Bild ist zu gross (max. 20 MB)');
+  const old = bgFile(); if (old) fs.rmSync(old, { force: true });
+  const dest = path.join(app.getPath('userData'), 'background' + ext);
+  fs.copyFileSync(src, dest);
+  return bgData(dest);
+});
+ipcMain.handle('bg:clear', () => { const p = bgFile(); if (p) fs.rmSync(p, { force: true }); return true; });
+
 // Liest nur Name und UUID des aktiven Kontos aus dem offiziellen Launcher (keine Tokens)
 ipcMain.handle('mc:account', () => {
   const dirs = [mcDir(), path.join(process.env.LOCALAPPDATA || '', 'Packages', 'Microsoft.4297127D64EC6_8wekyb3d8bbwe', 'LocalCache', 'Roaming', '.minecraft')];

@@ -241,12 +241,88 @@
   .sw-dot { width: 18px; height: 18px; border-radius: 50%; }
   .tline { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .tline small { display: block; color: var(--muted); font-size: 11.5px; }
+  /* ===== Moderner Look: Verlaeufe, Glas, Hintergruende ===== */
+  :root { --grad: linear-gradient(135deg, var(--accent), var(--accent2)); --c1: var(--accent); --c2: var(--accent2); }
+  #bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; transition: opacity .3s; }
+  #titlebar, #app, #bar { position: relative; z-index: 1; }
+  #app, #main { background: transparent; }
+
+  /* Glas */
+  body.glass #titlebar, body.glass #bar { background: color-mix(in srgb, var(--bg0) 58%, transparent); backdrop-filter: blur(22px) saturate(150%); border-color: rgba(255,255,255,.05); }
+  body.glass #rail { background: color-mix(in srgb, var(--bg0) 45%, transparent); backdrop-filter: blur(22px) saturate(150%); border-color: rgba(255,255,255,.05); }
+  body.glass #side { background: color-mix(in srgb, var(--bg2) 45%, transparent); backdrop-filter: blur(22px) saturate(150%); border-color: rgba(255,255,255,.05); }
+  body.glass #sideFoot, body.glass #tabs { border-color: rgba(255,255,255,.06); }
+  body.glass .row, body.glass .card, body.glass .news, body.glass .recent div { background: color-mix(in srgb, var(--bg2) 55%, transparent); backdrop-filter: blur(14px) saturate(140%); border: 1px solid rgba(255,255,255,.06); }
+  body.glass .row:hover { background: color-mix(in srgb, var(--bg3) 62%, transparent); border-color: rgba(255,255,255,.1); }
+  body.glass .home-r { background: color-mix(in srgb, var(--bg0) 35%, transparent); backdrop-filter: blur(18px); border-color: rgba(255,255,255,.05); }
+  body.glass dialog { background: color-mix(in srgb, var(--bg2) 78%, transparent); backdrop-filter: blur(28px) saturate(160%); border-color: rgba(255,255,255,.09); }
+  body.glass .menu { background: color-mix(in srgb, var(--bg2) 80%, transparent); backdrop-filter: blur(20px) saturate(150%); border-color: rgba(255,255,255,.09); }
+  body.glass input, body.glass select { background: color-mix(in srgb, var(--bg0) 55%, transparent); border-color: rgba(255,255,255,.08); }
+  body.glass .snav { border-color: rgba(255,255,255,.06); }
+  body.glass .sh { border-color: rgba(255,255,255,.06); }
+  body.glass button:not(.primary):not(.danger):not(.iconbtn) { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.07); }
+  body.glass button:not(.primary):not(.danger):not(.iconbtn):hover { background: rgba(255,255,255,.11); }
+
+  /* Verlaeufe als Akzent */
+  #logo i, .ri.on::before, #prog i, .sw.on { background: var(--grad); }
+  button.primary, .launch { background: var(--grad); box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--c1) 60%, transparent); }
+  button.primary:hover { background: var(--grad); filter: brightness(1.12); }
+  .launch button, .launch button:hover { background: transparent; }
+  .launch button:hover { background: rgba(255,255,255,.08); }
+  .launch .pick { border-left-color: rgba(255,255,255,.18); }
+  .tab { position: relative; border-bottom-color: transparent !important; }
+  .tab.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--grad); }
+  .sec h4 { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; display: inline-block; }
+  .ri.on { background: linear-gradient(135deg, color-mix(in srgb, var(--c1) 22%, transparent), color-mix(in srgb, var(--c2) 22%, transparent)); }
+  .inst.sel, .navitem.sel { background: linear-gradient(90deg, color-mix(in srgb, var(--c1) 18%, transparent), color-mix(in srgb, var(--c2) 6%, transparent)); }
+  .home-name { background: linear-gradient(180deg, #fff, #c9ced8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* Feinschliff */
+  button, input, select { border-radius: 8px; }
+  .row { border-radius: 12px; transition: transform .15s, background .15s, border-color .15s, box-shadow .15s; }
+  .row:hover { transform: translateY(-1px); box-shadow: 0 8px 24px -12px rgba(0,0,0,.6); }
+  .card, .news { border-radius: 14px; }
+  .news { transition: transform .15s, border-color .15s; }
+  .news:hover { transform: translateY(-2px); }
+  .news img { transition: transform .4s; }
+  .news:hover img { transform: scale(1.04); }
+  dialog { border-radius: 16px; }
+  .badge { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.08); }
+  .chip.on, .opt.on, .seg div.on { border-color: transparent; background: linear-gradient(var(--bg2), var(--bg2)) padding-box, var(--grad) border-box; border: 1.5px solid transparent; }
+  body.glass .chip.on, body.glass .opt.on, body.glass .seg div.on { background: linear-gradient(color-mix(in srgb, var(--bg2) 92%, #000), color-mix(in srgb, var(--bg2) 92%, #000)) padding-box, var(--grad) border-box; }
+  ::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,.12); }
+  ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,.2); }
+  .sw-dot.g { background: var(--g); }
+
+  /* Hintergrund-Effekte */
+  #bg.fx-grid { background-image: linear-gradient(color-mix(in srgb, var(--c1) 9%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--c2) 9%, transparent) 1px, transparent 1px); background-size: 46px 46px; -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000, transparent); }
+  #bg.fx-glow { background: radial-gradient(ellipse 60% 50% at 25% 15%, color-mix(in srgb, var(--c1) 22%, transparent), transparent 70%), radial-gradient(ellipse 55% 45% at 85% 95%, color-mix(in srgb, var(--c2) 18%, transparent), transparent 70%); }
+  #bg .blob { position: absolute; width: 55vmax; height: 55vmax; border-radius: 50%; filter: blur(90px); opacity: .42; mix-blend-mode: screen; }
+  #bg .b1 { background: var(--c1); left: -12vmax; top: -18vmax; animation: drift1 26s ease-in-out infinite alternate; }
+  #bg .b2 { background: var(--c2); right: -15vmax; top: 10vmax; animation: drift2 32s ease-in-out infinite alternate; }
+  #bg .b3 { background: color-mix(in srgb, var(--c1) 50%, var(--c2)); left: 25vmax; bottom: -30vmax; animation: drift3 38s ease-in-out infinite alternate; opacity: .3; }
+  @keyframes drift1 { to { transform: translate(18vmax, 12vmax) scale(1.15); } }
+  @keyframes drift2 { to { transform: translate(-20vmax, 14vmax) scale(.85); } }
+  @keyframes drift3 { to { transform: translate(-14vmax, -16vmax) scale(1.2); } }
+  #bg .wave { position: absolute; width: 260vmax; height: 260vmax; left: 50%; margin-left: -130vmax; border-radius: 42%; }
+  #bg .w1 { top: 68vh; background: color-mix(in srgb, var(--c1) 14%, transparent); animation: spin 34s linear infinite; }
+  #bg .w2 { top: 72vh; background: color-mix(in srgb, var(--c2) 12%, transparent); animation: spin 46s linear infinite reverse; border-radius: 40%; }
+  #bg .w3 { top: 77vh; background: color-mix(in srgb, var(--c1) 10%, var(--c2) 0%); animation: spin 58s linear infinite; border-radius: 44%; opacity: .7; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #bg.fx-flow { background: linear-gradient(125deg, color-mix(in srgb, var(--c1) 20%, transparent), transparent 30%, color-mix(in srgb, var(--c2) 18%, transparent) 55%, transparent 75%, color-mix(in srgb, var(--c1) 16%, transparent)); background-size: 300% 300%; animation: flow 24s ease-in-out infinite alternate; }
+  @keyframes flow { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+  #bg .img { position: absolute; inset: -40px; background-size: cover; background-position: center; }
+  #bg .img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--bg1) 55%, transparent), color-mix(in srgb, var(--bg1) 80%, transparent)); }
+  #bg canvas { position: absolute; inset: 0; }
+  body.noanim #bg * { animation: none !important; }
+
   #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
   .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
   .toast.err { border-left-color: var(--danger); }
 </style>
 </head>
 <body>
+<div id="bg"></div>
 <div id="titlebar">
   <div id="logo"><i></i>Modstack</div>
   <div id="menubar"></div>
@@ -1000,24 +1076,89 @@ async function mountSkin(sk, name) {
 
 // ---------- Design / Einstellungen ----------
 const ACCENTS = { gruen: ['Grün', '#3fb950', '#2ea043'], blau: ['Blau', '#4c8dff', '#2f6fe0'], lila: ['Lila', '#a371f7', '#8957e5'], tuerkis: ['Türkis', '#2bc4b4', '#1c9c8f'], orange: ['Orange', '#f0883e', '#cf6a22'], pink: ['Pink', '#ec6cb9', '#c94f9b'], rot: ['Rot', '#f85149', '#d03530'] };
+const GRADS = { neon: ['Neon', '#3fb950', '#22c3ee'], aurora: ['Aurora', '#2bd4a4', '#7b5cff'], ozean: ['Ozean', '#2f80ff', '#22d3ee'], sunset: ['Sonnenuntergang', '#ff8a3d', '#ff3d81'], candy: ['Candy', '#ec6cb9', '#8b5cf6'], lava: ['Lava', '#f85149', '#f5a524'], galaxy: ['Galaxie', '#6d5cff', '#e04fd0'], gold: ['Gold', '#f5c542', '#e0782b'] };
+const accentOf = (k) => { const g = GRADS[k]; if (g) return { c1: g[1], c2: g[2], grad: true }; const a = ACCENTS[k] || GRADS.neon; return ACCENTS[k] ? { c1: a[1], c2: a[2], grad: false } : { c1: a[1], c2: a[2], grad: true }; };
 const BASES = {
   dunkel: ['Dunkel', { bg0: '#101216', bg1: '#14161b', bg2: '#1a1d23', bg3: '#21252d', bg4: '#2a2f39', line: '#2a2e37' }],
   mitternacht: ['Mitternacht', { bg0: '#0a0f1e', bg1: '#0e1427', bg2: '#131a30', bg3: '#1a2340', bg4: '#232e4f', line: '#222c48' }],
+  lila: ['Lila Nacht', { bg0: '#0d0916', bg1: '#120d1f', bg2: '#181229', bg3: '#211936', bg4: '#2b2145', line: '#271e3b' }],
+  wald: ['Wald', { bg0: '#070e0a', bg1: '#0b1510', bg2: '#101c16', bg3: '#17271f', bg4: '#20342a', line: '#1b2a22' }],
   schwarz: ['Schwarz', { bg0: '#000000', bg1: '#060708', bg2: '#0d0f12', bg3: '#16191e', bg4: '#21252c', line: '#1b1e24' }],
 };
-const FONTS = { system: ['System', '"Segoe UI", Arial, sans-serif'], rund: ['Rund', '"Trebuchet MS", "Segoe UI", sans-serif'], mono: ['Mono', '"Cascadia Code", Consolas, monospace'] };
-const FX = { none: 'Keiner', grid: 'Raster', glow: 'Leuchten' };
+const FONTS = { system: ['System', '"Segoe UI Variable Display", "Segoe UI", Arial, sans-serif'], rund: ['Rund', '"Trebuchet MS", "Segoe UI", sans-serif'], mono: ['Mono', '"Cascadia Code", Consolas, monospace'] };
+const FX = { aurora: 'Aurora', stars: 'Sterne', waves: 'Wellen', flow: 'Farbfluss', glow: 'Leuchten', grid: 'Raster', image: 'Eigenes Bild', none: 'Keiner' };
 
+let stopStars = null;
+function starfield(cv) {
+  const ctx = cv.getContext('2d');
+  let w = 0, h = 0, stars = [], raf = 0, shoot = null, last = performance.now();
+  const resize = () => {
+    const dpr = window.devicePixelRatio || 1;
+    w = cv.clientWidth; h = cv.clientHeight; cv.width = w * dpr; cv.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.round(w * h / 2400);
+    stars = Array.from({ length: n }, () => ({ x: Math.random() * w, y: Math.random() * h, r: Math.random() * 1.5 + 0.4, p: Math.random() * 6.3, s: 0.5 + Math.random() * 1.6, c: Math.random() < 0.25 }));
+  };
+  const cs = getComputedStyle(document.documentElement);
+  const c1 = cs.getPropertyValue('--c1').trim() || '#fff', c2 = cs.getPropertyValue('--c2').trim() || '#fff';
+  const draw = (now) => {
+    const t = now / 1000, dt = Math.min(0.05, (now - last) / 1000); last = now;
+    ctx.clearRect(0, 0, w, h);
+    for (const st of stars) {
+      st.y -= st.r * dt * 2.2; if (st.y < -2) { st.y = h + 2; st.x = Math.random() * w; }
+      const a = 0.25 + 0.75 * Math.abs(Math.sin(t * st.s + st.p));
+      ctx.globalAlpha = a; ctx.fillStyle = st.c ? (st.r > 0.9 ? c1 : c2) : '#ffffff';
+      ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, 6.283); ctx.fill();
+    }
+    if (!shoot && Math.random() < dt * 0.12) shoot = { x: Math.random() * w * 0.8 + w * 0.2, y: Math.random() * h * 0.4, l: 0 };
+    if (shoot) {
+      shoot.l += dt * 1.4; const len = 140, x = shoot.x - shoot.l * 600, y = shoot.y + shoot.l * 300;
+      const g = ctx.createLinearGradient(x, y, x + len, y - len / 2);
+      g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.globalAlpha = Math.max(0, 1 - shoot.l); ctx.strokeStyle = g; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y - len / 2); ctx.stroke();
+      if (shoot.l > 1) shoot = null;
+    }
+    ctx.globalAlpha = 1;
+    if (S.animations !== false) raf = requestAnimationFrame(draw);
+  };
+  resize(); const ro = new ResizeObserver(resize); ro.observe(cv);
+  raf = requestAnimationFrame(draw);
+  return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+}
+
+async function renderBg() {
+  const bg = $('#bg');
+  if (stopStars) { stopStars(); stopStars = null; }
+  const fx = S.fx || 'aurora';
+  bg.className = 'fx-' + fx; bg.innerHTML = '';
+  bg.style.opacity = Math.max(0.1, (S.fxStrength ?? 100) / 100);
+  if (fx === 'aurora') bg.innerHTML = '<div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>';
+  else if (fx === 'waves') bg.innerHTML = '<div class="wave w1"></div><div class="wave w2"></div><div class="wave w3"></div>';
+  else if (fx === 'stars') { const cv = document.createElement('canvas'); bg.appendChild(cv); stopStars = starfield(cv); bg.insertAdjacentHTML('afterbegin', '<div class="blob b1" style="opacity:.18"></div><div class="blob b2" style="opacity:.14"></div>'); }
+  else if (fx === 'image') {
+    let url = null; try { url = await call('bg:get', undefined, true); } catch {}
+    if ((S.fx || 'aurora') !== 'image') return;
+    if (url) { const d = document.createElement('div'); d.className = 'img'; d.style.backgroundImage = `url("${url}")`; d.style.filter = `blur(${S.bgBlur ?? 6}px)`; bg.appendChild(d); }
+  }
+}
+
+let lastBgKey = '';
 function applySettings() {
   const r = document.documentElement.style;
-  const a = ACCENTS[S.accent] || ACCENTS.gruen;
-  r.setProperty('--accent', a[1]); r.setProperty('--accent2', a[2]);
+  const a = accentOf(S.accent || 'neon');
+  r.setProperty('--accent', a.c1); r.setProperty('--accent2', a.c2);
+  r.setProperty('--c1', a.c1); r.setProperty('--c2', a.c2);
+  r.setProperty('--grad', `linear-gradient(135deg, ${a.c1}, ${a.c2})`);
   const b = (BASES[S.base] || BASES.dunkel)[1];
   for (const k in b) r.setProperty('--' + k, b[k]);
   r.setProperty('--font', (FONTS[S.font] || FONTS.system)[1]);
   document.body.classList.toggle('noanim', S.animations === false);
   document.body.classList.toggle('nolabels', S.railLabels === false);
-  $('#main').className = 'fx-' + (S.fx || 'glow');
+  document.body.classList.toggle('glass', S.glass !== false);
+  $('#main').className = '';
+  const key = [S.fx, S.accent, S.animations, S.bgBlur, S.bgVer].join('|');
+  if (key !== lastBgKey) { lastBgKey = key; renderBg(); }
+  $('#bg').style.opacity = Math.max(0.1, (S.fxStrength ?? 100) / 100);
   call('win:overlay', { color: b.bg0 }, true).catch(() => {});
 }
 async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'showCape' in patch || 'animations' in patch || 'room' in patch)) renderHome(); }
@@ -1061,15 +1202,40 @@ function renderSettingsBody() {
   document.querySelectorAll('#snav div').forEach((d) => d.classList.toggle('on', d.dataset.k === setSec));
   const c = $('#scont'); c.innerHTML = '';
   if (setSec === 'look') {
-    c.appendChild(sec('Akzentfarbe', 'Farbe für Knöpfe, Markierungen und Hervorhebungen.',
-      optRow(S.accent || 'gruen', Object.entries(ACCENTS).map(([k, v]) => [k, v[0]]), (k) => setS({ accent: k }), (k) => Object.assign(document.createElement('span'), { className: 'sw-dot', style: `background:${ACCENTS[k][1]}` }))));
+    const curA = S.accent || 'neon';
+    c.appendChild(sec('Farbverlauf', 'Verlauf für Knöpfe, Markierungen und Hintergrund-Effekte.',
+      optRow(curA, Object.entries(GRADS).map(([k, v]) => [k, v[0]]), (k) => setS({ accent: k }), (k) => Object.assign(document.createElement('span'), { className: 'sw-dot', style: `background:linear-gradient(135deg, ${GRADS[k][1]}, ${GRADS[k][2]})` }))));
+    c.appendChild(sec('Einfarbig', 'Oder lieber eine einzelne Farbe.',
+      optRow(curA, Object.entries(ACCENTS).map(([k, v]) => [k, v[0]]), (k) => setS({ accent: k }), (k) => Object.assign(document.createElement('span'), { className: 'sw-dot', style: `background:${ACCENTS[k][1]}` }))));
     c.appendChild(sec('Hintergrund', 'Grundfarbe der Oberfläche.',
       optRow(S.base || 'dunkel', Object.entries(BASES).map(([k, v]) => [k, v[0]]), (k) => setS({ base: k }), (k) => Object.assign(document.createElement('span'), { className: 'sw-dot', style: `background:${BASES[k][1].bg2};border:1px solid #444` }))));
     c.appendChild(sec('Schrift', 'Schriftart in der ganzen App.',
       optRow(S.font || 'system', Object.entries(FONTS).map(([k, v]) => [k, v[0]]), (k) => setS({ font: k }), (k) => Object.assign(document.createElement('b'), { textContent: 'Aa', style: `font-family:${FONTS[k][1]}` }))));
-    c.appendChild(sec('Hintergrund-Effekt', 'Dekoration hinter dem Inhalt.',
-      optRow(S.fx || 'glow', Object.entries(FX), (k) => setS({ fx: k }))));
+    const fxBox = document.createElement('div');
+    fxBox.appendChild(optRow(S.fx || 'aurora', Object.entries(FX), async (k) => {
+      if (k === 'image') {
+        let have = null; try { have = await call('bg:get', undefined, true); } catch {}
+        if (!have) { try { const u = await call('bg:pick'); if (!u) return; } catch { return; } }
+      }
+      setS({ fx: k, bgVer: Date.now() });
+    }));
+    const sl = document.createElement('div'); sl.className = 'card'; sl.style.cssText = 'background:transparent;padding:0;margin:12px 0 0;border:0;backdrop-filter:none';
+    sl.innerHTML = '<div class="line"><span style="width:110px;color:var(--muted)">Stärke</span><input type="range" id="fxS" min="10" max="100" step="5"><b id="fxSV" style="width:50px;text-align:right"></b></div>'
+      + ((S.fx === 'image') ? '<div class="line" style="margin-top:8px"><span style="width:110px;color:var(--muted)">Unschärfe</span><input type="range" id="fxB" min="0" max="30" step="1"><b id="fxBV" style="width:50px;text-align:right"></b></div><div class="opts" style="margin-top:10px"><button class="ghost" id="fxPick">Anderes Bild ...</button><button class="ghost" id="fxClr">Bild entfernen</button></div>' : '');
+    fxBox.appendChild(sl);
+    c.appendChild(sec('Hintergrund-Effekt', 'Animierter Hintergrund hinter der ganzen App. Nutzt deine Akzentfarben.', fxBox));
+    const fs1 = $('#fxS', sl), fsv = $('#fxSV', sl); fs1.value = S.fxStrength ?? 100; fsv.textContent = fs1.value + ' %';
+    fs1.oninput = () => { fsv.textContent = fs1.value + ' %'; $('#bg').style.opacity = fs1.value / 100; };
+    fs1.onchange = () => call('settings:set', { fxStrength: +fs1.value }).then((s) => { S = s; });
+    if (S.fx === 'image') {
+      const fb = $('#fxB', sl), fbv = $('#fxBV', sl); fb.value = S.bgBlur ?? 6; fbv.textContent = fb.value + ' px';
+      fb.oninput = () => { fbv.textContent = fb.value + ' px'; const im = $('#bg .img'); if (im) im.style.filter = `blur(${fb.value}px)`; };
+      fb.onchange = () => call('settings:set', { bgBlur: +fb.value }).then((s) => { S = s; lastBgKey = [S.fx, S.accent, S.animations, S.bgBlur, S.bgVer].join('|'); });
+      $('#fxPick', sl).onclick = async () => { try { if (await call('bg:pick')) setS({ bgVer: Date.now() }); } catch {} };
+      $('#fxClr', sl).onclick = async () => { await call('bg:clear'); setS({ fx: 'aurora' }); };
+    }
     const t = document.createElement('div');
+    t.appendChild(toggleLine('Glas-Effekt', 'Leisten und Fenster sind durchscheinend und lassen den Hintergrund durch', S.glass !== false, (v) => setS({ glass: v })));
     t.appendChild(toggleLine('Animationen', 'Übergänge, schwebender Skin, Lade-Animationen', S.animations !== false, (v) => setS({ animations: v })));
     t.appendChild(toggleLine('Beschriftung in der Seitenleiste', 'Text unter den Symbolen links', S.railLabels !== false, (v) => setS({ railLabels: v })));
     t.appendChild(toggleLine('Skin auf der Startseite', 'Zeigt deine Spielfigur in 3D', S.showSkin !== false, (v) => setS({ showSkin: v })));
