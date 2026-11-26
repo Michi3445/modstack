@@ -425,6 +425,9 @@
   .pack-keys { margin-top: 14px; border-top: 1px solid var(--line); }
   .pack-keys summary { cursor: pointer; padding: 12px 0 0; font-weight: 600; }
   .pack-keys[open] summary { margin-bottom: 10px; }
+  .pack-backups > button, .pack-history > h3 { align-self: flex-start; margin-bottom: 9px; }
+  .safety-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 9px; padding: 9px 0; border-top: 1px solid var(--line); }
+  .safety-row small { display: block; margin-top: 3px; color: var(--muted); }
   .folders { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
   .folders div { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); cursor: pointer; font-size: 12.5px; }
   .folders div:hover { border-color: color-mix(in srgb, var(--c1) 50%, transparent); background: rgba(255,255,255,.07); }
@@ -706,6 +709,7 @@
 <script src="keybinds-ui.js"></script>
 <script src="minecraft-option-definitions.js"></script>
 <script src="minecraft-options-ui.js"></script>
+<script src="instance-safety-ui.js"></script>
 
 <dialog id="dlg">
   <div class="dh">Neue Instanz</div>
@@ -1145,6 +1149,11 @@ function drawMods() {
     if (u) r.querySelector('.upbtn').onclick = (e) => updateOne(m, e.currentTarget);
     const items = () => [
       { l: 'Aktualisieren auf ' + (u ? u.to : ''), d: !u || busy, a: () => updateOne(m) },
+      { l: 'Vorherige Version wiederherstellen', d: busy || !cur.history?.some((item) => item.next?.file === m.file && item.next?.versionId === m.versionId),
+        a: async () => {
+          const instance = cur;
+          try { await undoModChange(instance, await call('history:previous', { id: instance.id, file: m.file })); } catch {}
+        } },
       { l: m.disabled ? 'Aktivieren' : 'Deaktivieren', a: () => toggleMod(m) },
       { l: 'Im Ordner zeigen', a: () => call('app:showMod', { id: cur.id, file: m.file, kind: kindOf(m), disabled: !!m.disabled }) },
       { l: 'Auf Modrinth öffnen', d: !m.projectId, a: () => call('app:openUrl', 'https://modrinth.com/project/' + m.projectId) },
@@ -1174,8 +1183,9 @@ async function toggleMod(m) {
 }
 
 async function removeMod(m) {
-  if (S.confirmDelete !== false && !(await ask({ title: 'Entfernen', text: `„${m.title}“ aus „${cur.name}“ entfernen?`, okText: 'Entfernen', danger: true }))) return;
-  cur = await call('mods:remove', { id: cur.id, file: m.file }); await load(); toast(m.title + ' entfernt');
+  const instance = cur;
+  if (!(await ask({ title: 'Entfernen', text: `„${m.title}“ aus „${instance.name}“ entfernen?`, okText: 'Entfernen', danger: true }))) return;
+  try { await call('mods:remove', { id: instance.id, file: m.file }); await load(cur?.id); toast(m.title + ' entfernt'); } catch {}
 }
 
 // ---------- Suche (Mods, Ressourcenpakete, Shader) ----------
@@ -1689,6 +1699,9 @@ async function renderSettings() {
     <div class="card iscard span2"><h3>Notizen</h3><p>Eigene Notizen zu dieser Instanz, zum Beispiel Server-Adressen oder Seeds.</p>
       <textarea id="notes" rows="3" placeholder="Notizen ..." spellcheck="false"></textarea></div>
 
+    <div class="card iscard pack-backups"><h3>Welt-Backups</h3></div>
+    <div class="card iscard pack-history"><h3>Mod-Verlauf</h3></div>
+
     <div class="card iscard span2 danger-zone"><h3>Verwalten</h3><p>Erstellt am ${fmtDate(i.created)} · Ordner: ${i.id}</p>
       <div class="line"><button class="ghost" id="sRen">Umbenennen</button><button class="ghost" id="sDup">Duplizieren</button><button class="danger" id="sDel" style="margin-left:auto">Instanz löschen</button></div></div>
   </div>`;
@@ -1762,6 +1775,7 @@ async function renderSettings() {
   $('#sRen').onclick = () => renameInst(i);
   $('#sDup').onclick = () => duplicateInst(i);
   $('#sDel').onclick = () => deleteInst(i);
+  renderInstanceSafety(c, i);
   // Statistik
   const size = $('#stSize'), worlds = $('#stWorlds'), shots = $('#stShots');
   call('instances:info', i.id, true).then((inf) => {
@@ -2385,6 +2399,21 @@ const SET_BUILD = {
     c.appendChild(sec('So funktioniert Spielen', 'Modstack startet Minecraft über den offiziellen Launcher. Dort wählst du das Profil „[Modstack] Name“ und klickst auf Spielen. Der Mojang-Launcher muss vorher geschlossen sein.'));
   },
   data(c) {
+    const saving = toggles([
+      ['Backups vor Änderungen', 'Welten vor Mod-Updates automatisch sichern.', S.backupsEnabled !== false, (v) => setS({ backupsEnabled: v })],
+      ['Tägliches Backup', 'Beim ersten Spielstart der Instanz an diesem Tag.', !!S.backupDaily, (v) => setS({ backupDaily: v })],
+      ['Konfiguration mitsichern', 'Config-Ordner und options.txt zusätzlich zu den Welten sichern.', !!S.backupConfig, (v) => setS({ backupConfig: v })],
+    ]);
+    saving.append(slider('Backups je Instanz', 1, 50, 1, S.backupLimit ?? 10, String, null, (v) => saveQuiet({ backupLimit: v })));
+    c.append(sec('Welt-Backups', 'Manuelle Backups und Wiederherstellung findest du in den Instanz-Einstellungen.', saving));
+    const log = toggles([['Mod-Verlauf speichern', 'Dateien vor einem Update oder Entfernen archivieren.', S.historyEnabled !== false, (v) => setS({ historyEnabled: v })]]);
+    log.append(slider('Versionen je Mod', 1, 30, 1, S.historyLimit ?? 5, String, null, (v) => saveQuiet({ historyLimit: v })));
+    log.append(btns([['Speicher anzeigen', async (button) => { button.textContent = 'Mod-Verlauf · ' + fmtBytes(await call('history:disk')); }], ['Verlauf leeren', async () => {
+      if (!await ask({ title: 'Mod-Verlauf leeren?', text: 'Alle archivierten Mod-Versionen endgültig löschen?', okText: 'Verlauf leeren', danger: true })) return;
+      await call('history:clearAll');
+      toast('Mod-Verlauf geleert');
+    }]]));
+    c.append(sec('Mod-Verlauf', '', log));
     c.appendChild(sec('Ordner', 'Hier liegen alle Instanzen mit Mods, Welten und Einstellungen.', btns([['Instanzen-Ordner öffnen', () => call('app:openRoot')]])));
     const du = document.createElement('div');
     du.appendChild(btns([['Speicherplatz berechnen', async (b) => {
@@ -2578,7 +2607,7 @@ async function renameInst(i) {
   await call('instances:rename', { id: i.id, name: n }); await load(i.id);
 }
 async function deleteInst(i) {
-  if (S.confirmDelete !== false && !(await ask({ title: 'Instanz löschen', text: `„${i.name}“ mit allen Mods, Welten und Einstellungen endgültig löschen?`, okText: 'Löschen', danger: true }))) return;
+  if (!(await ask({ title: 'Instanz löschen', text: `„${i.name}“ mit allen Mods, Welten und Einstellungen endgültig löschen?`, okText: 'Löschen', danger: true }))) return;
   await call('instances:delete', i.id); if (cur && cur.id === i.id) cur = null; await load(); toast('Instanz gelöscht');
 }
 function about() {

@@ -85,7 +85,12 @@ function readInst(id) {
 }
 
 function saveInst(inst) {
-  fs.writeFileSync(path.join(instDir(inst.id), 'instance.json'), JSON.stringify(inst, null, 2));
+  const dir = instDir(inst.id);
+  const temp = path.join(dir, '.instance-' + crypto.randomUUID() + '.json');
+  try {
+    fs.writeFileSync(temp, JSON.stringify(inst, null, 2), { flag: 'wx' });
+    fs.renameSync(temp, path.join(dir, 'instance.json'));
+  } finally { fs.rmSync(temp, { force: true }); }
 }
 
 function instanceRam(value) {
@@ -147,7 +152,12 @@ ipcMain.handle('mc:versions', async () => {
 // ---------- Modrinth ----------
 const KIND_DIR = { mod: 'mods', resourcepack: 'resourcepacks', shader: 'shaderpacks' };
 const kindOf = (m) => m.kind || 'mod';
-const entryPath = (id, m) => path.join(instDir(id), KIND_DIR[kindOf(m)], m.file + (m.disabled ? '.disabled' : ''));
+function modFile(name) {
+  if (typeof name !== 'string' || name.length > 240 || !/^[^<>:"/\\|?*\x00-\x1f]+\.(?:jar|zip)$/i.test(name) ||
+      /^(?:CON|NUL|PRN|AUX|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(name)) throw new Error('Ungültiger Dateiname.');
+  return name;
+}
+const entryPath = (id, m) => path.join(instDir(id), KIND_DIR[kindOf(m)], modFile(m.file) + (m.disabled ? '.disabled' : ''));
 
 ipcMain.handle('mr:search', async ({ query, mc, loader, offset, type }) => {
   type = type || 'mod';
@@ -212,6 +222,44 @@ async function runningModstackPack() {
   } catch {}
   return null;
 }
+
+const backups = require('./instance-backups')({
+  root: path.join(app.getPath('userData'), 'backups'), instDir, readInst,
+  running: runningModstackInstances, settings: appSettings, status,
+});
+const history = require('./mod-history')({ instDir, entryPath, saveInst, settings: appSettings });
+const instanceJobs = new Map();
+function instanceWork(id, fn) {
+  const key = safeName(id).toLowerCase();
+  const task = (instanceJobs.get(key) || Promise.resolve()).catch(() => {}).then(fn);
+  instanceJobs.set(key, task);
+  return task.finally(() => { if (instanceJobs.get(key) === task) instanceJobs.delete(key); });
+}
+
+ipcMain.handle('backups:list', (id) => backups.list(id));
+ipcMain.handle('backups:create', (id) => instanceWork(id, () => backups.snapshot(id, 'Manuell', { required: true })));
+ipcMain.handle('backups:restore', ({ id, key }) => instanceWork(id, () => backups.restore(id, key)));
+ipcMain.handle('history:previous', ({ id, file }) => history.previous(readInst(id), file));
+ipcMain.handle('history:list', (id) => history.list(readInst(id)));
+ipcMain.handle('history:undo', ({ id, key, through }) => instanceWork(id, async () => {
+  await backups.ensureIdle(id);
+  history.undo(readInst(id), key, through === true);
+  return readInst(id);
+}));
+ipcMain.handle('history:disk', () => {
+  if (!fs.existsSync(instRoot())) return 0;
+  return fs.readdirSync(instRoot()).reduce((total, id) => {
+    try { return total + history.bytes(readInst(id)); } catch { return total; }
+  }, 0);
+});
+ipcMain.handle('history:clearAll', async () => {
+  if (!fs.existsSync(instRoot())) return;
+  for (const id of fs.readdirSync(instRoot())) {
+    let inst;
+    try { inst = readInst(id); } catch { continue; }
+    await instanceWork(id, () => history.clear(readInst(inst.id)));
+  }
+});
 
 function keybindTarget(id) {
   if (typeof id !== 'string' || id !== safeName(id) || id === '.' || id === '..') throw new Error('Ungültige Instanz.');
@@ -296,14 +344,32 @@ async function checkInst(inst, quiet) {
   return res;
 }
 
-async function applyUpdate(inst, m, versionId) {
-  const v = await getJson(`${MR}/version/${versionId}`);
-  const f = v.files.find((x) => x.primary) || v.files[0];
-  const old = entryPath(inst.id, m);
-  m.file = f.filename; m.versionId = v.id; m.version = v.version_number;
-  const neu = entryPath(inst.id, m);
-  await download(f.url, neu, f.hashes && f.hashes.sha1);
-  if (old !== neu) fs.rmSync(old, { force: true });
+async function downloadModrinth(file, dest) {
+  const url = new URL(file.url);
+  const checksum = file.hashes?.sha1;
+  if (url.origin !== 'https://cdn.modrinth.com' || url.username || url.password || !/^[a-f\d]{40}$/i.test(checksum || '')) {
+    throw new Error('Die Modrinth-Datei hat keine gültige Download-Adresse oder Prüfsumme.');
+  }
+  const response = await fetch(url, { redirect: 'error', headers: { 'User-Agent': UA } });
+  if (!response.ok) throw new Error('Download fehlgeschlagen (' + response.status + ')');
+  const payload = Buffer.from(await response.arrayBuffer());
+  if (crypto.createHash('sha1').update(payload).digest('hex') !== checksum.toLowerCase()) throw new Error('Die Prüfsumme der Modrinth-Datei stimmt nicht.');
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, payload, { flag: 'wx' });
+}
+
+async function applyUpdate(id, old, version) {
+  const file = version.files?.find((x) => x.primary) || version.files?.[0];
+  if (!file || version.project_id !== old.projectId) throw new Error('Die Version gehört nicht zum installierten Mod.');
+  const next = { ...old, file: modFile(file.filename), versionId: version.id, version: version.version_number };
+  const stage = path.join(instDir(id), '.download-' + crypto.randomUUID());
+  try {
+    await downloadModrinth(file, stage);
+    const inst = readInst(id);
+    const current = inst.mods.find((item) => item.projectId === old.projectId && item.versionId === old.versionId && item.file === old.file);
+    if (!current) throw new Error('Der Mod wurde inzwischen geändert.');
+    history.replace(inst, current, { ...next, disabled: current.disabled }, stage);
+  } finally { fs.rmSync(stage, { force: true }); }
 }
 
 ipcMain.handle('mr:checkUpdates', async (id) => checkInst(readInst(id)));
@@ -318,33 +384,35 @@ ipcMain.handle('mr:checkAll', async () => {
   return out;
 });
 
-ipcMain.handle('mr:updateOne', async ({ id, projectId }) => {
+ipcMain.handle('mr:updateOne', ({ id, projectId }) => instanceWork(id, async () => {
   const inst = readInst(id);
   const m = inst.mods.find((x) => x.projectId === projectId);
   if (!m) throw new Error('Mod nicht gefunden');
   const v = await latestVersion(inst, projectId, kindOf(m));
   if (!v || v.id === m.versionId) { status('Schon aktuell'); return inst; }
+  await backups.beforeUpdate(id);
   status('Aktualisiere ' + m.title + ' ...');
-  await applyUpdate(inst, m, v.id);
-  saveInst(inst);
-  status(m.title + ' aktualisiert auf ' + m.version);
+  await applyUpdate(id, m, v);
+  status(m.title + ' aktualisiert auf ' + v.version_number);
   return readInst(id);
-});
+}));
 
-ipcMain.handle('mr:updateAll', async (id) => {
+ipcMain.handle('mr:updateAll', (id) => instanceWork(id, async () => {
   const inst = readInst(id);
   const ups = await checkInst(inst, true);
-  let count = 0, n = 0;
-  await pool(ups, Math.min(4, conc()), async (u) => {
-    status(`Aktualisiere ${++n}/${ups.length} ...`);
+  if (ups.length) await backups.beforeUpdate(id);
+  let count = 0;
+  const failed = [];
+  for (const [index, u] of ups.entries()) {
+    status(`Aktualisiere ${index + 1}/${ups.length} ...`);
     const m = inst.mods.find((x) => x.projectId === u.projectId);
-    if (!m) return;
-    try { await applyUpdate(inst, m, u.versionId); count++; } catch {}
-  });
-  saveInst(inst);
-  status(count + ' Eintraege aktualisiert');
+    if (!m) continue;
+    try { await applyUpdate(id, m, await getJson(`${MR}/version/${encodeURIComponent(u.versionId)}`)); count++; }
+    catch (error) { failed.push(m.title + ': ' + error.message); }
+  }
+  status(count + ' Einträge aktualisiert' + (failed.length ? ' · ' + failed.join(' · ') : ''));
   return readInst(id);
-});
+}));
 
 ipcMain.handle('mr:checkConflicts', async (id) => {
   const inst = readInst(id);
@@ -399,14 +467,12 @@ async function linkModrinth(inst, entries) {
   }
 }
 
-ipcMain.handle('mods:remove', ({ id, file }) => {
+ipcMain.handle('mods:remove', ({ id, file }) => instanceWork(id, () => {
   const inst = readInst(id);
   const m = inst.mods.find((x) => x.file === file);
-  if (m) fs.rmSync(entryPath(id, m), { force: true });
-  inst.mods = inst.mods.filter((x) => x.file !== file);
-  saveInst(inst);
-  return inst;
-});
+  if (m) history.replace(inst, m, null, null);
+  return readInst(id);
+}));
 
 ipcMain.handle('mods:toggle', ({ id, file }) => {
   const inst = readInst(id);
@@ -1295,11 +1361,12 @@ function launcherRunning() {
   });
 }
 
-ipcMain.handle('play', async (id) => {
+ipcMain.handle('play', (id) => instanceWork(id, async () => {
   const initial = readInst(id);
   if (await launcherRunning()) {
     throw new Error('Der Mojang-Launcher laeuft noch. Bitte schliessen, sonst ueberschreibt er das Profil.');
   }
+  await backups.daily(id);
   await ensureVanilla(initial.mc);
   const versionId = await ensureLoader(initial);
   const inst = readInst(id);
@@ -1338,7 +1405,7 @@ ipcMain.handle('play', async (id) => {
   if (appSettings().minimizeOnPlay && win) win.minimize();
   status('Launcher gestartet. Waehle dort das Profil "[Modstack] ' + inst.name + '" und klicke Spielen.');
   return true;
-});
+}));
 
 // ---------- App / Fenster-Aktionen ----------
 ipcMain.handle('instances:rename', ({ id, name }) => {

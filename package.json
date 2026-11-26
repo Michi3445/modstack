@@ -1,1 +1,1 @@
-{"name":"modstack","productName":"Modstack","version":"1.19.0","description":"Minecraft Mod-Manager (Modrinth, CurseForge-Import)","main":"main.js","devDependencies":{"@electron/packager":"^20.3.0","electron":"^45.5.0"},"dependencies":{"skinview3d":"^3.4.2"}}
+{"name":"modstack","productName":"Modstack","version":"1.20.0","description":"Minecraft Mod-Manager (Modrinth, CurseForge-Import)","main":"main.js","devDependencies":{"@electron/packager":"^20.3.0","electron":"^45.5.0"},"dependencies":{"skinview3d":"^3.4.2"}}

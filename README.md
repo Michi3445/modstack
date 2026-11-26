@@ -13,6 +13,10 @@ A lightweight Minecraft mod manager for Windows, built with Electron.
 - Add your own `.jar`/`.zip` files by drag and drop (matched to Modrinth automatically when possible)
 - Import CurseForge profiles via share code or exported `.zip`
 - Play through the official Minecraft Launcher (Modstack writes a launcher profile per instance)
+- ZIP world backups and local mod rollback under **Instanz → Einstellungen**. Modstack backs
+  up worlds before an update and saves the live worlds before restoring a backup. Under
+  **Optionen → Daten & Speicher**, choose automatic and daily backups, optional configuration
+  files, and how many backups or old mod versions to keep. Close Minecraft before restoring.
 
 ## Build
 
