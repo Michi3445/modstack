@@ -519,7 +519,17 @@ function showGroupDialog(group, friends, onChange) {
       check.name = 'friend';
       check.value = friend.uid;
       check.onchange = () => { if (group) primary.disabled = !new FormData(form).getAll('friend').length; };
-      label.append(check, document.createTextNode(friend.name));
+      const portrait = document.createElement('span');
+      portrait.className = 'group-portrait';
+      const mark = document.createElement('span');
+      mark.className = 'group-picked';
+      mark.setAttribute('aria-hidden', 'true');
+      mark.textContent = '✓';
+      portrait.append(friendAvatar(friend), mark);
+      const username = document.createElement('span');
+      username.className = 'group-friend-name';
+      username.textContent = label.title = friend.name;
+      label.append(check, portrait, username);
       choices.append(label);
     }
     if (!choices.children.length) choices.textContent = 'Keine weiteren bestätigten Freunde verfügbar.';

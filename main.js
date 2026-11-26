@@ -4,6 +4,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const { execFile, spawn } = require('child_process');
+const { bindings, writeBinding } = require('./minecraft-keybinds');
 
 // ipcMain.handle ruft (event, daten) auf; die Handler unten erwarten nur die Daten.
 const ipcMain = { handle: (ch, fn) => rawIpc.handle(ch, (_e, data) => fn(data)) };
@@ -162,11 +163,12 @@ function friendPresenceOptions() {
   return { online: settings.friendsOnline === true, pack: settings.friendsPlaying === true };
 }
 
-function runningModstackPack() {
-  if (process.platform !== 'win32') return null;
+function runningModstackInstances() {
+  if (process.platform !== 'win32') return Promise.resolve([]);
   // Inspect Java's arguments locally. Send only the instance folder name back to Node.
   const script = [
     '$root = [IO.Path]::GetFullPath($env:MODSTACK_INSTANCES)',
+    '$ErrorActionPreference = "Stop"',
     `Get-CimInstance Win32_Process -Filter "Name = 'javaw.exe' OR Name = 'java.exe'" | ForEach-Object {`,
     `  $match = [regex]::Match([string]$_.CommandLine, '--gameDir(?:=|\\s+)(?:"([^"]+)"|(\\S+))')`,
     '  if ($match.Success) { try {',
@@ -176,18 +178,42 @@ function runningModstackPack() {
     '}',
   ].join('\n');
   const exe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-  return new Promise((resolve) => execFile(exe, ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
+  return new Promise((resolve, reject) => execFile(exe, ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
     windowsHide: true, timeout: 4500, env: { ...process.env, MODSTACK_INSTANCES: instRoot() },
   }, (error, output) => {
-    if (!error) {
-      for (const id of output.trim().split(/\r?\n/)) {
-        if (!id || safeName(id) !== id || id === '.' || id === '..') continue;
-        try { resolve(String(readInst(id).name || '') || null); return; } catch {}
-      }
-    }
-    resolve(null);
+    if (error) { reject(new Error('Laufende Minecraft-Instanzen konnten nicht geprüft werden.')); return; }
+    resolve(output.trim().split(/\r?\n/).filter((id) => id && safeName(id) === id && id !== '.' && id !== '..'));
   }));
 }
+
+async function runningModstackPack() {
+  try {
+    for (const id of await runningModstackInstances()) {
+      try { return String(readInst(id).name || '') || null; } catch {}
+    }
+  } catch {}
+  return null;
+}
+
+function keybindTarget(id) {
+  if (typeof id !== 'string' || id !== safeName(id) || id === '.' || id === '..') throw new Error('Ungültige Instanz.');
+  return { file: path.join(instDir(id), 'options.txt'), mc: readInst(id).mc };
+}
+
+ipcMain.handle('instances:keybinds:get', (id) => {
+  const { file, mc } = keybindTarget(id);
+  return bindings(file, mc);
+});
+
+ipcMain.handle('instances:keybinds:save', async (change) => {
+  const active = await runningModstackInstances();
+  if (active.some((id) => id.toLowerCase() === String(change.id).toLowerCase())) {
+    throw new Error('Schließe Minecraft für diese Instanz, bevor du die Tastenbelegung speicherst.');
+  }
+  const { file, mc } = keybindTarget(change.id);
+  writeBinding(file, mc, change);
+  return bindings(file, mc);
+});
 const conc = () => Math.max(1, Math.min(12, appSettings().downloads || 6));
 
 async function latestVersion(inst, projectId, kind) {

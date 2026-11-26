@@ -221,16 +221,33 @@
   .news span { color: var(--muted); font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
   /* Einstellungsfenster */
-  #setDlg { width: 860px; max-width: 94vw; height: 580px; max-height: 90vh; }
+  #setDlg { width: 920px; max-width: 94vw; height: 640px; max-height: 90vh; }
   #setDlg[open] { display: flex; flex-direction: column; }
   .sh { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
   .sh b { font-size: 15px; flex: 1; }
   .sbody { flex: 1; display: flex; min-height: 0; }
-  .snav { width: 200px; padding: 12px 10px; border-right: 1px solid var(--line); }
-  .snav div { padding: 8px 12px; border-radius: 7px; cursor: pointer; color: var(--muted); margin-bottom: 2px; display: flex; gap: 10px; align-items: center; }
-  .snav div:hover { background: var(--bg3); color: var(--text); }
-  .snav div.on { background: color-mix(in srgb, var(--accent) 16%, var(--bg2)); color: #fff; }
-  .scont { flex: 1; overflow-y: auto; padding: 18px 22px; }
+  .snav { width: 204px; flex: 0 0 auto; padding: 12px 10px; border-right: 1px solid var(--line); overflow-y: auto; }
+  .snav section + section { border-top: 1px solid var(--line); padding-top: 9px; margin-top: 7px; }
+  .snav h3 { margin: 0 10px 4px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; }
+  #snav button { justify-content: flex-start; width: 100%; padding: 5px 10px; margin-bottom: 1px; background: transparent; text-align: left; color: var(--muted); border-color: transparent; border-radius: 7px; }
+  #snav button:hover { background: var(--bg3); color: var(--text); }
+  #snav button[aria-current="page"] { background: color-mix(in srgb, var(--accent) 16%, var(--bg2)); color: var(--text); border-color: color-mix(in srgb, var(--accent) 30%, transparent); font-weight: 600; }
+  .snav .n { margin-left: auto; color: var(--muted); font-size: 10px; }
+  .scont { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 24px; }
+  .set-heading { margin: 0 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .set-heading p { margin: 0 0 3px; color: var(--muted); font-size: 11px; }
+  .set-heading h2 { margin: 0; font-size: 22px; letter-spacing: -.025em; }
+  .key-instance { display: grid; gap: 6px; margin: 0 0 14px; }
+  .key-instance select { min-width: 0; max-width: 100%; width: 280px; }
+  .key-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: 10px; align-items: start; }
+  .key-groups section { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .key-groups h3 { margin: 0; padding: 9px 11px; background: var(--bg3); font-size: 12px; }
+  .key-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 9px 5px 11px; }
+  .key-row + .key-row { border-top: 1px solid var(--line); }
+  .key-row button { min-width: 42px; max-width: 52%; display: block; overflow: hidden; text-overflow: ellipsis; }
+  .key-capture { width: 390px; max-width: 92vw; }
+  .key-capture-zone { padding: 23px 12px; text-align: center; border: 1px dashed var(--accent); border-radius: 8px; background: var(--bg3); cursor: crosshair; }
+  .key-feedback { min-height: 1.4em; margin: 8px 0; color: var(--muted); }
   .sec { margin-bottom: 22px; }
   .sec h4 { margin: 0 0 2px; font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
   .sec > p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
@@ -335,7 +352,6 @@
   body.compact .row { padding: 6px 10px; margin-bottom: 4px; } body.compact .row img, body.compact .row .ph { width: 32px; height: 32px; }
   body.compact .inst { padding: 5px 10px; } body.compact .inst .ava { width: 28px; height: 28px; font-size: 13px; }
   .setsearch { width: 100%; margin-bottom: 10px; }
-  .snav div .n { margin-left: auto; font-size: 10.5px; color: var(--dim); }
   .kv { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12.5px; } .kv span { color: var(--muted); }
   .sec.hide { display: none; }
   /* Eigene Auswahlliste */
@@ -537,8 +553,18 @@
   .group-dialog .db { max-height: 57vh; overflow: auto; }
   .group-dialog .group-name { display: grid; gap: 6px; margin: 6px 0 12px; }
   .group-invite { margin-top: 8px; }
-  .group-options { display: grid; gap: 4px; margin-top: 6px; }
-  .group-options label { display: flex; align-items: center; gap: 7px; margin: 0; padding: 5px; }
+  .group-options { display: flex; flex-wrap: wrap; gap: 10px 4px; margin-top: 9px; color: var(--muted); }
+  .group-options label { position: relative; display: grid; justify-items: center; align-content: start; gap: 5px; width: 78px; margin: 0; padding: 3px 2px; cursor: pointer; }
+  .group-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .group-portrait { position: relative; display: grid; place-items: center; width: 52px; height: 52px; border: 2px solid var(--line); border-radius: 50%; transition: border-color .15s, background .15s; }
+  .group-portrait .message-avatar { width: 42px; height: 42px; }
+  .group-friend-name { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+  .group-picked { position: absolute; right: -3px; bottom: -2px; display: none; place-items: center; width: 19px; height: 19px; background: var(--grad); border: 2px solid var(--bg2); border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; }
+  .group-options label:hover .group-portrait { background: var(--bg4); }
+  .group-options input:focus-visible + .group-portrait { outline: 2px solid var(--accent2); outline-offset: 3px; }
+  .group-options input:checked + .group-portrait { border-color: var(--accent); }
+  .group-options input:checked + .group-portrait .group-picked { display: grid; }
+  .group-options input:checked ~ .group-friend-name { color: var(--text); }
   .group-options input { width: auto; }
   .group-member { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; }
   .group-member button { padding: 4px 7px; }
@@ -647,6 +673,7 @@
 <div class="menu" id="ctx"></div>
 <script src="node_modules/skinview3d/bundles/skinview3d.bundle.js"></script>
 <script src="friends-ui.js"></script>
+<script src="keybinds-ui.js"></script>
 
 <dialog id="dlg">
   <div class="dh">Neue Instanz</div>
@@ -676,7 +703,7 @@
 
 <dialog id="setDlg">
   <div class="sh"><b>Einstellungen</b><button class="ghost" id="setDir">Datenordner öffnen</button><button class="iconbtn" id="setClose" title="Schließen">✕</button></div>
-  <div class="sbody"><div class="snav" id="snav"></div><div class="scont" id="scont"></div></div>
+  <div class="sbody"><nav class="snav" id="snav" aria-label="Einstellungskategorien"></nav><div class="scont" id="scont"></div></div>
 </dialog>
 
 <dialog id="iconDlg">
@@ -1608,6 +1635,9 @@ async function renderSettings() {
       <select id="resSel">${RES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
       <div class="line" id="resCustom" style="margin-top:10px;display:none"><input id="resW" type="number" min="320" placeholder="Breite" style="width:110px"> × <input id="resH" type="number" min="240" placeholder="Höhe" style="width:110px"><button class="ghost sm" id="resOk">Übernehmen</button></div></div>
 
+    <div class="card iscard"><h3>Tastenbelegung</h3><p>Tastatur und Maus für diese Instanz einstellen.</p>
+      <div class="line"><button class="ghost" id="isKeys">Tasten bearbeiten</button></div></div>
+
     <div class="card iscard"><h3>Java</h3><p id="javaInfo">Wird geprüft …</p>
       <label style="display:block;margin:10px 0 5px;font-size:12px;color:var(--muted)">Weitere Java-Argumente (nur für Fortgeschrittene)</label>
       <input id="jargs" style="width:100%" placeholder="z.B. -XX:+UseG1GC" spellcheck="false"></div>
@@ -1624,6 +1654,7 @@ async function renderSettings() {
   ava($('#isAva'), i); $('#isAva').classList.add('editable'); $('#isAva').title = 'Bild ändern'; $('#isAva').onclick = () => openIconPicker(i);
   $('#isName').textContent = i.name; $('#isName').onclick = () => renameInst(i);
   $('#isPlay').onclick = () => play(i);
+  $('#isKeys').onclick = () => openSettings('keybinds', i.id);
   // RAM
   const sw = $('#ramSw'), ram = $('#ram'), ramV = $('#ramV');
   let ramOn = !!i.ram; ram.value = i.ram ? i.ram / 1024 : Math.min(4, maxGb);
@@ -2087,21 +2118,44 @@ function applySettings() {
 async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'showCape' in patch || 'animations' in patch || 'room' in patch || 'showDetails' in patch || 'roomStyle' in patch || 'showCards' in patch || 'skinActions' in patch)) renderHome(); }
 
 let setSec = 'look', setQuery = '';
-const SECS = [['look', 'Darstellung'], ['ui', 'Oberfläche'], ['home', 'Startseite'], ['general', 'Allgemein'], ['updates', 'Updates'], ['downloads', 'Downloads'], ['play', 'Spielen'], ['data', 'Daten & Speicher'], ['about', 'Über']];
-function openSettings(section) {
+const SET_GROUPS = [
+  ['Modstack', [['general', 'Allgemein'], ['look', 'Darstellung'], ['ui', 'Oberfläche'], ['home', 'Startseite']]],
+  ['Minecraft', [['play', 'Spielstart'], ['keybinds', 'Tastenbelegung']]],
+  ['Verwaltung', [['updates', 'Updates'], ['downloads', 'Downloads'], ['data', 'Daten & Speicher'], ['about', 'Über Modstack']]],
+];
+const SECS = SET_GROUPS.flatMap(([group, sections]) => sections.map(([key, label]) => [key, label, group]));
+function selectSetting(key) {
+  setSec = key;
+  setQuery = $('#snav .setsearch').value = '';
+  renderSettingsBody(true);
+}
+function openSettings(section, instanceId) {
   if (document.querySelector('dialog[open]')) return;
-  if (typeof section === 'string') setSec = section;
+  if (SECS.some(([key]) => key === section)) { setSec = section; setQuery = ''; }
+  if (instanceId) keybindInstance = instanceId;
   const nav = $('#snav'); nav.innerHTML = '';
-  const q = document.createElement('input'); q.className = 'setsearch'; q.placeholder = 'Einstellung suchen ...'; q.value = setQuery;
-  q.oninput = () => { setQuery = q.value; renderSettingsBody(); };
+  const q = document.createElement('input'); q.type = 'search'; q.className = 'setsearch'; q.placeholder = 'Einstellungen suchen'; q.value = setQuery;
+  q.setAttribute('aria-label', q.placeholder);
+  q.oninput = () => { setQuery = q.value; renderSettingsBody(true); };
   nav.appendChild(q);
-  for (const [k, l] of SECS) {
-    const d = document.createElement('div'); d.dataset.k = k; d.innerHTML = '<span></span>' + (k === 'updates' ? '<span class="n" id="snavUpd"></span>' : '');
-    d.firstChild.textContent = l;
-    d.onclick = () => { setSec = k; setQuery = ''; q.value = ''; renderSettingsBody(); };
-    nav.appendChild(d);
+  for (const [group, sections] of SET_GROUPS) {
+    const block = document.createElement('section');
+    const title = document.createElement('h3'); title.textContent = group;
+    block.append(title);
+    for (const [key, label] of sections) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.dataset.k = key; button.textContent = label;
+      if (key === 'updates') {
+        const count = document.createElement('span'); count.className = 'n'; count.id = 'snavUpd';
+        button.append(count);
+      }
+      button.onclick = () => selectSetting(key);
+      block.append(button);
+    }
+    nav.append(block);
   }
-  renderSettingsBody(); $('#setDlg').showModal(); document.activeElement && document.activeElement.blur();
+  renderSettingsBody(true); $('#setDlg').showModal();
+  (nav.querySelector('[aria-current="page"]') || q).focus();
 }
 $('#railSet').onclick = () => openSettings();
 $('#setClose').onclick = () => $('#setDlg').close();
@@ -2302,25 +2356,45 @@ const SET_BUILD = {
   },
 };
 
-function renderSettingsBody() {
+function renderSettingsBody(resetScroll = false) {
   if (!$('#snav').children.length) return;
   const q = setQuery.trim().toLowerCase();
-  document.querySelectorAll('#snav div[data-k]').forEach((d) => d.classList.toggle('on', !q && d.dataset.k === setSec));
+  for (const button of document.querySelectorAll('#snav button[data-k]')) {
+    if (!q && button.dataset.k === setSec) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
   const nu = $('#snavUpd'); if (nu) nu.textContent = updTotal() ? updTotal() : '';
-  const c = $('#scont'); const keep = c.scrollTop; c.innerHTML = '';
-  if (!q) { SET_BUILD[setSec](c); c.scrollTop = keep; return; }
+  const c = $('#scont'); const keep = resetScroll ? 0 : c.scrollTop; c.replaceChildren();
+  function heading(group, label) {
+    const header = document.createElement('header'); header.className = 'set-heading';
+    const category = document.createElement('p'); category.textContent = group;
+    const title = document.createElement('h2'); title.textContent = label;
+    header.append(category, title);
+    return header;
+  }
+  if (!q) {
+    const [, label, group] = SECS.find(([key]) => key === setSec);
+    c.append(heading(group, label));
+    if (setSec === 'keybinds') renderKeybinds(c);
+    else SET_BUILD[setSec](c);
+    c.scrollTop = keep;
+    return;
+  }
   let hits = 0;
-  for (const [k, l] of SECS) {
-    const box = document.createElement('div'); SET_BUILD[k](box);
+  for (const [key, label, group] of SECS) {
+    const box = document.createElement('div');
+    if (key === 'keybinds') box.append(sec(label, 'Minecraft-Tastatur, Maus und Keybinds pro Instanz', btns([['Tasten bearbeiten', () => selectSetting(key)]])));
+    else SET_BUILD[key](box);
     const secs = [...box.children].filter((s) => s.classList.contains('sec'));
     let any = false;
-    for (const s of secs) { const m = s.textContent.toLowerCase().includes(q); s.classList.toggle('hide', !m); any = any || m; }
+    const sectionMatch = label.toLowerCase().includes(q) || group.toLowerCase() === q;
+    for (const s of secs) { const m = sectionMatch || s.textContent.toLowerCase().includes(q); s.classList.toggle('hide', !m); any = any || m; }
     if (!any) continue;
     hits++;
-    const h = document.createElement('div'); h.style.cssText = 'font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin:6px 0 8px'; h.textContent = l;
-    c.appendChild(h); c.appendChild(box);
+    c.append(heading(group, label), box);
   }
   if (!hits) c.innerHTML = '<div class="empty">Keine Einstellung gefunden.</div>';
+  c.scrollTop = keep;
 }
 
 // ---------- Aktionen ----------
