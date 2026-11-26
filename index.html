@@ -13,7 +13,7 @@
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
-  body { margin: 0; font: 13px/1.4 "Segoe UI", Arial, sans-serif; background: var(--bg1); color: var(--text); display: flex; flex-direction: column; overflow: hidden; user-select: none; }
+  body { margin: 0; font: 13px/1.4 var(--font, "Segoe UI", Arial, sans-serif); background: var(--bg1); color: var(--text); display: flex; flex-direction: column; overflow: hidden; user-select: none; }
   input, select, textarea { user-select: text; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: #2f3440; border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
@@ -22,7 +22,7 @@
   /* Titelleiste + Menue */
   #titlebar { height: 36px; background: var(--bg0); display: flex; align-items: center; -webkit-app-region: drag; border-bottom: 1px solid var(--line); flex-shrink: 0; padding-right: 140px; }
   #logo { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 14px; font-weight: 600; color: #cfd3db; }
-  #logo i { width: 16px; height: 16px; border-radius: 4px; background: linear-gradient(135deg, #3fb950, #2b7a3a); display: inline-block; }
+  #logo i { width: 16px; height: 16px; border-radius: 4px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: inline-block; }
   #menubar { display: flex; -webkit-app-region: no-drag; height: 100%; }
   .mtop { position: relative; }
   .mtop > span { display: flex; align-items: center; height: 36px; padding: 0 11px; color: #c4c9d2; cursor: default; }
@@ -31,10 +31,10 @@
   .menu.show { display: block; animation: pop .09s ease-out; }
   @keyframes pop { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
   .mi { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 5px; cursor: default; color: #dfe2e8; }
-  .mi:hover:not(.dis) { background: #2e6b3a; color: #fff; }
+  .mi:hover:not(.dis) { background: color-mix(in srgb, var(--accent) 45%, #1d2027); color: #fff; }
   .mi.danger:hover:not(.dis) { background: #8b2f2b; }
   .mi .k { margin-left: auto; color: var(--dim); font-size: 12px; }
-  .mi:hover:not(.dis) .k { color: #d8e6db; }
+  .mi:hover:not(.dis) .k { color: #e8ece9; }
   .mi.dis { color: #5c626e; }
   .msep { height: 1px; background: #30353f; margin: 5px 4px; }
 
@@ -47,7 +47,7 @@
   #list { flex: 1; overflow-y: auto; padding: 4px 8px; }
   .inst { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 2px; }
   .inst:hover { background: var(--bg3); }
-  .inst.sel { background: #23302a; box-shadow: inset 3px 0 0 var(--accent); }
+  .inst.sel { background: color-mix(in srgb, var(--accent) 14%, var(--bg2)); box-shadow: inset 3px 0 0 var(--accent); }
   .ava { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: #fff; flex-shrink: 0; }
   .inst .meta { min-width: 0; flex: 1; }
   .inst .meta b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -66,7 +66,7 @@
   button.big { padding: 9px 22px; font-weight: 600; font-size: 14px; }
   button:disabled { opacity: .45; cursor: default; pointer-events: none; }
   input, select { font: inherit; background: var(--bg1); color: var(--text); border: 1px solid #343a46; border-radius: 6px; padding: 7px 10px; outline: none; }
-  input:focus, select:focus { border-color: #3f8f50; box-shadow: 0 0 0 3px rgba(63,185,80,.15); }
+  input:focus, select:focus { border-color: color-mix(in srgb, var(--accent) 70%, #000); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
 
   #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   #head { padding: 18px 24px 0; display: flex; align-items: center; gap: 16px; }
@@ -100,7 +100,7 @@
   .iconbtn { background: transparent; padding: 6px 8px; color: var(--muted); }
   .iconbtn:hover { background: var(--bg3); color: #fff; }
   #drop { border: 1.5px dashed #3a404d; border-radius: 10px; padding: 14px; text-align: center; color: var(--muted); margin-bottom: 12px; transition: .12s; }
-  #drop.over { border-color: var(--accent); color: var(--accent); background: rgba(63,185,80,.06); }
+  #drop.over { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
   .empty { color: var(--muted); text-align: center; padding: 60px 20px; }
   .empty h2 { color: var(--text); font-weight: 600; font-size: 18px; margin: 0 0 6px; }
   .empty .acts { margin-top: 16px; display: flex; gap: 8px; justify-content: center; }
@@ -129,14 +129,14 @@
   .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .seg div { text-align: center; padding: 8px 0; border: 1px solid #343a46; border-radius: 6px; cursor: pointer; color: var(--muted); }
   .seg div:hover { color: var(--text); }
-  .seg div.on { border-color: var(--accent); color: #fff; background: rgba(63,185,80,.1); }
+  .seg div.on { border-color: var(--accent); color: #fff; background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 6px; }
   .check input { width: auto; }
 
   .chips { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
   .chip { padding: 4px 12px; border-radius: 20px; border: 1px solid #343a46; color: var(--muted); cursor: pointer; font-size: 12px; }
   .chip:hover { color: var(--text); }
-  .chip.on { border-color: var(--accent); color: #fff; background: rgba(63,185,80,.1); }
+  .chip.on { border-color: var(--accent); color: #fff; background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .sw { width: 34px; height: 19px; border-radius: 10px; background: #3a404c; position: relative; cursor: pointer; flex-shrink: 0; transition: .15s; }
   .sw::after { content: ''; position: absolute; left: 3px; top: 3px; width: 13px; height: 13px; border-radius: 50%; background: #c9ced8; transition: .15s; }
   .sw.on { background: var(--accent2); }
@@ -146,7 +146,7 @@
   .side-sep { height: 1px; background: var(--line); margin: 6px 8px; }
   .navitem { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: #c9ced8; margin: 0 8px; }
   .navitem:hover { background: var(--bg3); }
-  .navitem.sel { background: #23302a; box-shadow: inset 3px 0 0 var(--accent); color: #fff; }
+  .navitem.sel { background: color-mix(in srgb, var(--accent) 14%, var(--bg2)); box-shadow: inset 3px 0 0 var(--accent); color: #fff; }
   .navitem .ico { width: 34px; height: 34px; border-radius: 8px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 16px; }
   .card { background: var(--bg2); border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; max-width: 640px; }
   .card h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
@@ -157,6 +157,74 @@
   .pagehead h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
   .pagehead div { color: var(--muted); }
   .cats { color: var(--dim); font-size: 11px; }
+  /* Icon-Leiste */
+  #rail { width: 74px; background: var(--bg0); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 4px; flex-shrink: 0; }
+  #rail .sp { flex: 1; }
+  .ri { width: 60px; padding: 9px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); cursor: pointer; font-size: 10.5px; position: relative; transition: background .12s, color .12s; }
+  .ri svg { width: 22px; height: 22px; }
+  .ri:hover { background: var(--bg3); color: var(--text); }
+  .ri.on { color: #fff; background: color-mix(in srgb, var(--accent) 18%, var(--bg2)); }
+  .ri.on::before { content: ''; position: absolute; left: -7px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--accent); }
+  body.nolabels .ri span { display: none; }
+  body.nolabels .ri { padding: 11px 0; }
+
+  /* Hintergrund-Effekte */
+  #main { position: relative; }
+  #main.fx-grid { background-image: linear-gradient(color-mix(in srgb, var(--accent) 7%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--accent) 7%, transparent) 1px, transparent 1px); background-size: 44px 44px; }
+  #main.fx-glow { background: radial-gradient(ellipse 70% 55% at 30% 20%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 70%), radial-gradient(ellipse 60% 50% at 90% 100%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%); }
+  body.noanim *, body.noanim *::before, body.noanim *::after { animation: none !important; transition: none !important; }
+
+  /* Startseite */
+  .home { display: grid; grid-template-columns: 1fr 340px; gap: 24px; height: calc(100% + 40px); margin: -16px -24px -24px; }
+  .home-l { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; min-width: 0; }
+  .home-hi { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+  .home-name { font-size: 28px; font-weight: 700; margin-bottom: 8px; letter-spacing: .01em; }
+  .skin { height: 300px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 18px; position: relative; }
+  .skin img { height: 290px; image-rendering: pixelated; filter: drop-shadow(0 16px 24px rgba(0,0,0,.55)); animation: bob 4s ease-in-out infinite; }
+  .skin::after { content: ''; position: absolute; bottom: -6px; left: 50%; width: 120px; height: 16px; margin-left: -60px; border-radius: 50%; background: radial-gradient(rgba(0,0,0,.55), transparent 70%); }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .skin .noskin { width: 150px; height: 260px; border: 1.5px dashed #3a404d; border-radius: 14px; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); padding: 12px; font-size: 12px; }
+  .launch { display: flex; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .launch button { border-radius: 0; background: var(--accent2); color: #fff; border: 0; }
+  .launch button:hover { background: var(--accent); }
+  .launch .go { padding: 12px 46px; flex-direction: column; gap: 1px; min-width: 260px; }
+  .launch .go b { font-size: 18px; letter-spacing: .06em; }
+  .launch .go small { font-size: 11.5px; opacity: .85; }
+  .launch .pick { padding: 0 14px; border-left: 1px solid rgba(0,0,0,.25); font-size: 14px; }
+  .recent { display: flex; gap: 8px; margin-top: 22px; flex-wrap: wrap; justify-content: center; }
+  .recent div { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-size: 12px; }
+  .recent div:hover { border-color: var(--accent); }
+  .recent .ava { width: 26px; height: 26px; font-size: 12px; border-radius: 6px; }
+  .home-r { background: color-mix(in srgb, var(--bg0) 70%, transparent); border-left: 1px solid var(--line); overflow-y: auto; padding: 16px; }
+  .home-r h3 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .news { border-radius: 10px; overflow: hidden; background: var(--bg2); margin-bottom: 12px; cursor: pointer; border: 1px solid transparent; }
+  .news:hover { border-color: var(--accent); }
+  .news img { width: 100%; height: 150px; object-fit: cover; display: block; }
+  .news div { padding: 9px 12px 11px; }
+  .news b { display: block; font-size: 13px; margin-bottom: 3px; }
+  .news span { color: var(--muted); font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* Einstellungsfenster */
+  #setDlg { width: 860px; max-width: 94vw; height: 580px; max-height: 90vh; }
+  #setDlg[open] { display: flex; flex-direction: column; }
+  .sh { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .sh b { font-size: 15px; flex: 1; }
+  .sbody { flex: 1; display: flex; min-height: 0; }
+  .snav { width: 200px; padding: 12px 10px; border-right: 1px solid var(--line); }
+  .snav div { padding: 8px 12px; border-radius: 7px; cursor: pointer; color: var(--muted); margin-bottom: 2px; display: flex; gap: 10px; align-items: center; }
+  .snav div:hover { background: var(--bg3); color: var(--text); }
+  .snav div.on { background: color-mix(in srgb, var(--accent) 16%, var(--bg2)); color: #fff; }
+  .scont { flex: 1; overflow-y: auto; padding: 18px 22px; }
+  .sec { margin-bottom: 22px; }
+  .sec h4 { margin: 0 0 2px; font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
+  .sec > p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+  .opts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .opt { border: 1.5px solid #343a46; border-radius: 9px; padding: 9px 14px; cursor: pointer; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .opt:hover { color: var(--text); }
+  .opt.on { border-color: var(--accent); color: #fff; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .sw-dot { width: 18px; height: 18px; border-radius: 50%; }
+  .tline { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .tline small { display: block; color: var(--muted); font-size: 11.5px; }
   #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
   .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
   .toast.err { border-left-color: var(--danger); }
@@ -169,13 +237,18 @@
 </div>
 
 <div id="app">
+  <div id="rail">
+    <div class="ri" data-v="home" title="Start"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span>Start</span></div>
+    <div class="ri" data-v="inst" title="Instanzen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Instanzen</span></div>
+    <div class="ri" data-v="packs" title="Modpacks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5"/><path d="M12 12v10"/></svg><span>Modpacks</span></div>
+    <div class="sp"></div>
+    <div class="ri" id="railSet" title="Einstellungen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Optionen</span></div>
+  </div>
   <div id="side">
     <div id="sideHead">
       <div class="lbl"><span>Instanzen</span><span id="instCount"></span></div>
       <input id="instFilter" placeholder="Instanzen filtern ...">
     </div>
-    <div id="packNav" class="navitem"><div class="ico">◆</div><div><b>Modpacks entdecken</b><br><small style="color:var(--muted)">Fertige Packs von Modrinth</small></div></div>
-    <div class="side-sep"></div>
     <div id="list"></div>
     <div id="sideFoot">
       <button class="primary" id="newBtn">+ Neue Instanz</button>
@@ -229,6 +302,11 @@
     <button class="ghost left" id="cfZip">ZIP-Datei wählen ...</button>
     <button class="ghost" id="cfCancel">Abbrechen</button><button class="primary" id="cfOk">Importieren</button>
   </div>
+</dialog>
+
+<dialog id="setDlg">
+  <div class="sh"><b>Einstellungen</b><button class="ghost" id="setDir">Datenordner öffnen</button><button class="iconbtn" id="setClose" title="Schließen">✕</button></div>
+  <div class="sbody"><div class="snav" id="snav"></div><div class="scont" id="scont"></div></div>
 </dialog>
 
 <dialog id="askDlg">
@@ -289,6 +367,7 @@ function ask({ title, text, input, okText = 'OK', danger }) {
 const MENUS = [
   ['Datei', () => [
     { l: 'Neue Instanz ...', k: 'Strg+N', a: newInstance },
+    { l: 'Einstellungen ...', k: 'Strg+,', a: openSettings },
     { l: 'CurseForge-Profil importieren ...', k: 'Strg+I', a: () => openCf() },
     { l: 'Datei importieren (.mrpack / .zip) ...', a: () => cfRun('cf:importZip') },
     '-',
@@ -312,6 +391,10 @@ const MENUS = [
     { l: 'Dateien hinzufügen: per Drag & Drop', d: true },
   ]],
   ['Ansicht', () => [
+    { l: 'Start', k: 'Strg+H', a: () => setView('home') },
+    { l: 'Instanzen', k: 'Strg+L', a: () => setView('inst') },
+    { l: 'Modpacks', k: 'Strg+M', a: showPacks },
+    '-',
     { l: 'Neu laden', k: 'F5', a: () => load() },
     '-',
     { l: 'Vergrößern', k: 'Strg++', a: () => call('win:zoom', 0.5) },
@@ -393,6 +476,9 @@ document.addEventListener('keydown', (e) => {
   else if (c && k === 'o' && cur) h = () => call('instances:openFolder', cur.id);
   else if (c && e.key === 'Enter' && cur) h = () => play(cur);
   else if (c && k === 'm') h = showPacks;
+  else if (c && k === 'h') h = () => setView('home');
+  else if (c && k === 'l') h = () => setView('inst');
+  else if (c && e.key === ',') h = openSettings;
   else if (c && k === '1' && cur) h = () => setTab('mods');
   else if (c && k === '2' && cur) h = () => setTab('search-mod');
   else if (c && k === '3' && cur) h = () => setTab('search-resourcepack');
@@ -412,21 +498,23 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ---------- Daten ----------
-let view = 'inst', kindFilter = 'all';
+let view = 'home', kindFilter = 'all', S = {};
 const KIND = { mod: 'Mod', resourcepack: 'Ressourcenpaket', shader: 'Shader' };
 const kindOf = (m) => m.kind || 'mod';
 
 async function load(selId) {
   insts = await call('instances:list');
   insts.sort((a, b) => a.name.localeCompare(b.name, 'de'));
-  if (selId) { cur = insts.find((i) => i.id === selId) || null; if (cur) view = 'inst'; }
+  if (selId) { cur = insts.find((i) => i.id === selId) || null; if (cur && view !== 'inst') markView('inst'); }
   else if (cur) cur = insts.find((i) => i.id === cur.id) || null;
   renderList(); renderHead(); render();
 }
-function select(i) { view = 'inst'; cur = i; updatable = []; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); }
-function setTab(t) { view = 'inst'; tab = t; renderHead(); render(); }
-function showPacks() { view = 'packs'; renderList(); renderHead(); render(); }
-$('#packNav').onclick = showPacks;
+function select(i) { if (view !== 'inst') markView('inst'); cur = i; updatable = []; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); }
+function setTab(t) { if (view !== 'inst') setView('inst'); tab = t; renderHead(); render(); }
+function showPacks() { setView('packs'); }
+function markView(v) { view = v; document.querySelectorAll('.ri[data-v]').forEach((r) => r.classList.toggle('on', r.dataset.v === v)); $('#side').style.display = v === 'home' ? 'none' : ''; }
+function setView(v) { markView(v); renderList(); renderHead(); render(); }
+document.querySelectorAll('.ri[data-v]').forEach((r) => r.onclick = () => setView(r.dataset.v));
 
 function ava(el, i) {
   el.textContent = ''; el.style.background = `linear-gradient(135deg, ${LCOL[i.loader] || '#555'}, #20242c 140%)`;
@@ -441,7 +529,6 @@ function filteredInsts() {
 $('#instFilter').oninput = renderList;
 
 function renderList() {
-  $('#packNav').classList.toggle('sel', view === 'packs');
   const l = $('#list'); l.innerHTML = '';
   $('#instCount').textContent = insts.length || '';
   const vis = filteredInsts();
@@ -487,6 +574,7 @@ document.querySelectorAll('.tab').forEach((t) => t.onclick = () => setTab(t.data
 function render() {
   const c = $('#content');
   if (view === 'packs') return renderPacks();
+  if (view === 'home') return renderHome();
   if (!cur) {
     c.innerHTML = `<div class="empty"><h2>${insts.length ? 'Keine Instanz gewählt' : 'Willkommen bei Modstack'}</h2>
       ${insts.length ? 'Wähle links eine Instanz aus.' : 'Lege eine Instanz an, installiere ein fertiges Modpack oder importiere ein CurseForge-Profil.'}
@@ -697,6 +785,7 @@ async function installPack(h, btn) {
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Installiert ...';
   try {
     const inst = await work('Installiere Modpack ' + h.title + ' ...', () => call('mr:installPack', { projectId: h.id }));
+    if (S.defaultRam) await call('instances:settings', { id: inst.id, ram: S.defaultRam, javaArgs: '' }, true).catch(() => {});
     tab = 'mods'; await load(inst.id); toast('„' + inst.name + '“ installiert');
   } catch { btn.disabled = false; btn.textContent = 'Installieren'; }
 }
@@ -733,6 +822,170 @@ async function renderSettings() {
   };
 }
 
+// ---------- Startseite ----------
+let account, news;
+function playerName() { return (S.playerName || '').trim() || (account && account.name) || ''; }
+async function renderHome() {
+  const c = $('#content');
+  const last = insts.find((i) => i.id === S.last) || insts[0] || null;
+  const name = playerName();
+  const hour = new Date().getHours();
+  const hi = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend';
+  const recent = (S.recent || []).map((id) => insts.find((i) => i.id === id)).filter(Boolean).slice(0, 4);
+  c.innerHTML = `<div class="home">
+    <div class="home-l">
+      <div class="home-hi">${hi}${name ? ',' : ''}</div>
+      <div class="home-name" id="hName"></div>
+      <div class="skin" id="hSkin"></div>
+      <div class="launch">
+        <button class="go" id="hGo"><b>▶ SPIELEN</b><small id="hInst"></small></button>
+        <button class="pick" id="hPick" title="Instanz wählen">▾</button>
+      </div>
+      <div class="recent" id="hRecent"></div>
+    </div>
+    <div class="home-r"><h3>Minecraft-News</h3><div id="hNews"><div class="empty" style="padding:30px 0"><span class="spin"></span></div></div></div>
+  </div>`;
+  $('#hName').textContent = name || 'Willkommen';
+  const sk = $('#hSkin');
+  if (S.showSkin === false) sk.style.display = 'none';
+  else if (name) {
+    const im = document.createElement('img');
+    im.alt = ''; im.src = 'https://mc-heads.net/body/' + encodeURIComponent((!S.playerName && account && account.uuid) || name) + '/300';
+    im.onerror = () => { sk.innerHTML = '<div class="noskin">Skin konnte nicht geladen werden</div>'; };
+    sk.appendChild(im);
+  } else sk.innerHTML = '<div class="noskin">Kein Minecraft-Konto gefunden.<br><br>Trag deinen Spielernamen unter Optionen ein, dann erscheint hier dein Skin.</div>';
+  $('#hInst').textContent = last ? `${last.name} · ${last.mc} ${LNAME[last.loader] || ''}` : 'Noch keine Instanz';
+  $('#hGo').onclick = () => last ? play(last) : newInstance();
+  const pickItems = () => insts.length ? insts.map((i) => ({ l: `${i.name}  (${i.mc})`, a: async () => { S = await call('settings:set', { last: i.id }); renderHome(); } })) : [{ l: 'Neue Instanz ...', a: newInstance }];
+  $('#hPick').onclick = (e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); showAt(pickItems(), r.right - 230, r.bottom + 4); };
+  $('#hPick').onmousedown = (e) => e.stopPropagation();
+  const rb = $('#hRecent');
+  for (const i of recent) {
+    const d = document.createElement('div'); d.title = 'Spielen: ' + i.name;
+    d.innerHTML = '<div class="ava"></div><span></span>'; ava(d.firstChild, i); d.lastChild.textContent = i.name;
+    d.onclick = () => play(i); d.oncontextmenu = (e) => { e.preventDefault(); showAt(instItems(i), e.clientX, e.clientY); };
+    rb.appendChild(d);
+  }
+  try { if (!news) news = await call('mc:news', undefined, true); } catch { news = []; }
+  const nb = $('#hNews'); if (!nb || view !== 'home') return;
+  nb.innerHTML = news.length ? '' : '<div class="empty" style="padding:30px 0">News nicht erreichbar.</div>';
+  for (const n of news) {
+    const d = document.createElement('div'); d.className = 'news';
+    d.innerHTML = (n.image ? '<img alt="">' : '') + '<div><b></b><span></span></div>';
+    if (n.image) d.querySelector('img').src = n.image;
+    d.querySelector('b').textContent = n.title;
+    d.querySelector('span').textContent = (n.date ? new Date(n.date).toLocaleDateString('de-DE') + ' · ' : '') + (n.text || '');
+    if (n.link) d.onclick = () => call('app:openUrl', n.link);
+    nb.appendChild(d);
+  }
+}
+
+// ---------- Design / Einstellungen ----------
+const ACCENTS = { gruen: ['Grün', '#3fb950', '#2ea043'], blau: ['Blau', '#4c8dff', '#2f6fe0'], lila: ['Lila', '#a371f7', '#8957e5'], tuerkis: ['Türkis', '#2bc4b4', '#1c9c8f'], orange: ['Orange', '#f0883e', '#cf6a22'], pink: ['Pink', '#ec6cb9', '#c94f9b'], rot: ['Rot', '#f85149', '#d03530'] };
+const BASES = {
+  dunkel: ['Dunkel', { bg0: '#101216', bg1: '#14161b', bg2: '#1a1d23', bg3: '#21252d', bg4: '#2a2f39', line: '#2a2e37' }],
+  mitternacht: ['Mitternacht', { bg0: '#0a0f1e', bg1: '#0e1427', bg2: '#131a30', bg3: '#1a2340', bg4: '#232e4f', line: '#222c48' }],
+  schwarz: ['Schwarz', { bg0: '#000000', bg1: '#060708', bg2: '#0d0f12', bg3: '#16191e', bg4: '#21252c', line: '#1b1e24' }],
+};
+const FONTS = { system: ['System', '"Segoe UI", Arial, sans-serif'], rund: ['Rund', '"Trebuchet MS", "Segoe UI", sans-serif'], mono: ['Mono', '"Cascadia Code", Consolas, monospace'] };
+const FX = { none: 'Keiner', grid: 'Raster', glow: 'Leuchten' };
+
+function applySettings() {
+  const r = document.documentElement.style;
+  const a = ACCENTS[S.accent] || ACCENTS.gruen;
+  r.setProperty('--accent', a[1]); r.setProperty('--accent2', a[2]);
+  const b = (BASES[S.base] || BASES.dunkel)[1];
+  for (const k in b) r.setProperty('--' + k, b[k]);
+  r.setProperty('--font', (FONTS[S.font] || FONTS.system)[1]);
+  document.body.classList.toggle('noanim', S.animations === false);
+  document.body.classList.toggle('nolabels', S.railLabels === false);
+  $('#main').className = 'fx-' + (S.fx || 'glow');
+  call('win:overlay', { color: b.bg0 }, true).catch(() => {});
+}
+async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch)) renderHome(); }
+
+let setSec = 'look';
+const SECS = [['look', 'Darstellung'], ['general', 'Allgemein'], ['play', 'Spielen'], ['about', 'Über']];
+function openSettings() {
+  if (document.querySelector('dialog[open]')) return;
+  const nav = $('#snav'); nav.innerHTML = '';
+  for (const [k, l] of SECS) { const d = document.createElement('div'); d.textContent = l; d.dataset.k = k; d.onclick = () => { setSec = k; renderSettingsBody(); }; nav.appendChild(d); }
+  renderSettingsBody(); $('#setDlg').showModal(); document.activeElement && document.activeElement.blur();
+}
+$('#railSet').onclick = openSettings;
+$('#setClose').onclick = () => $('#setDlg').close();
+$('#setDir').onclick = () => call('app:openRoot');
+
+function optRow(cur0, entries, onPick, deco) {
+  const w = document.createElement('div'); w.className = 'opts';
+  for (const [k, label] of entries) {
+    const o = document.createElement('div'); o.className = 'opt' + (k === cur0 ? ' on' : '');
+    if (deco) o.appendChild(deco(k));
+    o.appendChild(document.createTextNode(label));
+    o.onclick = () => onPick(k); w.appendChild(o);
+  }
+  return w;
+}
+function sec(title, text, el) {
+  const s = document.createElement('div'); s.className = 'sec';
+  s.innerHTML = '<h4></h4><p></p>'; s.firstChild.textContent = title; s.children[1].textContent = text;
+  if (el) s.appendChild(el); return s;
+}
+function toggleLine(label, hint, on, fn) {
+  const d = document.createElement('div'); d.className = 'tline';
+  d.innerHTML = '<div><span></span><small></small></div><div class="sw"></div>';
+  d.querySelector('span').textContent = label; d.querySelector('small').textContent = hint || '';
+  const sw = d.querySelector('.sw'); sw.classList.toggle('on', on); sw.onclick = () => fn(!on);
+  return d;
+}
+function renderSettingsBody() {
+  if (!$('#setDlg').open && !$('#snav').children.length) return;
+  document.querySelectorAll('#snav div').forEach((d) => d.classList.toggle('on', d.dataset.k === setSec));
+  const c = $('#scont'); c.innerHTML = '';
+  if (setSec === 'look') {
+    c.appendChild(sec('Akzentfarbe', 'Farbe für Knöpfe, Markierungen und Hervorhebungen.',
+      optRow(S.accent || 'gruen', Object.entries(ACCENTS).map(([k, v]) => [k, v[0]]), (k) => setS({ accent: k }), (k) => Object.assign(document.createElement('span'), { className: 'sw-dot', style: `background:${ACCENTS[k][1]}` }))));
+    c.appendChild(sec('Hintergrund', 'Grundfarbe der Oberfläche.',
+      optRow(S.base || 'dunkel', Object.entries(BASES).map(([k, v]) => [k, v[0]]), (k) => setS({ base: k }), (k) => Object.assign(document.createElement('span'), { className: 'sw-dot', style: `background:${BASES[k][1].bg2};border:1px solid #444` }))));
+    c.appendChild(sec('Schrift', 'Schriftart in der ganzen App.',
+      optRow(S.font || 'system', Object.entries(FONTS).map(([k, v]) => [k, v[0]]), (k) => setS({ font: k }), (k) => Object.assign(document.createElement('b'), { textContent: 'Aa', style: `font-family:${FONTS[k][1]}` }))));
+    c.appendChild(sec('Hintergrund-Effekt', 'Dekoration hinter dem Inhalt.',
+      optRow(S.fx || 'glow', Object.entries(FX), (k) => setS({ fx: k }))));
+    const t = document.createElement('div');
+    t.appendChild(toggleLine('Animationen', 'Übergänge, schwebender Skin, Lade-Animationen', S.animations !== false, (v) => setS({ animations: v })));
+    t.appendChild(toggleLine('Beschriftung in der Seitenleiste', 'Text unter den Symbolen links', S.railLabels !== false, (v) => setS({ railLabels: v })));
+    t.appendChild(toggleLine('Skin auf der Startseite', 'Zeigt deine Spielfigur', S.showSkin !== false, (v) => setS({ showSkin: v })));
+    c.appendChild(sec('Verhalten', '', t));
+  } else if (setSec === 'general') {
+    const inp = document.createElement('input'); inp.style.width = '320px'; inp.placeholder = account ? account.name + ' (aus dem Launcher)' : 'Spielername';
+    inp.value = S.playerName || ''; inp.spellcheck = false;
+    inp.onchange = () => setS({ playerName: inp.value.trim() });
+    c.appendChild(sec('Spielername', account ? 'Wird automatisch aus dem Minecraft-Launcher gelesen. Nur ausfüllen, wenn ein anderer Name angezeigt werden soll.' : 'Kein Konto im Minecraft-Launcher gefunden. Trag deinen Namen ein, um deinen Skin zu sehen.', inp));
+    c.appendChild(sec('Startansicht', 'Was beim Öffnen von Modstack angezeigt wird.',
+      optRow(S.startView || 'home', [['home', 'Start'], ['inst', 'Instanzen'], ['packs', 'Modpacks']], (k) => setS({ startView: k }))));
+    const b = document.createElement('div'); b.className = 'opts';
+    b.innerHTML = '<button class="ghost" id="sRoot">Instanzen-Ordner öffnen</button>';
+    c.appendChild(sec('Daten', 'Hier liegen alle Instanzen mit Mods, Welten und Einstellungen.', b));
+    $('#sRoot').onclick = () => call('app:openRoot');
+  } else if (setSec === 'play') {
+    const line = document.createElement('div'); line.className = 'card'; line.style.background = 'transparent'; line.style.padding = '0';
+    line.innerHTML = '<div class="line"><label class="check" style="margin:0"><input type="checkbox" id="dRamOn"> Eigener Wert</label><input type="range" id="dRam" min="2" max="16" step="0.5"><b id="dRamV" style="width:70px;text-align:right"></b></div>';
+    c.appendChild(sec('Standard-RAM für neue Instanzen', 'Wird bei neuen Instanzen und Modpacks automatisch eingetragen. Pro Instanz änderbar.', line));
+    const on = $('#dRamOn'), r = $('#dRam'), v = $('#dRamV');
+    on.checked = !!S.defaultRam; r.value = S.defaultRam ? S.defaultRam / 1024 : 4;
+    const upd = () => { r.disabled = !on.checked; v.textContent = on.checked ? r.value + ' GB' : 'Standard'; };
+    upd(); r.oninput = upd;
+    on.onchange = r.onchange = () => { upd(); call('settings:set', { defaultRam: on.checked ? Math.round(parseFloat(r.value) * 1024) : 0 }).then((s) => { S = s; }); };
+    c.appendChild(sec('Spielen', 'Modstack startet Minecraft über den offiziellen Launcher. Dort wählst du das Profil „[Modstack] Name“ und klickst auf Spielen. Der Mojang-Launcher muss vorher geschlossen sein.'));
+  } else {
+    const d = document.createElement('div'); d.className = 'opts';
+    d.innerHTML = '<button class="ghost" id="sGh">Quellcode auf GitHub</button><button class="ghost" id="sMr">Modrinth</button>';
+    c.appendChild(sec('Modstack ' + (window.__ver || ''), 'Schlanker Minecraft-Mod-Manager. Persönliches, nicht-kommerzielles Projekt. Mods kommen von Modrinth, CurseForge-Profile können importiert werden.', d));
+    $('#sGh').onclick = () => call('app:openUrl', 'https://github.com/Michi3445/modstack');
+    $('#sMr').onclick = () => call('app:openUrl', 'https://modrinth.com');
+  }
+}
+
 // ---------- Aktionen ----------
 async function checkUpdates() {
   if (!cur || busy) return;
@@ -759,7 +1012,7 @@ async function duplicateInst(i) {
 async function play(i) {
   if (!i || busy) return;
   const b = $('#playBtn'); b.innerHTML = '<span class="spin"></span> Bereite vor ...';
-  try { await work('Bereite ' + i.name + ' vor ...', () => call('play', i.id)); toast('Launcher gestartet. Profil „[Modstack] ' + i.name + '“ wählen.'); }
+  try { await work('Bereite ' + i.name + ' vor ...', () => call('play', i.id)); S = await call('settings:set', { last: i.id, recent: [i.id, ...(S.recent || []).filter((x) => x !== i.id)].slice(0, 6) }); if (view === 'home') renderHome(); toast('Launcher gestartet. Profil „[Modstack] ' + i.name + '“ wählen.'); }
   catch {} finally { b.textContent = '▶ Spielen'; b.disabled = false; }
 }
 async function renameInst(i) {
@@ -793,6 +1046,7 @@ $('#nOk').onclick = async () => {
   const loader = $('#nLoader .on').dataset.v;
   const inst = await call('instances:create', { name, mc: $('#nMc').value, loader });
   $('#dlg').close(); $('#nName').value = '';
+  if (S.defaultRam) await call('instances:settings', { id: inst.id, ram: S.defaultRam, javaArgs: '' }, true).catch(() => {});
   tab = 'search-mod'; await load(inst.id); toast('Instanz „' + name + '“ erstellt');
 };
 $('#newBtn').onclick = newInstance;
@@ -819,7 +1073,14 @@ document.addEventListener('contextmenu', (e) => { if (!/INPUT|TEXTAREA/.test(e.t
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => e.preventDefault());
 
-load();
+(async () => {
+  try { S = await call('settings:get', undefined, true); } catch { S = {}; }
+  applySettings();
+  call('app:version', undefined, true).then((v) => { window.__ver = v; }).catch(() => {});
+  try { account = await call('mc:account', undefined, true); } catch { account = null; }
+  markView(S.startView || 'home');
+  await load();
+})();
 </script>
 </body>
 </html>

@@ -320,6 +320,48 @@ ipcMain.handle('instances:settings', ({ id, ram, javaArgs }) => {
   return inst;
 });
 
+// ---------- App-Einstellungen, Konto, News ----------
+const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+ipcMain.handle('settings:get', () => {
+  try { return JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch { return {}; }
+});
+ipcMain.handle('settings:set', (patch) => {
+  let s = {};
+  try { s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch {}
+  Object.assign(s, patch || {});
+  fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
+  fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2));
+  return s;
+});
+
+// Liest nur Name und UUID des aktiven Kontos aus dem offiziellen Launcher (keine Tokens)
+ipcMain.handle('mc:account', () => {
+  const dirs = [mcDir(), path.join(process.env.LOCALAPPDATA || '', 'Packages', 'Microsoft.4297127D64EC6_8wekyb3d8bbwe', 'LocalCache', 'Roaming', '.minecraft')];
+  for (const d of dirs) {
+    for (const f of ['launcher_accounts_microsoft_store.json', 'launcher_accounts.json']) {
+      try {
+        const j = JSON.parse(fs.readFileSync(path.join(d, f), 'utf8'));
+        const acc = (j.accounts || {})[j.activeAccountLocalId] || Object.values(j.accounts || {})[0];
+        if (acc && acc.minecraftProfile && acc.minecraftProfile.name) return { name: acc.minecraftProfile.name, uuid: acc.minecraftProfile.id };
+      } catch {}
+    }
+  }
+  return null;
+});
+
+let newsCache = null;
+ipcMain.handle('mc:news', async () => {
+  if (newsCache && Date.now() - newsCache.t < 30 * 60000) return newsCache.d;
+  const base = 'https://launchercontent.mojang.com';
+  const j = await getJson(base + '/v2/news.json');
+  const d = (j.entries || [])
+    .filter((e) => (e.newsType || []).includes('Java'))
+    .slice(0, 8)
+    .map((e) => ({ title: e.title, text: e.text, date: e.date, link: e.readMoreLink, image: e.playPageImage ? base + e.playPageImage.url : e.newsPageImage ? base + e.newsPageImage.url : null }));
+  newsCache = { t: Date.now(), d };
+  return d;
+});
+
 ipcMain.handle('sys:info', () => ({ totalMb: Math.floor(require('os').totalmem() / 1048576) }));
 
 // ---------- ZIP lesen (ohne Fremdbibliothek) ----------
@@ -750,6 +792,10 @@ ipcMain.handle('win:devtools', () => { win.webContents.toggleDevTools(); return 
 ipcMain.handle('win:zoom', (d) => {
   const wc = win.webContents;
   wc.setZoomLevel(d === 0 ? 0 : Math.max(-3, Math.min(3, wc.getZoomLevel() + d)));
+  return true;
+});
+ipcMain.handle('win:overlay', ({ color }) => {
+  if (/^#[0-9a-f]{6}$/i.test(color || '') && win.setTitleBarOverlay) win.setTitleBarOverlay({ color, symbolColor: '#c9ced8', height: 36 });
   return true;
 });
 ipcMain.handle('win:fullscreen', () => { win.setFullScreen(!win.isFullScreen()); return true; });
