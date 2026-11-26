@@ -898,12 +898,72 @@ async function renderHome() {
 
 // ---------- 3D-Skin ----------
 let skinViewer = null;
-const ANIMS = [['idle', '▪', 'Stehen'], ['walk', '›', 'Gehen'], ['run', '»', 'Rennen'], ['wave', '∿', 'Winken']];
-function makeAnim(k) {
-  const v = window.skinview3d; if (!v) return null;
-  const C = { idle: v.IdleAnimation, walk: v.WalkingAnimation, run: v.RunningAnimation, wave: v.WaveAnimation }[k] || v.IdleAnimation;
-  return C ? new C() : null;
+const mouse = { x: null, y: null };
+window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+// Zufaellige Aktionen: Dauer in Sekunden und Funktion (p = 0..1 Fortschritt, t = Sekunden seit Start, s = Skin-Teile)
+const ACTIONS = {
+  scratch: [2.6, (p, t, s, o) => { s.rightArm.rotation.x = -2.75 + Math.sin(t * 20) * 0.1; s.rightArm.rotation.z = -0.42; o.headX = 0.22; o.headZ = -0.2; }],
+  wave: [2.2, (p, t, s) => { s.rightArm.rotation.x = 0; s.rightArm.rotation.z = -2.7 + Math.sin(t * 11) * 0.35; }],
+  look: [3.2, (p, t, s, o) => { o.yaw = Math.sin(p * Math.PI * 2) * 1.0; o.headX = -0.1; }],
+  nod: [1.2, (p, t, s, o) => { o.headX = Math.sin(t * 11) * 0.28; }],
+  stretch: [2.2, (p, t, s, o) => { s.rightArm.rotation.z = -2.75; s.leftArm.rotation.z = 2.75; s.rightArm.rotation.x = 0.2; s.leftArm.rotation.x = 0.2; o.headX = -0.35; }],
+  jump: [0.8, (p, t, s, o) => { o.y = Math.sin(p * Math.PI) * 3.2; s.rightArm.rotation.z = -0.5 * Math.sin(p * Math.PI); s.leftArm.rotation.z = 0.5 * Math.sin(p * Math.PI); }],
+  shrug: [1.4, (p, t, s, o) => { s.rightArm.rotation.z = -0.55; s.leftArm.rotation.z = 0.55; s.rightArm.rotation.x = -0.35; s.leftArm.rotation.x = -0.35; o.headZ = 0.12; }],
+};
+
+function lifeAnimation(v) {
+  const st = { yaw: 0, pitch: 0, act: null, actT: 0, next: 3 + Math.random() * 4 };
+  const ease = (p, d) => { const e = Math.min(1, Math.min(p * d, (1 - p) * d) / 0.35); return e * e * (3 - 2 * e); };
+  return new skinview3d.FunctionAnimation((player, t, delta) => {
+    const s = player.skin;
+    // Grundhaltung mit Atmen
+    for (const k of ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg']) s[k].rotation.set(0, 0, 0);
+    s.rightArm.rotation.z = -(0.06 + Math.cos(t * 1.6) * 0.03); s.leftArm.rotation.z = 0.06 + Math.cos(t * 1.6) * 0.03;
+    s.rightArm.rotation.x = Math.sin(t * 0.9) * 0.03; s.leftArm.rotation.x = -Math.sin(t * 0.9) * 0.03;
+    player.position.y = 0;
+
+    // Wohin schaut die Maus? (relativ zur Kamera und zur Drehung der Figur)
+    let tyaw = 0, tpitch = 0;
+    const rect = v.canvas.getBoundingClientRect();
+    if (mouse.x !== null && rect.width) {
+      const dx = Math.max(-1, Math.min(1, (mouse.x - (rect.left + rect.width / 2)) / (window.innerWidth * 0.45)));
+      const dy = Math.max(-1, Math.min(1, (mouse.y - (rect.top + rect.height * 0.22)) / (window.innerHeight * 0.5)));
+      const cam = v.camera.position;
+      let yaw = Math.atan2(cam.x, cam.z) + dx * 0.9 - player.rotation.y;
+      yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+      tyaw = Math.max(-1.1, Math.min(1.1, yaw));
+      tpitch = dy * 0.55;
+    }
+
+    // Zufaellige Aktion
+    const o = {};
+    if (window.__forceAct && ACTIONS[window.__forceAct]) { st.act = window.__forceAct; st.actT = t; window.__forceAct = null; }
+    if (!st.act && t > st.next) { const keys = Object.keys(ACTIONS); st.act = keys[Math.floor(Math.random() * keys.length)]; st.actT = t; }
+    let w = 0;
+    if (st.act) {
+      const [dur, fn] = ACTIONS[st.act];
+      const p = (t - st.actT) / dur;
+      if (p >= 1) { st.act = null; st.next = t + 5 + Math.random() * 7; }
+      else {
+        w = ease(p, dur);
+        const base = { ra: s.rightArm.rotation.clone(), la: s.leftArm.rotation.clone() };
+        fn(p, t - st.actT, s, o);
+        // weich ueberblenden
+        s.rightArm.rotation.set(base.ra.x + (s.rightArm.rotation.x - base.ra.x) * w, 0, base.ra.z + (s.rightArm.rotation.z - base.ra.z) * w);
+        s.leftArm.rotation.set(base.la.x + (s.leftArm.rotation.x - base.la.x) * w, 0, base.la.z + (s.leftArm.rotation.z - base.la.z) * w);
+        if (o.y) player.position.y = o.y;
+        if (o.yaw !== undefined) tyaw = tyaw * (1 - w) + o.yaw * w;
+        if (o.headX !== undefined) tpitch = tpitch * (1 - w) + o.headX * w;
+      }
+    }
+    const k = Math.min(1, delta * 7);
+    st.yaw += (tyaw - st.yaw) * k; st.pitch += (tpitch - st.pitch) * k;
+    s.head.rotation.y = st.yaw; s.head.rotation.x = st.pitch; s.head.rotation.z = (o.headZ || 0) * w;
+    s.body.rotation.y = st.yaw * 0.15;
+  });
 }
+
 async function mountSkin(sk, name) {
   if (skinViewer) { try { skinViewer.dispose(); } catch {} skinViewer = null; }
   sk.innerHTML = '<span class="spin"></span>';
@@ -919,25 +979,11 @@ async function mountSkin(sk, name) {
   try { await v.loadSkin(data.skin, { model: data.slim ? 'slim' : 'default' }); } catch {}
   if (data.cape && S.showCape !== false) { try { await v.loadCape(data.cape); } catch {} }
   v.fov = 50; v.zoom = 0.72;
-  if (S.nameTag !== false && skinview3d.NameTagObject) { try { v.nameTag = new skinview3d.NameTagObject(data.name || name, { textStyle: 'white', backgroundStyle: 'rgba(0,0,0,0.45)', font: '44px "Segoe UI", Arial, sans-serif' }); } catch { try { v.nameTag = data.name || name; } catch {} } }
-  v.playerObject.rotation.y = 0.45;
+  if (S.nameTag !== false && skinview3d.NameTagObject) { try { v.nameTag = new skinview3d.NameTagObject(data.name || name, { textStyle: 'white', backgroundStyle: 'rgba(0,0,0,0.45)', font: '44px "Segoe UI", Arial, sans-serif' }); } catch {} }
+  v.playerObject.rotation.y = 0.35;
   v.controls.enableZoom = false; v.controls.enablePan = false;
-  v.autoRotate = S.skinRotate !== false && S.animations !== false; v.autoRotateSpeed = 0.6;
-  v.animation = S.animations === false ? null : makeAnim(S.skinAnim || 'idle');
-  // Bedienknoepfe
-  const ctl = document.createElement('div'); ctl.className = 'skinctl';
-  const btn = (txt, title, on, fn) => { const d = document.createElement('div'); d.textContent = txt; d.title = title; d.classList.toggle('on', on); d.onclick = fn; ctl.appendChild(d); return d; };
-  const rot = btn('⟳', 'Automatisch drehen', v.autoRotate, async () => { v.autoRotate = !v.autoRotate; rot.classList.toggle('on', v.autoRotate); S = await call('settings:set', { skinRotate: v.autoRotate }); });
-  const animBtns = ANIMS.map(([k, ico, l]) => btn(ico, l, (S.skinAnim || 'idle') === k, async () => {
-    v.animation = makeAnim(k); animBtns.forEach((b, i) => b.classList.toggle('on', ANIMS[i][0] === k));
-    S = await call('settings:set', { skinAnim: k });
-  }));
-  if (data.cape) { const cp = btn('▰', 'Umhang zeigen', S.showCape !== false, async () => {
-    const on = !(S.showCape !== false); S = await call('settings:set', { showCape: on }); cp.classList.toggle('on', on);
-    if (on) v.loadCape(data.cape); else v.resetCape ? v.resetCape() : v.loadCape(null);
-  }); }
-  btn('↺', 'Ansicht zurücksetzen', false, () => { if (v.resetCameraPose) v.resetCameraPose(); v.zoom = 0.78; });
-  sk.appendChild(ctl);
+  v.autoRotate = false;
+  v.animation = S.animations === false ? null : lifeAnimation(v);
   $('#hHint').textContent = 'Mit der Maus ziehen zum Drehen';
 }
 
@@ -963,7 +1009,7 @@ function applySettings() {
   $('#main').className = 'fx-' + (S.fx || 'glow');
   call('win:overlay', { color: b.bg0 }, true).catch(() => {});
 }
-async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'room' in patch)) renderHome(); }
+async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'showCape' in patch || 'animations' in patch || 'room' in patch)) renderHome(); }
 
 let setSec = 'look';
 const SECS = [['look', 'Darstellung'], ['general', 'Allgemein'], ['play', 'Spielen'], ['about', 'Über']];
@@ -1017,6 +1063,7 @@ function renderSettingsBody() {
     t.appendChild(toggleLine('Beschriftung in der Seitenleiste', 'Text unter den Symbolen links', S.railLabels !== false, (v) => setS({ railLabels: v })));
     t.appendChild(toggleLine('Skin auf der Startseite', 'Zeigt deine Spielfigur in 3D', S.showSkin !== false, (v) => setS({ showSkin: v })));
     t.appendChild(toggleLine('Namensschild über dem Skin', '', S.nameTag !== false, (v) => setS({ nameTag: v })));
+    t.appendChild(toggleLine('Umhang zeigen', 'Falls dein Konto einen Umhang hat', S.showCape !== false, (v) => setS({ showCape: v })));
     t.appendChild(toggleLine('3D-Raum auf der Startseite', 'Bodenraster hinter der Spielfigur', S.room !== false, (v) => setS({ room: v })));
     c.appendChild(sec('Verhalten', '', t));
   } else if (setSec === 'general') {
