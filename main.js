@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain: rawIpc, shell, dialog, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain: rawIpc, shell, dialog, nativeImage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -16,13 +16,34 @@ let win;
 // Datenordner vom alten Namen behalten, damit vorhandene Instanzen bleiben
 app.setPath('userData', path.join(app.getPath('appData'), 'modmanager'));
 const hasAppLock = !app.isPackaged || app.requestSingleInstanceLock();
-require('./friends')(ipcMain, app.getPath('userData'), readMinecraftAccount);
+require('./friends')(ipcMain, app.getPath('userData'), readMinecraftAccount, buildShareCode, notifyFriendChat);
 require('./updater')(ipcMain, app, status);
 const instRoot = () => path.join(app.getPath('userData'), 'instances');
 const mcDir = () => path.join(process.env.APPDATA || '', '.minecraft');
 
 function status(msg) {
   if (win && !win.isDestroyed()) win.webContents.send('status', msg);
+}
+
+let friendNotification;
+function notifyFriendChat({ arrived, unread }) {
+  if (!win || win.isDestroyed()) return;
+  const settings = appSettings();
+  const message = arrived.length > 1 ? `Neue Nachrichten in ${arrived.length} Chats`
+    : arrived[0].kind === 'pack' ? 'Ein Freund hat ein Modpack geteilt.' : 'Du hast eine neue Chatnachricht.';
+  if (settings.friendsSound !== false) shell.beep();
+  const popup = settings.friendsPopup !== false;
+  win.webContents.send('friendChat', { arrived, unread, toast: popup && win.isFocused() ? message : '' });
+  if (!popup || win.isFocused() || !Notification.isSupported()) return;
+  friendNotification?.close();
+  friendNotification = new Notification({ title: 'Modstack · Freunde', body: message, silent: true });
+  friendNotification.on('click', () => {
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.webContents.send('friendChat', { open: true });
+  });
+  friendNotification.show();
 }
 
 // ---------- Hilfsfunktionen ----------
@@ -886,32 +907,36 @@ async function resolveLoaderVersion(inst) {
 }
 
 // Teilen-Code: Name, Version, Loader und die Modrinth-Versionen, komprimiert. Kein Server noetig.
-ipcMain.handle('share:code', (id) => {
+function buildShareCode(id, iconLimit = 1900) {
   const inst = readInst(id);
   const pick = (k) => inst.mods.filter((m) => m.versionId && kindOf(m) === k && !m.disabled).map((m) => m.versionId);
   const data = { n: inst.name, mc: inst.mc, l: inst.loader, lv: inst.loaderVersion || undefined, m: pick('mod'), r: pick('resourcepack'), s: pick('shader') };
   if (inst.iconGen) data.ig = inst.iconGen;
   if (inst.icon && /^https:\/\/cdn\.modrinth\.com\//.test(inst.icon) && inst.icon.length < 300) data.ic = inst.icon;
   const enc = () => 'MS1-' + zlib.deflateRawSync(Buffer.from(JSON.stringify(data)), { level: 9 }).toString('base64url');
-  // Eigenes hochgeladenes Bild als kleines Vorschaubild mitgeben, solange der Code Discord-tauglich bleibt (unter 1900 Zeichen)
+  // Der kopierbare Code bleibt Discord-tauglich. Im internen Chat passt ein größeres Paket.
   let iconInCode = !inst.icon || !inst.icon.startsWith('data:image');
   if (!iconInCode) {
     for (const [px, q] of [[48, 75], [40, 70], [32, 65], [24, 60]]) {
       try { data.ii = nativeImage.createFromDataURL(inst.icon).resize({ width: px, height: px, quality: 'best' }).toJPEG(q).toString('base64'); } catch { delete data.ii; break; }
-      if (enc().length <= 1900) { iconInCode = true; break; }
+      if (enc().length <= iconLimit) { iconInCode = true; break; }
       delete data.ii;
     }
   }
   const code = enc();
   const skipped = inst.mods.filter((m) => !m.versionId && !m.disabled).map((m) => m.title);
-  return { code, included: data.m.length + data.r.length + data.s.length, skipped, iconInCode };
-});
+  return { code, name: inst.name, included: data.m.length + data.r.length + data.s.length, skipped, iconInCode };
+}
+ipcMain.handle('share:code', buildShareCode);
 
 ipcMain.handle('share:importCode', async (code) => {
   const m = /^MS1-([A-Za-z0-9_-]+)$/.exec(String(code || '').trim().replace(/\s+/g, ''));
-  if (!m) throw new Error('Das ist kein gueltiger Modstack-Code');
-  let d; try { d = JSON.parse(zlib.inflateRawSync(Buffer.from(m[1], 'base64url')).toString('utf8')); } catch { throw new Error('Code ist beschaedigt oder unvollstaendig'); }
-  if (!d.mc || !LOADERS.includes(d.l)) throw new Error('Code enthaelt keine gueltige Version');
+  if (!m || m[1].length > 350000) throw new Error('Das ist kein gueltiger Modstack-Code');
+  let d; try { d = JSON.parse(zlib.inflateRawSync(Buffer.from(m[1], 'base64url'), { maxOutputLength: 1048576 }).toString('utf8')); } catch { throw new Error('Code ist beschaedigt oder unvollstaendig'); }
+  if (!d || typeof d.mc !== 'string' || !d.mc || !LOADERS.includes(d.l)) throw new Error('Code enthaelt keine gueltige Version');
+  if ([d.m, d.r, d.s].some((ids) => ids != null && (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id))))) {
+    throw new Error('Code enthaelt ungueltige Dateien');
+  }
   const id = newInstId(d.n || 'Geteilte Instanz');
   fs.mkdirSync(path.join(instDir(id), 'mods'), { recursive: true });
   const inst = { id, name: String(d.n || 'Geteilte Instanz').slice(0, 80), mc: d.mc, loader: d.l, loaderVersion: d.lv || undefined, mods: [], created: new Date().toISOString(), source: 'shared' };
@@ -1284,6 +1309,7 @@ function createWindow() {
 const { Menu } = require('electron');
 Menu.setApplicationMenu(null); // eigenes Menue im Fenster
 if (hasAppLock) {
+  if (process.platform === 'win32') app.setAppUserModelId('com.modstack.app');
   app.whenReady().then(createWindow);
   app.on('second-instance', () => {
     if (!win || win.isDestroyed()) return;

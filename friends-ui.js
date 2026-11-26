@@ -1,3 +1,30 @@
+let activeFriendChat, friendShareInstance;
+let unreadFriendChats = new Set();
+
+function markUnreadFriendChats(ids) {
+  unreadFriendChats = new Set(ids);
+  const rail = $('[data-v="friends"]');
+  let badge = $('.rbadge', rail);
+  if (ids.length) {
+    if (!badge) { badge = document.createElement('i'); badge.className = 'rbadge'; rail.append(badge); }
+    badge.textContent = ids.length > 99 ? '99+' : ids.length;
+  } else badge?.remove();
+  for (const button of document.querySelectorAll('button[data-chat]')) {
+    button.textContent = unreadFriendChats.has(button.dataset.chat) ? 'Chat · Neu' : 'Chat';
+  }
+}
+
+function startFriendNotifications() {
+  api.onFriendChat((event) => {
+    if (event.open) { setView('friends'); return; }
+    markUnreadFriendChats(event.unread);
+    if (event.toast) toast(event.toast);
+    if (event.arrived.some(({ id }) => id === activeFriendChat?.entry.id)) activeFriendChat.refresh();
+  });
+  window.addEventListener('focus', () => activeFriendChat?.refresh());
+  api.invoke('friends:unread').then(markUnreadFriendChats).catch(() => {});
+}
+
 async function renderFriends(showSetup = false, notice = '') {
   const panel = document.createElement('section');
   panel.className = 'friends-panel';
@@ -62,6 +89,7 @@ async function renderFriends(showSetup = false, notice = '') {
       return;
     }
     if (!state.uid) {
+      markUnreadFriendChats([]);
       const form = showForm(`
         <label>E-Mail-Adresse<input name="email" type="email" autocomplete="username" maxlength="254" required></label>
         <label>Passwort<input name="password" type="password" autocomplete="current-password" minlength="6" maxlength="256" required></label>
@@ -96,8 +124,16 @@ async function renderFriends(showSetup = false, notice = '') {
     actions.className = 'friends-actions';
     actions.append(button('Aktualisieren', () => renderFriends()), button('Abmelden', () => act('logout')));
     body.append(actions);
+    body.append(toggles([
+      ['Nachrichtenton', 'Bei neuen Chatnachrichten und geteilten Modpacks', S.friendsSound !== false, (value) => setS({ friendsSound: value })],
+      ['Pop-up bei Nachrichten', 'In Modstack oder als Windows-Benachrichtigung', S.friendsPopup !== false, (value) => setS({ friendsPopup: value })],
+    ]));
     const rows = await api.invoke('friends:list');
     if (!panel.isConnected) return;
+    const unread = await api.invoke('friends:unread');
+    if (!panel.isConnected) return;
+    markUnreadFriendChats(unread);
+    if (friendShareInstance) status.textContent = 'Wähle den Chat, an den du die Instanz senden möchtest.';
     for (const [title, list, empty] of [
       ['Freundesliste', rows.filter((item) => item.accepted), 'Noch keine Freunde hinzugefügt.'],
       ['Eingehende Anfragen', rows.filter((item) => !item.accepted && item.incoming), 'Keine eingehenden Anfragen.'],
@@ -120,6 +156,11 @@ async function renderFriends(showSetup = false, notice = '') {
         name.textContent = entry.name;
         row.append(name);
         const respond = (accept) => act('respond', { id: entry.id, accept });
+        if (entry.accepted) {
+          const chat = button(unreadFriendChats.has(entry.id) ? 'Chat · Neu' : 'Chat', () => openFriendChat(entry), true);
+          chat.dataset.chat = entry.id;
+          row.append(chat);
+        }
         if (!entry.accepted && entry.incoming) row.append(button('Annehmen', () => respond(true), true));
         row.append(button(entry.accepted ? 'Entfernen' : entry.incoming ? 'Ablehnen' : 'Zurückziehen', async () => {
           if (entry.accepted && !await ask({ title: 'Freund entfernen?', text: entry.name, okText: 'Entfernen', danger: true })) return;
@@ -134,4 +175,147 @@ async function renderFriends(showSetup = false, notice = '') {
     status.classList.add('err');
     body.replaceChildren(button('Erneut versuchen', () => renderFriends()), button('Abmelden', () => act('logout')));
   }
+}
+
+function openFriendChat(entry) {
+  const selectedInstance = friendShareInstance;
+  friendShareInstance = undefined;
+  const panel = document.createElement('section');
+  panel.className = 'friends-panel friend-chat';
+  panel.innerHTML = `
+    <header><button type="button" class="ghost chat-back">‹ Freunde</button><h1></h1><button type="button" class="ghost chat-refresh">Aktualisieren</button></header>
+    <p class="friends-status" role="status"></p>
+    <div class="chat-scroll" aria-label="Nachrichten" tabindex="0"></div>
+    <form class="chat-compose">
+      <textarea rows="2" maxlength="2000" placeholder="Nachricht schreiben …" aria-label="Nachricht" required></textarea>
+      <button class="primary">Senden</button>
+    </form>
+    <form class="chat-share">
+      <select aria-label="Instanz zum Teilen" required><option value="">Instanz auswählen …</option></select>
+      <button class="ghost">Modpack senden</button>
+    </form>`;
+  $('#content').replaceChildren(panel);
+  $('h1', panel).textContent = entry.name;
+  const status = $('.friends-status', panel), messages = $('.chat-scroll', panel);
+  const composer = $('.chat-compose', panel), text = $('textarea', composer);
+  const share = $('.chat-share', panel), instances = $('select', share);
+  for (const instance of insts) {
+    const option = new Option(instance.name, instance.id);
+    instances.add(option);
+    if (instance.id === selectedInstance) instances.value = instance.id;
+  }
+  $('button', share).disabled = !insts.length;
+  let reading = false, sending = false, rendered = '';
+  const isOpen = () => panel.isConnected && view === 'friends';
+  const time = new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+
+  function paint(rows) {
+    const ids = rows.map((row) => row.messageId).join(',');
+    if (ids === rendered && messages.childNodes.length) return;
+    const atBottom = !messages.childNodes.length || messages.scrollHeight - messages.scrollTop - messages.clientHeight < 60;
+    rendered = ids;
+    messages.replaceChildren();
+    if (!rows.length) {
+      const empty = document.createElement('p');
+      empty.textContent = 'Hier könnt ihr Nachrichten und Modpacks austauschen.';
+      messages.append(empty);
+    }
+    for (const row of rows) {
+      const bubble = document.createElement('article');
+      bubble.className = 'chat-message' + (row.mine ? ' mine' : '');
+      const content = document.createElement(row.kind === 'pack' ? 'strong' : 'div');
+      content.textContent = row.kind === 'pack' ? 'Modpack · ' + row.title : row.content;
+      bubble.append(content);
+      if (row.kind === 'pack' && row.skipped > 0) {
+        const note = document.createElement('small');
+        note.textContent = `${row.skipped} lokale Einträge fehlen.`;
+        bubble.append(note);
+      }
+      if (row.kind === 'pack' && !row.mine) {
+        const importButton = document.createElement('button');
+        importButton.type = 'button';
+        importButton.className = 'ghost';
+        importButton.textContent = 'Als Instanz importieren';
+        importButton.onclick = async () => {
+          if (busy || !await ask({ title: 'Modpack importieren?', text: `„${row.title}“ wird als neue Instanz angelegt.`, okText: 'Importieren' })) return;
+          await cfRun('share:importCode', row.content);
+        };
+        bubble.append(importButton);
+      }
+      const sent = document.createElement('time');
+      sent.textContent = time.format(row.at);
+      bubble.append(sent);
+      messages.append(bubble);
+    }
+    if (atBottom) messages.scrollTop = messages.scrollHeight;
+  }
+
+  async function refresh() {
+    if (reading || !isOpen()) return;
+    reading = true;
+    try {
+      const rows = await api.invoke('friends:chat', entry.id);
+      if (!isOpen()) return;
+      paint(rows);
+      if (status.dataset.readError) {
+        status.textContent = '';
+        status.classList.remove('err');
+      }
+      delete status.dataset.readError;
+      const last = rows.findLast((row) => !row.mine);
+      if (last && document.hasFocus()) {
+        const unread = await api.invoke('friends:readChat', { id: entry.id, messageId: last.messageId, at: last.at });
+        if (isOpen()) markUnreadFriendChats(unread);
+      }
+    } catch (error) {
+      if (!isOpen()) return;
+      status.textContent = errText(error);
+      status.classList.add('err');
+      status.dataset.readError = 'true';
+    } finally { reading = false; }
+  }
+
+  async function send(channel, form, data, confirm) {
+    if (sending) return false;
+    sending = true;
+    delete status.dataset.readError;
+    status.classList.remove('err');
+    status.textContent = '';
+    const button = $('button', form);
+    button.disabled = true;
+    try {
+      if (confirm && !await confirm()) return false;
+      await api.invoke(channel, { id: entry.id, ...data });
+      // If a read was already in flight, its result may predate this write.
+      if (reading) setTimeout(refresh, 500);
+      else await refresh();
+      return true;
+    } catch (error) {
+      status.textContent = errText(error);
+      status.classList.add('err');
+      return false;
+    } finally { sending = false; button.disabled = false; }
+  }
+
+  $('.chat-back', panel).onclick = () => { activeFriendChat = undefined; renderFriends(); };
+  $('.chat-refresh', panel).onclick = refresh;
+  text.onkeydown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); composer.requestSubmit(); }
+  };
+  composer.onsubmit = async (event) => {
+    event.preventDefault();
+    const message = text.value;
+    if (await send('friends:sendText', composer, { text: message }) && text.value === message) text.value = '';
+  };
+  share.onsubmit = (event) => {
+    event.preventDefault();
+    const instanceId = instances.value;
+    send('friends:sendPack', share, { instanceId }, async () => {
+      const { skipped, name } = await api.invoke('share:code', instanceId);
+      const note = skipped.length ? ` ${skipped.length} lokale Einträge sind nur im .mrpack-Export enthalten.` : '';
+      return ask({ title: 'Modpack senden?', text: `„${name}“ an ${entry.name} senden?${note}`, okText: 'Senden' });
+    });
+  };
+  activeFriendChat = { entry, panel, refresh };
+  refresh();
 }

@@ -31,6 +31,9 @@ If a database already has rules, merge the `modstackFriends` branch into them an
 restricted at the database root so the branch rules can enforce membership.
 The desktop app ships with the public Firebase Web App configuration in `friends-project.json`.
 Use **Freunde → Firebase ändern** while signed out to connect a different project.
+Accepted friends can message each other and share importable Modrinth-based instances in the chat.
+Sharing uses the Modstack code format. For local files or mod configuration, use the separate
+`.mrpack` export. Publish the current rules file before enabling chat in a Firebase project.
 
 ## Windows app updates
 

@@ -1,10 +1,14 @@
 const { safeStorage, clipboard } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash, randomBytes } = require('node:crypto');
 const project = require('./friends-project.json');
 
 const UID = /^[A-Za-z0-9_-]{1,128}$/;
 const ROOT = '/modstackFriends';
+const LINK_ID = /^[A-Za-z0-9_-]{1,128}~[A-Za-z0-9_-]{1,128}$/;
+const MESSAGE_ID = /^[a-f0-9]{32}$/;
+const CHAT_QUERY = { orderBy: 'at', limitToLast: 50 };
 const AUTH_ERRORS = {
   EMAIL_EXISTS: 'Für diese E-Mail gibt es bereits ein Konto.',
   INVALID_EMAIL: 'Gib eine gültige E-Mail-Adresse ein.',
@@ -16,11 +20,12 @@ const AUTH_ERRORS = {
   USER_DISABLED: 'Dieses Konto ist deaktiviert.',
 };
 
-module.exports = function registerFriends(ipc, userData, readMinecraftAccount) {
+module.exports = function registerFriends(ipc, userData, readMinecraftAccount, buildShareCode, notifyChat) {
   const configFile = path.join(userData, 'friends-firebase.json');
   const sessionFile = path.join(userData, 'friends-session');
   let config, session;
   let queue = Promise.resolve();
+  let inbox;
 
   function launcherName() {
     const name = readMinecraftAccount()?.name;
@@ -29,12 +34,14 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount) {
     return trimmed.length <= 32 ? trimmed : '';
   }
 
+  function enqueue(fn) {
+    const operation = queue.then(fn);
+    queue = operation.catch(() => {});
+    return operation;
+  }
+
   function handle(name, fn) {
-    ipc.handle('friends:' + name, (input) => {
-      const operation = queue.then(() => fn(input));
-      queue = operation.catch(() => {});
-      return operation;
-    });
+    ipc.handle('friends:' + name, (input) => enqueue(() => fn(input)));
   }
 
   function saveFile(file, data) {
@@ -49,6 +56,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount) {
   }
 
   function setSession(data) {
+    if (!data || data.uid !== session?.uid) inbox = undefined;
     session = data;
     if (!data) fs.rmSync(sessionFile, { force: true });
     else if (safeStorage.isEncryptionAvailable()) {
@@ -188,6 +196,13 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount) {
         return { id, incoming, name: profile?.name || 'Unbekanntes Profil', accepted: link.state === 'friends' };
       })));
     }
+    const state = chatInbox();
+    const accepted = new Set(rows.filter((row) => row.accepted).map((row) => row.id));
+    const stale = unreadChats(state).filter((id) => !accepted.has(id));
+    if (stale.length) {
+      for (const id of stale) state.entries[id].unread = false;
+      saveInbox(state);
+    }
     return rows.sort((a, b) => a.name.localeCompare(b.name, 'de'));
   });
 
@@ -210,7 +225,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount) {
   });
 
   handle('respond', async ({ id, accept } = {}) => {
-    if (!session || !/^[A-Za-z0-9_-]{1,128}~[A-Za-z0-9_-]{1,128}$/.test(id || '')) throw new Error('Ungültige Freundschaft.');
+    if (!session || !LINK_ID.test(id || '')) throw new Error('Ungültige Freundschaft.');
     const location = '/links/' + id;
     const { value, etag } = await db(location, { headers: { 'X-Firebase-ETag': 'true' } });
     if (!value || !etag || (accept === true && (value.recipient !== session.uid || value.state !== 'pending'))) {
@@ -222,4 +237,109 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount) {
       headers: { 'If-Match': etag },
     });
   });
+
+  function chatId(id) {
+    if (!session || typeof id !== 'string' || !LINK_ID.test(id) || !id.split('~').includes(session.uid)) {
+      throw new Error('Ungültiger Chat.');
+    }
+    return id;
+  }
+
+  async function sendMessage(id, fields) {
+    const link = (await db('/links/' + chatId(id))).value;
+    const from = session?.uid;
+    if (link?.state !== 'friends' || (link.sender !== from && link.recipient !== from)) {
+      throw new Error('Ihr müsst befreundet sein, um Nachrichten zu senden.');
+    }
+    const to = link.sender === from ? link.recipient : link.sender;
+    const messageId = randomBytes(16).toString('hex');
+    const at = { '.sv': 'timestamp' };
+    await db('', { method: 'PATCH', value: {
+      ['chat/' + id + '/' + messageId]: { from, to, at, ...fields },
+      ['inbox/' + to + '/' + id]: { messageId, at, kind: fields.kind },
+    } });
+  }
+
+  handle('chat', async (id) => {
+    const { value } = await db('/chat/' + chatId(id), { query: CHAT_QUERY });
+    return Object.entries(value || {}).map(([messageId, { from, to, ...message }]) =>
+      ({ ...message, messageId, mine: from === session.uid }))
+      .sort((a, b) => a.at - b.at || a.messageId.localeCompare(b.messageId, 'en'));
+  });
+
+  handle('sendText', async ({ id, text } = {}) => {
+    const content = typeof text === 'string' ? text.trim() : '';
+    if (!content || content.length > 2000) throw new Error('Schreib eine Nachricht mit bis zu 2.000 Zeichen.');
+    await sendMessage(id, { kind: 'text', content });
+  });
+
+  handle('sendPack', async ({ id, instanceId } = {}) => {
+    chatId(id);
+    if (typeof instanceId !== 'string' || !instanceId || instanceId.length > 180) throw new Error('Wähle eine Instanz aus.');
+    const { code, skipped, name } = buildShareCode(instanceId, 16000);
+    if (code.length > 16000) throw new Error('Dieses Modpack ist zu groß für den Chat. Teile es als .mrpack-Datei.');
+    await sendMessage(id, { kind: 'pack', content: code, title: String(name || 'Modpack').slice(0, 80), skipped: skipped.length });
+  });
+
+  function chatInbox() {
+    if (inbox) return inbox;
+    const key = createHash('sha256').update(config.databaseURL + '\n' + session.uid).digest('hex');
+    const file = path.join(userData, 'friend-inbox-' + key + '.json');
+    let saved;
+    try { saved = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+    inbox = { file, cursor: Number(saved?.cursor) || 0, entries: saved?.entries || {} };
+    return inbox;
+  }
+
+  function unreadChats(state) {
+    return Object.keys(state.entries).filter((id) => state.entries[id].unread);
+  }
+
+  function saveInbox(state) {
+    saveFile(state.file, JSON.stringify({ cursor: state.cursor, entries: state.entries }));
+  }
+
+  handle('unread', () => {
+    init();
+    return session ? unreadChats(chatInbox()) : [];
+  });
+
+  handle('readChat', ({ id, messageId, at } = {}) => {
+    chatId(id);
+    const state = chatInbox();
+    const known = state.entries[id];
+    if (typeof messageId === 'string' && MESSAGE_ID.test(messageId) && Number.isSafeInteger(at) &&
+        (!known || known.at < at || known.messageId === messageId)) {
+      state.entries[id] = { messageId, at, unread: false };
+      saveInbox(state);
+    }
+    return unreadChats(state);
+  });
+
+  let polling = false;
+  function pollChat() {
+    if (polling) return;
+    polling = true;
+    enqueue(async () => {
+      init();
+      if (!session) return;
+      const state = chatInbox();
+      const query = state.cursor ? { ...CHAT_QUERY, startAt: state.cursor } : CHAT_QUERY;
+      const { value } = await db('/inbox/' + session.uid, { query });
+      const arrived = [];
+      for (const [id, mark] of Object.entries(value || {})) {
+        const previous = state.entries[id];
+        state.cursor = Math.max(state.cursor, mark.at);
+        if (previous && (previous.messageId === mark.messageId || previous.at > mark.at)) continue;
+        state.entries[id] = { messageId: mark.messageId, at: mark.at, unread: true };
+        arrived.push({ id, kind: mark.kind });
+      }
+      if (arrived.length) {
+        saveInbox(state);
+        notifyChat({ arrived, unread: unreadChats(state) });
+      }
+    }).catch(() => {}).finally(() => { polling = false; });
+  }
+  setTimeout(pollChat, 2000).unref();
+  setInterval(pollChat, 15000).unref();
 };

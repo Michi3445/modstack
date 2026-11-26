@@ -15,6 +15,66 @@
           "$other": { ".validate": false }
         }
       },
+      "chat": {
+        "$id": {
+          ".read": "auth != null && root.child('modstackFriends/links').child($id).child('state').val() === 'friends' && (root.child('modstackFriends/links').child($id).child('sender').val() === auth.uid || root.child('modstackFriends/links').child($id).child('recipient').val() === auth.uid) && query.orderByChild === 'at' && query.limitToLast > 0 && query.limitToLast <= 50",
+          ".indexOn": [
+            "at"
+          ],
+          "$message": {
+            ".write": "auth != null && !data.exists() && newData.exists() && root.child('modstackFriends/links').child($id).child('state').val() === 'friends' && ((root.child('modstackFriends/links').child($id).child('sender').val() === auth.uid && root.child('modstackFriends/links').child($id).child('recipient').val() === newData.child('to').val()) || (root.child('modstackFriends/links').child($id).child('recipient').val() === auth.uid && root.child('modstackFriends/links').child($id).child('sender').val() === newData.child('to').val())) && newData.child('from').val() === auth.uid",
+            ".validate": "$message.matches(/^[a-f0-9]{32}$/) && newData.hasChildren(['from', 'to', 'at', 'kind', 'content']) && (newData.child('kind').val() === 'text' ? !newData.hasChild('title') && !newData.hasChild('skipped') : newData.hasChildren(['title', 'skipped']))",
+            "from": {
+              ".validate": "newData.isString()"
+            },
+            "to": {
+              ".validate": "newData.isString()"
+            },
+            "at": {
+              ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
+            },
+            "kind": {
+              ".validate": "newData.val() === 'text' || newData.val() === 'pack'"
+            },
+            "content": {
+              ".validate": "newData.isString() && (newData.parent().child('kind').val() === 'text' ? newData.val().length > 0 && newData.val().length <= 2000 : newData.val().length <= 16000 && newData.val().matches(/^MS1-[A-Za-z0-9_-]+$/))"
+            },
+            "title": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+            },
+            "skipped": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      },
+      "inbox": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid && query.orderByChild === 'at' && query.limitToLast > 0 && query.limitToLast <= 50",
+          ".indexOn": [
+            "at"
+          ],
+          "$id": {
+            ".write": "auth != null && auth.uid !== $uid && newData.exists() && root.child('modstackFriends/links').child($id).child('state').val() === 'friends' && ((root.child('modstackFriends/links').child($id).child('sender').val() === auth.uid && root.child('modstackFriends/links').child($id).child('recipient').val() === $uid) || (root.child('modstackFriends/links').child($id).child('recipient').val() === auth.uid && root.child('modstackFriends/links').child($id).child('sender').val() === $uid))",
+            ".validate": "newData.hasChildren(['messageId', 'at', 'kind']) && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('from').val() === auth.uid && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('to').val() === $uid && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('at').val() === newData.child('at').val() && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('kind').val() === newData.child('kind').val()",
+            "messageId": {
+              ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{32}$/)"
+            },
+            "at": {
+              ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
+            },
+            "kind": {
+              ".validate": "newData.val() === 'text' || newData.val() === 'pack'"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      },
       "links": {
         ".indexOn": ["sender", "recipient"],
         ".read": "auth != null && query.equalTo === auth.uid && (query.orderByChild === 'sender' || query.orderByChild === 'recipient')",
