@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src https: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
 <title>Modstack</title>
 <style>
   :root {
@@ -470,6 +470,29 @@
   .icpals { display: flex; gap: 7px; flex-wrap: wrap; }
   .icpal { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
   .icpal.on { border-color: #fff; box-shadow: 0 0 0 2px var(--c1); }
+  #cropDlg { width: 540px; }
+  #cropOriginal[hidden] { display: none; }
+  .crop-preview { display: flex; justify-content: center; margin: 12px 0; }
+  #cropCanvas { display: block; border-radius: 8px; background: #101216; outline: 1px solid #353b47; cursor: grab; touch-action: none; }
+  #cropCanvas:active { cursor: grabbing; }
+  .crop-control { display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: center; gap: 10px; }
+  #cropDlg .crop-control label { margin: 0; }
+  .friends-panel { max-width: 760px; margin: 0 auto; }
+  .friends-panel h1 { margin: 4px 0 16px; }
+  .friends-panel h2 { font-size: 16px; margin: 0 0 12px; }
+  .friends-panel p { margin: 0 0 12px; color: var(--muted); }
+  .friends-panel .friends-status:empty { display: none; }
+  .friends-panel .friends-status.err { color: #ff8f88; }
+  .friends-body { display: grid; gap: 12px; justify-items: start; }
+  .friends-body .card { width: 100%; }
+  .friends-form label { display: grid; gap: 5px; margin: 0 0 12px; }
+  .friends-form input { width: 100%; }
+  .friends-form button { margin: 0 8px 4px 0; }
+  .friends-actions, .friends-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .friends-row { padding: 8px 0; border-top: 1px solid var(--line); }
+  .friends-row b { margin-right: auto; overflow-wrap: anywhere; }
+  button.ri { background: transparent; border: 0; }
+  button.ri:hover { background: var(--bg3); }
   .ava { overflow: hidden; } .ava.editable { cursor: pointer; position: relative; }
   .ava.editable:hover::after { content: '✎'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); font-size: 18px; color: #fff; }
   /* Teilen */
@@ -497,6 +520,7 @@
     <div class="ri" data-v="home" title="Start"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span>Start</span></div>
     <div class="ri" data-v="inst" title="Instanzen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Instanzen</span></div>
     <div class="ri" data-v="packs" title="Modpacks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5"/><path d="M12 12v10"/></svg><span>Modpacks</span></div>
+    <button class="ri" data-v="friends" type="button" aria-label="Freunde" title="Freunde"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><path d="M3 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2m2-15a3 3 0 0 1 0 6m2 3a4 4 0 0 1 3 4v2"/></svg><span>Freunde</span></button>
     <div class="sp"></div>
     <div class="ri" id="railSet" title="Einstellungen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Optionen</span></div>
   </div>
@@ -534,6 +558,7 @@
 <div id="toasts"></div>
 <div class="menu" id="ctx"></div>
 <script src="node_modules/skinview3d/bundles/skinview3d.bundle.js"></script>
+<script src="friends-ui.js"></script>
 
 <dialog id="dlg">
   <div class="dh">Neue Instanz</div>
@@ -575,6 +600,22 @@
     <input type="file" id="icFile" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
   </div>
   <div class="df"><button class="ghost left" id="icUpload">Eigenes Bild ...</button><button class="ghost" id="icRandom" title="Zufällig">Zufall</button><button class="ghost" id="icLetter" title="Nur Anfangsbuchstabe">Buchstabe</button><button class="ghost" id="icCancel">Abbrechen</button><button class="primary" id="icSave">Speichern</button></div>
+</dialog>
+
+<dialog id="cropDlg" aria-labelledby="cropTitle" aria-describedby="cropHint">
+  <div class="dh" id="cropTitle">Bild zuschneiden</div>
+  <div class="db">
+    <p id="cropHint">Vorschau des Ausschnitts. Ziehe das Bild oder nutze die Regler.</p>
+    <div class="crop-preview"><canvas id="cropCanvas" role="img" aria-label="Live-Vorschau des Ausschnitts"></canvas></div>
+    <div class="crop-control"><label for="cropZoom">Zoom</label><input id="cropZoom" type="range" min="1" max="5" step="0.01" autofocus></div>
+    <div class="crop-control"><label for="cropX">Horizontal</label><input id="cropX" type="range" min="0" max="1000"></div>
+    <div class="crop-control"><label for="cropY">Vertikal</label><input id="cropY" type="range" min="0" max="1000"></div>
+  </div>
+  <div class="df">
+    <button class="ghost left" id="cropOriginal">Original verwenden</button>
+    <button class="ghost" id="cropCancel">Abbrechen</button>
+    <button class="primary" id="cropApply">Ausschnitt übernehmen</button>
+  </div>
 </dialog>
 
 <dialog id="shareDlg">
@@ -801,7 +842,7 @@ async function load(selId) {
 function select(i) { if (view !== 'inst') markView('inst'); cur = i; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); }
 function setTab(t) { if (view !== 'inst') setView('inst'); tab = t; renderHead(); render(); }
 function showPacks() { setView('packs'); }
-function markView(v) { if (v !== 'home' && skinViewer) { try { skinViewer.dispose(); } catch {} skinViewer = null; } view = v; document.querySelectorAll('.ri[data-v]').forEach((r) => r.classList.toggle('on', r.dataset.v === v)); $('#side').style.display = v === 'home' ? 'none' : ''; }
+function markView(v) { if (v !== 'home' && skinViewer) { try { skinViewer.dispose(); } catch {} skinViewer = null; } view = v; document.querySelectorAll('.ri[data-v]').forEach((r) => r.classList.toggle('on', r.dataset.v === v)); $('#side').style.display = v === 'home' || v === 'friends' ? 'none' : ''; }
 function setView(v) { markView(v); renderList(); renderHead(); render(); }
 document.querySelectorAll('.ri[data-v]').forEach((r) => r.onclick = () => setView(r.dataset.v));
 
@@ -867,6 +908,7 @@ function render() {
   const c = $('#content');
   if (view === 'packs') return renderPacks();
   if (view === 'home') return renderHome();
+  if (view === 'friends') return renderFriends();
   if (!cur) {
     c.innerHTML = `<div class="empty"><h2>${insts.length ? 'Keine Instanz gewählt' : 'Willkommen bei Modstack'}</h2>
       ${insts.length ? 'Wähle links eine Instanz aus.' : 'Lege eine Instanz an, installiere ein fertiges Modpack oder importiere ein CurseForge-Profil.'}
@@ -1219,22 +1261,120 @@ function drawIconPicker() {
     p.appendChild(s);
   }
 }
-async function iconFromFile(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
-    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
-    const s = Math.min(img.width, img.height), ctx = cv.getContext('2d');
+async function cropImage(url, background = false) {
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  // Ein Canvas liefert eine stabile Vorschau und einen statischen Ausschnitt, auch bei animierten Bildern.
+  const source = await createImageBitmap(img);
+  const dlg = $('#cropDlg'), preview = $('#cropCanvas');
+  const zoom = $('#cropZoom'), x = $('#cropX'), y = $('#cropY');
+  const original = $('#cropOriginal');
+  const aspect = background ? window.innerWidth / window.innerHeight : 1;
+  const displayWidth = Math.min(480, window.innerWidth - 100, Math.min(280, window.innerHeight * .42) * aspect);
+  preview.style.width = displayWidth + 'px';
+  preview.style.height = displayWidth / aspect + 'px';
+  preview.width = Math.round(displayWidth * devicePixelRatio);
+  preview.height = Math.round(displayWidth / aspect * devicePixelRatio);
+  zoom.value = 1;
+  x.value = y.value = 500;
+  original.hidden = !background;
+
+  function cropSize() {
+    const width = Math.min(source.width, source.height * aspect) / Number(zoom.value);
+    return { width, height: width / aspect };
+  }
+  function paint(canvas) {
+    const { width, height } = cropSize();
+    const offsetX = Math.max(0, source.width - width) * Number(x.value) / 1000;
+    const offsetY = Math.max(0, source.height - height) * Number(y.value) / 1000;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 128, 128);
-    return cv.toDataURL('image/png');
-  } finally { URL.revokeObjectURL(url); }
+    ctx.drawImage(source, offsetX, offsetY, width, height, 0, 0, canvas.width, canvas.height);
+  }
+  function refresh() {
+    const { width, height } = cropSize();
+    x.disabled = source.width - width < 0.01;
+    y.disabled = source.height - height < 0.01;
+    paint(preview);
+  }
+
+  const events = new AbortController(), options = { signal: events.signal };
+  let pointer = null;
+  let result = null;
+  try {
+    return await new Promise((resolve, reject) => {
+      dlg.addEventListener('close', () => resolve(result), { ...options, once: true });
+      for (const range of [zoom, x, y]) range.addEventListener('input', refresh, options);
+      preview.addEventListener('pointerdown', (e) => {
+        if (!e.isPrimary || e.button !== 0) return;
+        pointer = { id: e.pointerId, x: e.clientX, y: e.clientY, horizontal: Number(x.value), vertical: Number(y.value) };
+        preview.setPointerCapture(e.pointerId);
+      }, options);
+      preview.addEventListener('lostpointercapture', () => { pointer = null; }, options);
+      preview.addEventListener('pointermove', (e) => {
+        if (pointer?.id !== e.pointerId) return;
+        const { width, height } = cropSize();
+        const movedX = (e.clientX - pointer.x) * width / displayWidth;
+        const movedY = (e.clientY - pointer.y) * height / (displayWidth / aspect);
+        if (!x.disabled) x.value = Math.max(0, Math.min(1000, pointer.horizontal - movedX / (source.width - width) * 1000));
+        if (!y.disabled) y.value = Math.max(0, Math.min(1000, pointer.vertical - movedY / (source.height - height) * 1000));
+        refresh();
+      }, options);
+      $('#cropCancel').addEventListener('click', () => dlg.close(), options);
+      original.addEventListener('click', () => { result = url; dlg.close(); }, options);
+      $('#cropApply').addEventListener('click', () => {
+        try {
+          const output = document.createElement('canvas');
+          const { width, height } = cropSize();
+          const scale = background ? Math.min(1, 1920 / Math.max(width, height)) : 128 / width;
+          output.width = Math.max(1, Math.round(width * scale));
+          output.height = Math.max(1, Math.round(height * scale));
+          paint(output);
+          result = background ? output.toDataURL('image/webp', 0.92) : output.toDataURL('image/png');
+          dlg.close();
+        } catch (err) { dlg.close(); reject(err); }
+      }, options);
+      refresh();
+      dlg.showModal();
+    });
+  } finally {
+    events.abort();
+    source.close();
+    preview.width = preview.height = 1;
+  }
 }
+
+let choosingBackground = false;
+async function chooseBackground() {
+  if (choosingBackground) return false;
+  choosingBackground = true;
+  try {
+    const original = await call('bg:pick');
+    if (!original) return false;
+    let image;
+    try { image = await cropImage(original, true); }
+    catch { toast('Bild konnte nicht verarbeitet werden', true); return false; }
+    return image ? await call('bg:save', image) : false;
+  } catch { return false; }
+  finally { choosingBackground = false; }
+}
+
 $('#icUpload').onclick = () => $('#icFile').click();
 $('#icFile').onchange = async () => {
   const f = $('#icFile').files[0]; $('#icFile').value = '';
   if (!f) return;
-  try { iconPick.icon = await iconFromFile(f); iconPick.mode = 'upload'; drawIconPicker(); } catch { toast('Bild konnte nicht gelesen werden', true); }
+  const selection = iconPick;
+  const url = URL.createObjectURL(f);
+  try {
+    const image = await cropImage(url);
+    if (!image || selection !== iconPick || !$('#iconDlg').open) return;
+    selection.icon = image;
+    selection.mode = 'upload';
+    drawIconPicker();
+  } catch { toast('Bild konnte nicht verarbeitet werden', true); }
+  finally { URL.revokeObjectURL(url); }
 };
 $('#icLetter').onclick = () => { iconPick.mode = 'letter'; drawIconPicker(); };
 $('#icRandom').onclick = () => { const ik = Object.keys(ICONS), pk = Object.keys(PALETTES); iconPick.mode = 'gen'; iconPick.i = ik[Math.floor(Math.random() * ik.length)]; iconPick.p = pk[Math.floor(Math.random() * pk.length)]; drawIconPicker(); };
@@ -1933,7 +2073,7 @@ const SET_BUILD = {
     fxBox.appendChild(optRow(S.fx || 'aurora', Object.entries(FX), async (k) => {
       if (k === 'image') {
         let have = null; try { have = await call('bg:get', undefined, true); } catch {}
-        if (!have) { try { const u = await call('bg:pick'); if (!u) return; } catch { return; } }
+        if (!have && !await chooseBackground()) return;
       }
       setS({ fx: k, bgVer: Date.now() });
     }));
@@ -1942,7 +2082,7 @@ const SET_BUILD = {
     if (S.fx === 'image') {
       sl.appendChild(slider('Unschärfe', 0, 30, 1, S.bgBlur ?? 6, (v) => v + ' px', (v) => { const im = $('#bg .img'); if (im) im.style.filter = `blur(${v}px)`; },
         (v) => saveQuiet({ bgBlur: v }).then(() => { lastBgKey = [S.fx, S.accent, S.animations, S.bgBlur, S.bgVer].join('|'); })));
-      sl.appendChild(btns([['Anderes Bild ...', async () => { try { if (await call('bg:pick')) setS({ bgVer: Date.now() }); } catch {} }], ['Bild entfernen', async () => { await call('bg:clear'); setS({ fx: 'aurora' }); }]]));
+      sl.appendChild(btns([['Anderes Bild ...', async () => { if (await chooseBackground()) setS({ bgVer: Date.now() }); }], ['Bild entfernen', async () => { await call('bg:clear'); setS({ fx: 'aurora' }); }]]));
     }
     fxBox.appendChild(sl);
     c.appendChild(sec('Hintergrund-Effekt', 'Animierter Hintergrund hinter der ganzen App, in deinen Akzentfarben.', fxBox));
@@ -1987,11 +2127,20 @@ const SET_BUILD = {
       optRow(S.startView || 'home', [['home', 'Start'], ['inst', 'Instanzen'], ['packs', 'Modpacks']], (k) => setS({ startView: k }))));
   },
   updates(c) {
+    const info = appUpdateInfo;
+    const controls = btns([
+      ['Nach App-Updates suchen', () => checkAppUpdate(true)],
+      ...(info?.version ? [['Update installieren', installAppUpdate, 'primary']] : []),
+    ]);
+    c.appendChild(sec('Modstack', info?.version
+      ? `Version ${info.version} verfügbar · ${Math.ceil(info.bytes / 1000000)} MB`
+      : info?.supported === false ? 'App-Updates sind im portablen Windows-Build verfügbar.'
+        : `Installierte Version ${info?.current || window.__ver || '–'}`, controls));
     const n = updTotal();
     const st = document.createElement('div');
     st.innerHTML = `<div class="kv"><span>Gefundene Updates</span><b>${n}</b></div><div class="kv"><span>Zuletzt geprüft</span><b>${lastCheck ? lastCheck.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr' : 'noch nicht'}</b></div>`;
-    st.appendChild(Object.assign(btns([['Jetzt nach Updates suchen', async (b) => { b.disabled = true; b.innerHTML = '<span class="spin"></span> Suche ...'; await autoCheck(true); renderSettingsBody(); }, 'primary']]), { style: 'margin-top:12px' }));
-    c.appendChild(sec('Status', 'Prüft alle Instanzen auf neuere Versionen von Mods, Ressourcenpaketen und Shadern (Modrinth).', st));
+    st.appendChild(Object.assign(btns([['Nach Mod-Updates suchen', async (b) => { b.disabled = true; b.innerHTML = '<span class="spin"></span> Suche ...'; await autoCheck(true); renderSettingsBody(); }, 'primary']]), { style: 'margin-top:12px' }));
+    c.appendChild(sec('Mod-Updates', 'Prüft alle Instanzen auf neuere Versionen von Mods, Ressourcenpaketen und Shadern (Modrinth).', st));
     c.appendChild(sec('Automatisch suchen', '', toggles([
       ['Im Hintergrund nach Updates suchen', 'Beim Start und danach regelmäßig', S.autoCheck !== false, (v) => setS({ autoCheck: v }).then(scheduleChecks)],
       ['Windows-Benachrichtigung', 'Meldung, wenn neue Updates gefunden wurden', S.notify !== false, (v) => setS({ notify: v })],
@@ -2112,6 +2261,38 @@ async function autoCheck(manual) {
     if (S.notify !== false && document.hidden !== false && window.Notification) { try { new Notification('Modstack', { body: `${n} Mod-Update${n > 1 ? 's' : ''} verfügbar` }); } catch {} }
   } else if (manual) toast(n ? n + ' Update(s) verfügbar' : 'Alles aktuell');
 }
+
+let appUpdateInfo, appUpdateChecking = false;
+async function checkAppUpdate(manual) {
+  if (appUpdateChecking) return;
+  appUpdateChecking = true;
+  try {
+    const previous = appUpdateInfo?.version;
+    appUpdateInfo = await api.invoke('appUpdate:check');
+    if (appUpdateInfo.version && (manual || appUpdateInfo.version !== previous)) {
+      toast('Modstack ' + appUpdateInfo.version + ' ist verfügbar. Öffne Optionen → Updates.');
+    } else if (manual) {
+      toast(appUpdateInfo.supported ? 'Modstack ist aktuell.' : 'App-Updates sind im portablen Windows-Build verfügbar.');
+    }
+  } catch (err) {
+    if (manual) toast(errText(err), true);
+  } finally {
+    appUpdateChecking = false;
+    if ($('#setDlg').open && setSec === 'updates') renderSettingsBody();
+  }
+}
+
+async function installAppUpdate() {
+  if (!appUpdateInfo?.version || busy) return;
+  const confirmed = await ask({
+    title: 'Modstack aktualisieren?',
+    text: `Version ${appUpdateInfo.version} wird heruntergeladen. Danach startet Modstack neu.`,
+    okText: 'Herunterladen und neu starten',
+  });
+  if (!confirmed || busy) return;
+  try { await work('Lade App-Update …', () => call('appUpdate:install')); }
+  catch {}
+}
 function scheduleChecks() {
   if (checkTimer) clearInterval(checkTimer);
   const h = S.checkEvery ?? 6;
@@ -2227,6 +2408,8 @@ document.addEventListener('drop', (e) => e.preventDefault());
   markView(S.startView || 'home');
   if (S.uiScale) call('win:zoomSet', S.uiScale, true).catch(() => {});
   await load();
+  api.invoke('appUpdate:ready').then((error) => { if (error) toast('App-Update fehlgeschlagen. ' + error, true); }).catch(() => {});
+  setTimeout(() => checkAppUpdate(false), 4000);
   if (S.autoCheck !== false) setTimeout(() => autoCheck(false), 2500);
   scheduleChecks();
 })();

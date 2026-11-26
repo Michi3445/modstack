@@ -15,6 +15,9 @@ const LOADERS = ['fabric', 'forge', 'neoforge', 'quilt'];
 let win;
 // Datenordner vom alten Namen behalten, damit vorhandene Instanzen bleiben
 app.setPath('userData', path.join(app.getPath('appData'), 'modmanager'));
+const hasAppLock = !app.isPackaged || app.requestSingleInstanceLock();
+require('./friends')(ipcMain, app.getPath('userData'), readMinecraftAccount);
+require('./updater')(ipcMain, app, status);
 const instRoot = () => path.join(app.getPath('userData'), 'instances');
 const mcDir = () => path.join(process.env.APPDATA || '', '.minecraft');
 
@@ -460,15 +463,32 @@ ipcMain.handle('bg:pick', async () => {
   const ext = path.extname(src).toLowerCase();
   if (!BG_EXT[ext]) throw new Error('Dateityp nicht unterstuetzt');
   if (fs.statSync(src).size > 20 * 1048576) throw new Error('Bild ist zu gross (max. 20 MB)');
-  const old = bgFile(); if (old) fs.rmSync(old, { force: true });
-  const dest = path.join(app.getPath('userData'), 'background' + ext);
-  fs.copyFileSync(src, dest);
-  return bgData(dest);
+  return bgData(src);
+});
+ipcMain.handle('bg:save', (image) => {
+  const match = typeof image === 'string' && /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/]+=*)$/.exec(image);
+  if (!match) throw new Error('Bild ungueltig');
+  const data = Buffer.from(match[2], 'base64');
+  if (!data.length || data.length > 20 * 1048576) throw new Error('Bild ist ungueltig oder zu gross (max. 20 MB)');
+  const ext = Object.keys(BG_EXT).find((key) => BG_EXT[key] === match[1]);
+  const old = bgFile();
+  const dir = app.getPath('userData');
+  const dest = path.join(dir, 'background' + ext);
+  const temp = dest + '.tmp';
+  fs.mkdirSync(dir, { recursive: true });
+  try {
+    fs.writeFileSync(temp, data);
+    fs.renameSync(temp, dest);
+  } finally {
+    fs.rmSync(temp, { force: true });
+  }
+  if (old && old !== dest) fs.rmSync(old, { force: true });
+  return true;
 });
 ipcMain.handle('bg:clear', () => { const p = bgFile(); if (p) fs.rmSync(p, { force: true }); return true; });
 
 // Liest nur Name und UUID des aktiven Kontos aus dem offiziellen Launcher (keine Tokens)
-ipcMain.handle('mc:account', () => {
+function readMinecraftAccount() {
   const dirs = [mcDir(), path.join(process.env.LOCALAPPDATA || '', 'Packages', 'Microsoft.4297127D64EC6_8wekyb3d8bbwe', 'LocalCache', 'Roaming', '.minecraft')];
   for (const d of dirs) {
     for (const f of ['launcher_accounts_microsoft_store.json', 'launcher_accounts.json']) {
@@ -480,7 +500,8 @@ ipcMain.handle('mc:account', () => {
     }
   }
   return null;
-});
+}
+ipcMain.handle('mc:account', readMinecraftAccount);
 
 // Skin + Umhang als data-URL (oeffentliche Mojang-Profil-API, kein Login noetig)
 const skinCache = new Map();
@@ -1262,5 +1283,12 @@ function createWindow() {
 
 const { Menu } = require('electron');
 Menu.setApplicationMenu(null); // eigenes Menue im Fenster
-app.whenReady().then(createWindow);
+if (hasAppLock) {
+  app.whenReady().then(createWindow);
+  app.on('second-instance', () => {
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  });
+} else app.quit();
 app.on('window-all-closed', () => app.quit());

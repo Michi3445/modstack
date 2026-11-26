@@ -1,0 +1,33 @@
+{
+  "rules": {
+    "modstackUpdates": {
+      "windows-x64": {
+        ".read": true
+      }
+    },
+    "modstackFriends": {
+      "profiles": {
+        "$uid": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === $uid && newData.exists()",
+          ".validate": "newData.hasChildren(['name'])",
+          "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 32" },
+          "$other": { ".validate": false }
+        }
+      },
+      "links": {
+        ".indexOn": ["sender", "recipient"],
+        ".read": "auth != null && query.equalTo === auth.uid && (query.orderByChild === 'sender' || query.orderByChild === 'recipient')",
+        "$id": {
+          ".read": "auth != null && (data.child('sender').val() === auth.uid || data.child('recipient').val() === auth.uid)",
+          ".write": "auth != null && ((!data.exists() && newData.child('state').val() === 'pending' && newData.child('sender').val() === auth.uid && !root.child('modstackFriends/links').child(newData.child('recipient').val() + '~' + auth.uid).exists() && root.child('modstackFriends/profiles').child(auth.uid).exists() && root.child('modstackFriends/profiles').child(newData.child('recipient').val()).exists()) || (data.exists() && !newData.exists() && (data.child('sender').val() === auth.uid || data.child('recipient').val() === auth.uid)) || (data.child('recipient').val() === auth.uid && data.child('state').val() === 'pending' && newData.child('state').val() === 'friends' && newData.child('sender').val() === data.child('sender').val() && newData.child('recipient').val() === auth.uid))",
+          ".validate": "newData.hasChildren(['sender', 'recipient', 'state']) && $id === newData.child('sender').val() + '~' + newData.child('recipient').val() && newData.child('sender').val() !== newData.child('recipient').val()",
+          "sender": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]+$/) && newData.val().length <= 128" },
+          "recipient": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]+$/) && newData.val().length <= 128" },
+          "state": { ".validate": "newData.val() === 'pending' || newData.val() === 'friends'" },
+          "$other": { ".validate": false }
+        }
+      }
+    }
+  }
+}
