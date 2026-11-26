@@ -338,6 +338,55 @@
   .snav div .n { margin-left: auto; font-size: 10.5px; color: var(--dim); }
   .kv { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12.5px; } .kv span { color: var(--muted); }
   .sec.hide { display: none; }
+  /* Eigene Auswahlliste */
+  .fsel { display: inline-flex; justify-content: space-between; align-items: center; gap: 10px; min-width: 150px; padding: 8px 12px; background: color-mix(in srgb, var(--bg0) 55%, transparent) !important; border: 1px solid rgba(255,255,255,.09) !important; color: var(--text); text-align: left; font-weight: 500; }
+  .fsel:hover { border-color: color-mix(in srgb, var(--c1) 50%, transparent) !important; }
+  .fsel.open { border-color: var(--c1) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--c1) 18%, transparent); }
+  .fsel svg { opacity: .6; transition: transform .15s; flex-shrink: 0; } .fsel.open svg { transform: rotate(180deg); }
+  .fsel .fl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  dialog .fsel { width: 100%; }
+  dialog:has(.fpop) { overflow: visible; }
+  .fpop { position: fixed; display: flex !important; flex-direction: column; padding: 6px; z-index: 3000; overflow: hidden; outline: none; }
+  .fpop { background: color-mix(in srgb, var(--bg2) 97%, #000) !important; box-shadow: 0 18px 40px rgba(0,0,0,.6); }
+  .fpop .flist { overflow-y: auto; flex: 1; }
+  .fpop .fsearch { margin: 0 0 6px; width: 100%; }
+  .fpop .mi.sel { color: #fff; } .fpop .mi.sel .k { color: var(--c1); font-weight: 700; }
+  .fpop .mi.act { background: rgba(255,255,255,.07); }
+  .fgrp { font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); padding: 8px 10px 4px; }
+
+  /* Titelleiste */
+  #logo { gap: 9px; }
+  #logo i { display: none; }
+  #logo svg { width: 18px; height: 18px; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--c1) 55%, transparent)); }
+  #logo span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 700; letter-spacing: .02em; }
+  #menubar { gap: 2px; align-items: center; }
+  .mtop > span { height: 26px; border-radius: 7px; padding: 0 10px; color: #b9bfca; font-size: 12.5px; }
+  .mtop > span:hover, .mtop.open > span { background: rgba(255,255,255,.08); color: #fff; }
+  #titlebar::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c1) 45%, transparent), color-mix(in srgb, var(--c2) 45%, transparent), transparent); pointer-events: none; }
+  .menu { border-radius: 12px; padding: 6px; }
+  .mi { border-radius: 7px; padding: 7px 10px; }
+  .mi:hover:not(.dis) { background: linear-gradient(90deg, color-mix(in srgb, var(--c1) 30%, transparent), color-mix(in srgb, var(--c2) 18%, transparent)); }
+
+  /* Instanz-Einstellungen */
+  .isgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .iscard { margin: 0; max-width: none; display: flex; flex-direction: column; }
+  .iscard h3 { font-size: 14px; } .iscard p { margin-bottom: 10px; }
+  .iscard.span2 { grid-column: 1 / -1; }
+  .ishead { display: flex; align-items: center; gap: 16px; }
+  .ava.big { width: 58px; height: 58px; font-size: 24px; border-radius: 14px; }
+  .isname { font-size: 20px; font-weight: 700; cursor: text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .isname:hover { text-decoration: underline dotted rgba(255,255,255,.3); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-top: 16px; }
+  .stats div { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); border-radius: 10px; padding: 10px 12px; }
+  .stats b { display: block; font-size: 16px; } .stats span { color: var(--muted); font-size: 11.5px; }
+  .ramscale { display: flex; justify-content: space-between; color: var(--dim); font-size: 11px; margin-top: 4px; padding-right: 70px; }
+  .folders { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .folders div { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); cursor: pointer; font-size: 12.5px; }
+  .folders div:hover { border-color: color-mix(in srgb, var(--c1) 50%, transparent); background: rgba(255,255,255,.07); }
+  .folders i { font-style: normal; width: 22px; height: 22px; border-radius: 6px; background: var(--grad); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+  textarea { font: inherit; width: 100%; background: color-mix(in srgb, var(--bg0) 55%, transparent); color: var(--text); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 9px 11px; resize: vertical; outline: none; }
+  textarea:focus { border-color: color-mix(in srgb, var(--c1) 60%, transparent); }
+  .danger-zone { border-color: rgba(240,96,90,.18) !important; }
   #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
   .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
   .toast.err { border-left-color: var(--danger); }
@@ -346,7 +395,7 @@
 <body>
 <div id="bg"></div>
 <div id="titlebar">
-  <div id="logo"><i></i>Modstack</div>
+  <div id="logo"><i></i><svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--c1)"/><stop offset="1" style="stop-color:var(--c2)"/></linearGradient></defs><path d="M12 2.5l9 4.5-9 4.5-9-4.5z" fill="url(#lg)"/><path d="M3 12l9 4.5 9-4.5" stroke="url(#lg)" stroke-width="2" stroke-linejoin="round" opacity=".8"/><path d="M3 16.5l9 4.5 9-4.5" stroke="url(#lg)" stroke-width="2" stroke-linejoin="round" opacity=".55"/></svg><span>Modstack</span></div>
   <div id="menubar"></div>
 </div>
 
@@ -885,7 +934,7 @@ async function renderPacks() {
       <button class="primary" id="pgo">Suchen</button></div>
     <div id="res"></div><div class="more" id="more"></div>`;
   $('#pq').value = packState.q; $('#pl').value = packState.loader;
-  const fillV = () => { $('#pv').innerHTML = '<option value="">Alle Versionen</option>' + (allVersions || []).map((v) => `<option>${v}</option>`).join(''); $('#pv').value = packState.mc; };
+  const fillV = () => { $('#pv').innerHTML = '<option value="">Alle Versionen</option>' + versionGroups(allVersions || []); $('#pv').value = packState.mc; fancySelect($('#pv')); };
   if (allVersions) fillV(); else call('mc:versions', undefined, true).then((v) => { allVersions = v; if ($('#pv')) fillV(); }).catch(() => {});
   const run = async (append) => {
     if (!append) { packState.q = $('#pq').value; packState.loader = $('#pl').value; packState.mc = $('#pv').value; packState.offset = 0; $('#res').innerHTML = '<div class="empty"><span class="spin"></span></div>'; }
@@ -903,6 +952,7 @@ async function renderPacks() {
   $('#pgo').onclick = () => run(false);
   $('#pq').onkeydown = (e) => { if (e.key === 'Enter') run(false); };
   $('#pl').onchange = $('#pv').onchange = () => run(false);
+  fancySelect($('#pl')); fancySelect($('#pv'));
   run(false);
 }
 
@@ -931,36 +981,192 @@ async function installPack(h, btn) {
   } catch { btn.disabled = false; btn.textContent = 'Installieren'; }
 }
 
-// ---------- Einstellungen ----------
+// ---------- Eigene Auswahlliste (ersetzt die graue Windows-Liste) ----------
+function fancySelect(sel) {
+  if (sel.__fs) { sel.__fs.refresh(); return sel.__fs; }
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'fsel';
+  btn.innerHTML = '<span class="fl"></span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>';
+  if (sel.style.width) btn.style.width = sel.style.width;
+  if (sel.style.flex) btn.style.flex = sel.style.flex;
+  sel.style.display = 'none'; sel.after(btn);
+  const refresh = () => { const o = sel.options[sel.selectedIndex]; btn.querySelector('.fl').textContent = o ? o.textContent : ''; };
+  let pop = null;
+  const close = () => { if (pop) { pop.remove(); pop = null; btn.classList.remove('open'); document.removeEventListener('mousedown', outside, true); } };
+  const outside = (e) => { if (pop && !pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) close(); };
+  const pick = (v) => { sel.value = v; refresh(); close(); sel.dispatchEvent(new Event('change')); btn.focus(); };
+  const open = () => {
+    if (pop) { close(); return; }
+    pop = document.createElement('div'); pop.className = 'menu fpop show';
+    const many = sel.options.length > 10;
+    if (many) pop.innerHTML = '<input class="fsearch" placeholder="Suchen ...">';
+    const list = document.createElement('div'); list.className = 'flist'; pop.appendChild(list);
+    let active = -1, items = [];
+    const draw = (q) => {
+      list.innerHTML = ''; items = [];
+      q = (q || '').toLowerCase();
+      for (const node of sel.children) {
+        const opts = node.tagName === 'OPTGROUP' ? [...node.children] : [node];
+        const vis = opts.filter((o) => !q || o.textContent.toLowerCase().includes(q));
+        if (!vis.length) continue;
+        if (node.tagName === 'OPTGROUP') { const h = document.createElement('div'); h.className = 'fgrp'; h.textContent = node.label; list.appendChild(h); }
+        for (const o of vis) {
+          const d = document.createElement('div'); d.className = 'mi' + (o.value === sel.value ? ' sel' : '');
+          d.innerHTML = '<span></span><span class="k">' + (o.value === sel.value ? '✓' : '') + '</span>';
+          d.firstChild.textContent = o.textContent;
+          d.onmousedown = (e) => { e.preventDefault(); pick(o.value); };
+          list.appendChild(d); items.push({ d, v: o.value });
+        }
+      }
+      if (!items.length) list.innerHTML = '<div class="fgrp" style="text-transform:none">Kein Treffer</div>';
+      active = Math.max(0, items.findIndex((x) => x.v === sel.value));
+      mark();
+    };
+    const mark = () => items.forEach((x, k) => x.d.classList.toggle('act', k === active));
+    const dlg = btn.closest('dialog');
+    (dlg || document.body).appendChild(pop);
+    draw('');
+    const r = btn.getBoundingClientRect();
+    pop.style.minWidth = r.width + 'px';
+    const h = Math.min(360, pop.scrollHeight);
+    const below = innerHeight - r.bottom - 10;
+    let left = Math.min(r.left, innerWidth - pop.offsetWidth - 8);
+    let top = below >= Math.min(h, 220) ? r.bottom + 4 : Math.max(8, r.top - h - 4);
+    pop.style.maxHeight = (below >= Math.min(h, 220) ? Math.min(360, below) : Math.min(360, r.top - 12)) + 'px';
+    if (dlg) { // im Dialog relativ zum Dialog positionieren, sonst wird die Liste abgeschnitten
+      const dr = dlg.getBoundingClientRect();
+      pop.style.position = 'absolute'; left -= dr.left + dlg.clientLeft; top -= dr.top + dlg.clientTop;
+    }
+    pop.style.left = left + 'px'; pop.style.top = top + 'px';
+    btn.classList.add('open');
+    const sc = list.querySelector('.sel'); if (sc) sc.scrollIntoView({ block: 'center' });
+    const inp = pop.querySelector('.fsearch');
+    const keys = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); btn.focus(); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(0, Math.min(items.length - 1, active + (e.key === 'ArrowDown' ? 1 : -1))); mark(); items[active] && items[active].d.scrollIntoView({ block: 'nearest' }); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (items[active]) pick(items[active].v); }
+    };
+    if (inp) { inp.oninput = () => draw(inp.value); inp.onkeydown = keys; setTimeout(() => inp.focus(), 0); }
+    else { pop.tabIndex = -1; pop.onkeydown = keys; setTimeout(() => pop.focus(), 0); }
+    setTimeout(() => document.addEventListener('mousedown', outside, true), 0);
+  };
+  btn.onclick = (e) => { e.preventDefault(); open(); };
+  btn.onkeydown = (e) => { if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!pop) open(); } };
+  new MutationObserver(refresh).observe(sel, { childList: true, subtree: true });
+  sel.addEventListener('change', refresh);
+  refresh();
+  return (sel.__fs = { refresh, close });
+}
+
+// ---------- Instanz-Einstellungen ----------
 let sysInfo = null;
+const RES = [['', 'Standard'], ['1280x720', '1280 × 720'], ['1600x900', '1600 × 900'], ['1920x1080', '1920 × 1080'], ['2560x1440', '2560 × 1440'], ['custom', 'Eigene']];
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '–';
+const fmtAgo = (d) => {
+  if (!d) return 'noch nie';
+  const s = (Date.now() - new Date(d)) / 1000;
+  if (s < 3600) return 'vor ' + Math.max(1, Math.round(s / 60)) + ' Min.';
+  if (s < 86400) return 'vor ' + Math.round(s / 3600) + ' Std.';
+  if (s < 86400 * 30) return 'vor ' + Math.round(s / 86400) + ' Tagen';
+  return fmtDate(d);
+};
+async function saveInstSet(patch, msg) {
+  try { cur = await call('instances:settings', { id: cur.id, ...patch }); insts = insts.map((i) => (i.id === cur.id ? cur : i)); renderHead(); toast(msg || 'Gespeichert. Gilt ab dem nächsten Spielen.'); } catch {}
+}
+
 async function renderSettings() {
   if (!sysInfo) { try { sysInfo = await call('sys:info', undefined, true); } catch { sysInfo = { totalMb: 8192 }; } }
   if (tab !== 'settings' || !cur) return;
+  const i = cur;
   const maxGb = Math.max(2, Math.floor(sysInfo.totalMb / 1024) - 2);
+  const nm = i.mods.filter((m) => kindOf(m) === 'mod').length;
   const c = $('#content');
-  c.innerHTML = `
-    <div class="card"><h3>Arbeitsspeicher (RAM)</h3><p>Wie viel RAM Minecraft für diese Instanz nutzen darf. Dein PC hat ${(sysInfo.totalMb / 1024).toFixed(0)} GB. Für große Modpacks sind 6 bis 8 GB sinnvoll. Aus = Standard des Launchers (2 GB).</p>
-      <div class="line"><label class="check" style="margin:0"><input type="checkbox" id="ramOn"> Eigener Wert</label><input type="range" id="ram" min="2" max="${maxGb}" step="0.5"><b id="ramV" style="width:60px;text-align:right"></b></div></div>
-    <div class="card"><h3>Weitere Java-Argumente</h3><p>Nur für Fortgeschrittene. Leer lassen, wenn du nicht weißt, was das ist.</p>
+  c.innerHTML = `<div class="isgrid">
+    <div class="card iscard span2">
+      <div class="ishead"><div class="ava big" id="isAva"></div><div style="flex:1;min-width:0"><div class="isname" id="isName" title="Klicken zum Umbenennen"></div>
+        <div class="badges" style="margin-top:6px"><span class="badge">Minecraft ${i.mc}</span><span class="badge">${LNAME[i.loader] || i.loader}${i.loaderVersion ? ' ' + i.loaderVersion : ''}</span>${i.pack ? `<span class="badge">Modpack ${i.pack.version || ''}</span>` : ''}${i.source === 'curseforge' ? '<span class="badge">aus CurseForge</span>' : ''}</div></div>
+        <button class="primary" id="isPlay">▶ Spielen</button></div>
+      <div class="stats">
+        <div><b>${nm}</b><span>Mods</span></div>
+        <div><b>${i.mods.length - nm}</b><span>Pakete</span></div>
+        <div><b id="stWorlds">…</b><span>Welten</span></div>
+        <div><b id="stShots">…</b><span>Screenshots</span></div>
+        <div><b id="stSize">…</b><span>Größe</span></div>
+        <div><b>${fmtAgo(i.lastPlayed)}</b><span>Zuletzt gespielt</span></div>
+      </div>
+    </div>
+
+    <div class="card iscard"><h3>Arbeitsspeicher</h3><p>Dein PC hat ${(sysInfo.totalMb / 1024).toFixed(0)} GB. Für große Modpacks sind 6 bis 8 GB sinnvoll.</p>
+      <div class="tline" style="border:0;padding:4px 0 10px"><div><span>Eigenen Wert verwenden</span><small>Aus = Standard des Launchers (2 GB)</small></div><div class="sw" id="ramSw"></div></div>
+      <div class="line" id="ramLine"><input type="range" id="ram" min="2" max="${maxGb}" step="0.5"><b id="ramV" style="width:60px;text-align:right"></b></div>
+      <div class="ramscale"><span>2 GB</span><span>${maxGb} GB</span></div></div>
+
+    <div class="card iscard"><h3>Fenstergröße</h3><p>Auflösung, in der Minecraft startet.</p>
+      <select id="resSel">${RES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+      <div class="line" id="resCustom" style="margin-top:10px;display:none"><input id="resW" type="number" min="320" placeholder="Breite" style="width:110px"> × <input id="resH" type="number" min="240" placeholder="Höhe" style="width:110px"><button class="ghost sm" id="resOk">Übernehmen</button></div></div>
+
+    <div class="card iscard"><h3>Java</h3><p id="javaInfo">Wird geprüft …</p>
+      <label style="display:block;margin:10px 0 5px;font-size:12px;color:var(--muted)">Weitere Java-Argumente (nur für Fortgeschrittene)</label>
       <input id="jargs" style="width:100%" placeholder="z.B. -XX:+UseG1GC" spellcheck="false"></div>
-    <div class="card"><h3>Instanz</h3><p>Minecraft ${cur.mc} · ${LNAME[cur.loader]}${cur.loaderVersion ? ' ' + cur.loaderVersion : ''} · Ordner: ${cur.id}</p>
-      <div class="line"><button class="ghost" id="sRen">Umbenennen</button><button class="ghost" id="sDup">Duplizieren</button><button class="ghost" id="sDir">Ordner öffnen</button><button class="danger" id="sDel" style="margin-left:auto">Löschen</button></div></div>
-    <div style="max-width:640px;display:flex;justify-content:flex-end"><button class="primary" id="sSave">Speichern</button></div>`;
-  const ramOn = $('#ramOn'), ram = $('#ram'), ramV = $('#ramV');
-  ramOn.checked = !!cur.ram; ram.value = cur.ram ? cur.ram / 1024 : Math.min(4, maxGb);
-  const upd = () => { ram.disabled = !ramOn.checked; ramV.textContent = ramOn.checked ? ram.value + ' GB' : 'Standard'; };
-  ram.oninput = upd; ramOn.onchange = upd; upd();
-  $('#jargs').value = cur.javaArgs || '';
-  $('#sRen').onclick = () => renameInst(cur);
-  $('#sDup').onclick = () => duplicateInst(cur);
-  $('#sDir').onclick = () => call('instances:openFolder', cur.id);
-  $('#sDel').onclick = () => deleteInst(cur);
-  $('#sSave').onclick = async () => {
-    try {
-      cur = await call('instances:settings', { id: cur.id, ram: ramOn.checked ? Math.round(parseFloat(ram.value) * 1024) : 0, javaArgs: $('#jargs').value });
-      await load(cur.id); toast('Einstellungen gespeichert. Gilt ab dem nächsten Spielen.');
-    } catch {}
+
+    <div class="card iscard"><h3>Ordner</h3><p>Direkt in die Ordner dieser Instanz springen.</p>
+      <div class="folders">${[['root', 'Instanz', '▤'], ['mods', 'Mods', '◆'], ['saves', 'Welten', '◍'], ['screenshots', 'Screenshots', '▣'], ['resourcepacks', 'Ressourcenpakete', '◧'], ['shaderpacks', 'Shader', '✦'], ['config', 'Konfiguration', '⚙'], ['logs', 'Logs', '≡']].map(([k, l, ico]) => `<div data-sub="${k}"><i>${ico}</i>${l}</div>`).join('')}</div></div>
+
+    <div class="card iscard span2"><h3>Notizen</h3><p>Eigene Notizen zu dieser Instanz, zum Beispiel Server-Adressen oder Seeds.</p>
+      <textarea id="notes" rows="3" placeholder="Notizen ..." spellcheck="false"></textarea></div>
+
+    <div class="card iscard span2 danger-zone"><h3>Verwalten</h3><p>Erstellt am ${fmtDate(i.created)} · Ordner: ${i.id}</p>
+      <div class="line"><button class="ghost" id="sRen">Umbenennen</button><button class="ghost" id="sDup">Duplizieren</button><button class="danger" id="sDel" style="margin-left:auto">Instanz löschen</button></div></div>
+  </div>`;
+  ava($('#isAva'), i);
+  $('#isName').textContent = i.name; $('#isName').onclick = () => renameInst(i);
+  $('#isPlay').onclick = () => play(i);
+  // RAM
+  const sw = $('#ramSw'), ram = $('#ram'), ramV = $('#ramV');
+  let ramOn = !!i.ram; ram.value = i.ram ? i.ram / 1024 : Math.min(4, maxGb);
+  const updRam = () => { sw.classList.toggle('on', ramOn); ram.disabled = !ramOn; $('#ramLine').style.opacity = ramOn ? 1 : 0.4; ramV.textContent = ramOn ? ram.value + ' GB' : 'Standard'; };
+  updRam();
+  sw.onclick = () => { ramOn = !ramOn; updRam(); saveInstSet({ ram: ramOn ? Math.round(parseFloat(ram.value) * 1024) : 0 }); };
+  ram.oninput = updRam;
+  ram.onchange = () => saveInstSet({ ram: Math.round(parseFloat(ram.value) * 1024) });
+  // Aufloesung
+  const rs = $('#resSel'), rc = $('#resCustom');
+  const curRes = i.resolution ? `${i.resolution.width}x${i.resolution.height}` : '';
+  rs.value = RES.some(([v]) => v === curRes) ? curRes : 'custom';
+  if (rs.value === 'custom') { rc.style.display = 'flex'; $('#resW').value = i.resolution.width; $('#resH').value = i.resolution.height; }
+  rs.onchange = () => {
+    if (rs.value === 'custom') { rc.style.display = 'flex'; return; }
+    rc.style.display = 'none';
+    const [w, h] = rs.value.split('x').map(Number);
+    saveInstSet({ resolution: rs.value ? { width: w, height: h } : null });
   };
+  $('#resOk').onclick = () => saveInstSet({ resolution: { width: +$('#resW').value, height: +$('#resH').value } });
+  fancySelect(rs);
+  // Java
+  const ja = $('#jargs'); ja.value = i.javaArgs || '';
+  ja.onchange = () => saveInstSet({ javaArgs: ja.value });
+  call('java:status', i.mc, true).then((j) => {
+    const el = $('#javaInfo'); if (!el) return;
+    el.textContent = `Für Minecraft ${i.mc} wird Java ${j.major} gebraucht. ` + (j.path ? (j.own ? 'Ist installiert (von Modstack geladen).' : 'Ist auf deinem PC vorhanden.') : 'Noch nicht vorhanden. Modstack lädt es beim ersten Start automatisch herunter (einmalig, etwa 50 MB).');
+    if (!j.path) {
+      const b = document.createElement('button'); b.className = 'ghost sm'; b.style.marginTop = '8px'; b.textContent = 'Java ' + j.major + ' jetzt herunterladen';
+      b.onclick = async () => { b.disabled = true; b.innerHTML = '<span class="spin"></span> Lädt ...'; try { await work('Lade Java ...', () => call('java:ensure', i.mc)); toast('Java ' + j.major + ' installiert'); renderSettings(); } catch { b.disabled = false; b.textContent = 'Erneut versuchen'; } };
+      el.after(b);
+    }
+  }).catch(() => {});
+  // Ordner
+  c.querySelectorAll('.folders div').forEach((d) => d.onclick = () => call('instances:openSub', { id: i.id, sub: d.dataset.sub }));
+  // Notizen
+  const nt = $('#notes'); nt.value = i.notes || '';
+  nt.onchange = () => saveInstSet({ notes: nt.value }, 'Notizen gespeichert');
+  // Verwalten
+  $('#sRen').onclick = () => renameInst(i);
+  $('#sDup').onclick = () => duplicateInst(i);
+  $('#sDel').onclick = () => deleteInst(i);
+  // Statistik
+  call('instances:info', i.id, true).then((inf) => {
+    if (!$('#stSize')) return;
+    $('#stSize').textContent = fmtBytes(inf.bytes); $('#stWorlds').textContent = inf.worlds; $('#stShots').textContent = inf.screenshots;
+  }).catch(() => {});
 }
 
 // ---------- Startseite ----------
@@ -1529,7 +1735,12 @@ async function newInstance() {
   }
   fillVersions(); $('#dlg').showModal(); $('#nName').focus();
 }
-function fillVersions() { $('#nMc').innerHTML = allVersions.map((v) => `<option>${v}</option>`).join(''); }
+function versionGroups(vs) {
+  const g = new Map();
+  for (const v of vs) { const p = v.split('.'); const k = p[0] === '1' ? '1.' + p[1] : p[0] + '.x'; if (!g.has(k)) g.set(k, []); g.get(k).push(v); }
+  return [...g].map(([k, l]) => `<optgroup label="Minecraft ${k}">${l.map((v) => `<option>${v}</option>`).join('')}</optgroup>`).join('');
+}
+function fillVersions() { $('#nMc').innerHTML = versionGroups(allVersions); fancySelect($('#nMc')); }
 document.querySelectorAll('#nLoader div').forEach((d) => d.onclick = () => { document.querySelectorAll('#nLoader div').forEach((x) => x.classList.toggle('on', x === d)); });
 $('#nCancel').onclick = () => $('#dlg').close();
 $('#nName').onkeydown = (e) => { if (e.key === 'Enter') $('#nOk').click(); };

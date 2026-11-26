@@ -77,7 +77,7 @@ ipcMain.handle('instances:create', ({ name, mc, loader }) => {
   let n = 1;
   while (fs.existsSync(instDir(id))) id = safeName(name) + '_' + ++n;
   fs.mkdirSync(path.join(instDir(id), 'mods'), { recursive: true });
-  const inst = { id, name, mc, loader, mods: [] };
+  const inst = { id, name, mc, loader, mods: [], created: new Date().toISOString() };
   saveInst(inst);
   return inst;
 });
@@ -353,12 +353,33 @@ ipcMain.handle('instances:duplicate', (id) => {
   return copy;
 });
 
-ipcMain.handle('instances:settings', ({ id, ram, javaArgs }) => {
-  const inst = readInst(id);
-  inst.ram = ram ? Math.max(1024, Math.min(65536, parseInt(ram, 10) || 0)) : undefined;
-  inst.javaArgs = String(javaArgs || '').replace(/-Xm[xs]\S*/g, '').trim() || undefined;
+ipcMain.handle('instances:settings', (p) => {
+  const inst = readInst(p.id);
+  if ('ram' in p) inst.ram = p.ram ? Math.max(1024, Math.min(65536, parseInt(p.ram, 10) || 0)) : undefined;
+  if ('javaArgs' in p) inst.javaArgs = String(p.javaArgs || '').replace(/-Xm[xs]\S*/g, '').trim() || undefined;
+  if ('resolution' in p) {
+    const r = p.resolution;
+    inst.resolution = r && r.width >= 320 && r.height >= 240 ? { width: Math.min(7680, r.width | 0), height: Math.min(4320, r.height | 0) } : undefined;
+  }
+  if ('notes' in p) inst.notes = String(p.notes || '').slice(0, 2000) || undefined;
   saveInst(inst);
   return inst;
+});
+
+const SUBDIRS = { root: '', mods: 'mods', saves: 'saves', screenshots: 'screenshots', resourcepacks: 'resourcepacks', shaderpacks: 'shaderpacks', config: 'config', logs: 'logs' };
+ipcMain.handle('instances:openSub', ({ id, sub }) => {
+  if (!(sub in SUBDIRS)) throw new Error('Unbekannter Ordner');
+  const p = path.join(instDir(id), SUBDIRS[sub]);
+  fs.mkdirSync(p, { recursive: true });
+  shell.openPath(p);
+  return true;
+});
+
+ipcMain.handle('instances:info', (id) => {
+  const dir = instDir(id);
+  const count = (sub, re) => { try { return fs.readdirSync(path.join(dir, sub)).filter((f) => !re || re.test(f)).length; } catch { return 0; } };
+  let created = null; try { created = fs.statSync(path.join(dir, 'instance.json')).birthtime; } catch {}
+  return { bytes: dirSize(dir), worlds: count('saves'), screenshots: count('screenshots', /\.png$/i), created, path: dir };
 });
 
 // ---------- App-Einstellungen, Konto, News ----------
@@ -754,33 +775,114 @@ async function ensureVanilla(mc) {
   await download(e.url, jf);
 }
 
-function findJava() {
+// ---------- Java ----------
+// Welche Java-Hauptversion braucht eine Minecraft-Version?
+function javaMajorFor(mc) {
+  const p = String(mc || '').split('.').map((x) => parseInt(x, 10) || 0);
+  if (p[0] !== 1) return 25; // neue Versionsnummern ab 26.x
+  if (p[1] <= 16) return 8;
+  if (p[1] <= 19) return 17;
+  if (p[1] === 20) return p[2] >= 5 ? 21 : 17;
+  return 21;
+}
+const JAVA_COMPONENT = { 8: ['jre-legacy'], 17: ['java-runtime-gamma', 'java-runtime-beta'], 21: ['java-runtime-delta'], 25: ['java-runtime-epsilon'] };
+const javaRoot = () => path.join(app.getPath('userData'), 'java');
+
+function javaVersionOf(exe) {
+  return new Promise((resolve) => {
+    execFile(exe, ['-version'], { windowsHide: true, timeout: 10000 }, (err, so, se) => {
+      if (err) return resolve(0);
+      const m = /version "(\d+)(?:\.(\d+))?/.exec(String(se) + String(so));
+      if (!m) return resolve(0);
+      resolve(m[1] === '1' ? parseInt(m[2], 10) : parseInt(m[1], 10));
+    });
+  });
+}
+
+// Sucht vorhandenes Java: eigene Downloads, Mojang-Launcher-Runtimes, JAVA_HOME, PATH
+async function findJava(major) {
+  const own = path.join(javaRoot(), String(major));
+  if (fs.existsSync(own)) {
+    for (const d of fs.readdirSync(own)) { const p = path.join(own, d, 'bin', 'java.exe'); if (fs.existsSync(p)) return p; }
+  }
   const bases = [
     path.join(mcDir(), 'runtime'),
     path.join(process.env.LOCALAPPDATA || '', 'Packages', 'Microsoft.4297127D64EC6_8wekyb3d8bbwe', 'LocalCache', 'Local', 'runtime'),
+    'C:\\Program Files (x86)\\Minecraft Launcher\\runtime',
+    'C:\\XboxGames\\Minecraft Launcher\\Content\\runtime',
   ];
-  const found = [];
   for (const b of bases) {
-    if (!fs.existsSync(b)) continue;
-    for (const comp of fs.readdirSync(b)) {
-      const p1 = path.join(b, comp, 'windows-x64', comp, 'bin', 'java.exe');
-      if (fs.existsSync(p1)) found.push({ comp, p: p1 });
+    for (const comp of JAVA_COMPONENT[major] || []) {
+      const p = path.join(b, comp, 'windows-x64', comp, 'bin', 'java.exe');
+      if (fs.existsSync(p)) return p;
     }
   }
-  const pref = ['java-runtime-delta', 'java-runtime-gamma', 'java-runtime-beta'];
-  for (const c of pref) { const f = found.find((x) => x.comp === c); if (f) return f.p; }
-  if (found.length) return found[0].p;
-  return 'java'; // PATH-Fallback
+  const cands = [];
+  if (process.env.JAVA_HOME) cands.push(path.join(process.env.JAVA_HOME, 'bin', 'java.exe'));
+  cands.push('java');
+  for (const c of cands) { if ((await javaVersionOf(c)) === major) return c; }
+  return null;
 }
 
-function runInstaller(jar) {
+// Laedt eine portable Java-Laufzeit (Eclipse Temurin, offizielle Adoptium-Quelle) in den Datenordner
+async function downloadJava(major) {
+  status(`Java ${major} wird heruntergeladen (einmalig) ...`);
+  const meta = await getJson(`https://api.adoptium.net/v3/assets/latest/${major}/hotspot?architecture=x64&image_type=jre&os=windows&vendor=eclipse`);
+  const pkg = meta && meta[0] && meta[0].binary && meta[0].binary.package;
+  if (!pkg || !/^https:\/\/github\.com\/adoptium\//.test(pkg.link)) throw new Error('Keine passende Java-Version gefunden');
+  const r = await fetch(pkg.link, { headers: { 'User-Agent': UA } });
+  if (!r.ok) throw new Error('Java-Download fehlgeschlagen (' + r.status + ')');
+  const total = pkg.size || +r.headers.get('content-length') || 0;
+  const chunks = []; let got = 0, lastPct = -1;
+  const reader = r.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(Buffer.from(value)); got += value.length;
+    const pct = total ? Math.floor(got / total * 100) : 0;
+    if (pct !== lastPct) { lastPct = pct; status(`Java ${major} wird heruntergeladen ${pct}/100 ...`); }
+  }
+  const buf = Buffer.concat(chunks);
+  if (pkg.checksum && crypto.createHash('sha256').update(buf).digest('hex') !== pkg.checksum) throw new Error('Java-Download beschaedigt (Pruefsumme)');
+  status(`Java ${major} wird entpackt ...`);
+  const dest = path.resolve(javaRoot(), String(major));
+  fs.rmSync(dest, { recursive: true, force: true });
+  for (const e of readZip(buf)) {
+    if (e.dir) continue;
+    const out = path.resolve(dest, e.name);
+    if (!out.startsWith(dest + path.sep)) continue;
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, e.data());
+  }
+  const exe = await findJava(major);
+  if (!exe) throw new Error('Java wurde entpackt, aber nicht gefunden');
+  status(`Java ${major} bereit`);
+  return exe;
+}
+
+async function ensureJava(major) {
+  return (await findJava(major)) || downloadJava(major);
+}
+
+ipcMain.handle('java:status', async (mc) => {
+  const major = javaMajorFor(mc);
+  const p = await findJava(major);
+  return { major, path: p, own: !!(p && p.startsWith(javaRoot())) };
+});
+
+ipcMain.handle('java:ensure', async (mc) => {
+  const exe = await ensureJava(javaMajorFor(mc));
+  return { path: exe, version: await javaVersionOf(exe) };
+});
+
+async function runInstaller(jar, mc) {
+  const java = await ensureJava(javaMajorFor(mc));
   return new Promise((resolve, reject) => {
-    const java = findJava();
     const p = spawn(java, ['-jar', jar, '--installClient', mcDir()], { windowsHide: true });
     let out = '';
     p.stdout.on('data', (d) => (out += d));
     p.stderr.on('data', (d) => (out += d));
-    p.on('error', () => reject(new Error('Java nicht gefunden. Starte den Mojang-Launcher einmal mit einer Minecraft-Version, dann gibt es eine Java-Runtime.')));
+    p.on('error', (e) => reject(new Error('Java konnte nicht gestartet werden: ' + e.message)));
     p.on('close', (code) => (code === 0 ? resolve() : reject(new Error('Loader-Installer fehlgeschlagen:\n' + out.slice(-600)))));
   });
 }
@@ -821,7 +923,7 @@ async function ensureLoader(inst) {
       ensureLauncherProfilesFile();
       const jar = path.join(app.getPath('temp'), `forge-${inst.mc}-${v}-installer.jar`);
       await download(`https://maven.minecraftforge.net/net/minecraftforge/forge/${inst.mc}-${v}/forge-${inst.mc}-${v}-installer.jar`, jar);
-      await runInstaller(jar);
+      await runInstaller(jar, inst.mc);
       if (!fs.existsSync(path.join(vdir(vid), vid + '.json'))) throw new Error('Forge-Version nach Installation nicht gefunden (' + vid + ')');
     }
     return vid;
@@ -841,7 +943,7 @@ async function ensureLoader(inst) {
       ensureLauncherProfilesFile();
       const jar = path.join(app.getPath('temp'), `neoforge-${v}-installer.jar`);
       await download(`https://maven.neoforged.net/releases/net/neoforged/neoforge/${v}/neoforge-${v}-installer.jar`, jar);
-      await runInstaller(jar);
+      await runInstaller(jar, inst.mc);
       if (!fs.existsSync(path.join(vdir(vid), vid + '.json'))) throw new Error('NeoForge-Version nach Installation nicht gefunden (' + vid + ')');
     }
     return vid;
@@ -885,6 +987,9 @@ ipcMain.handle('play', async (id) => {
   const jargs = [inst.ram ? `-Xmx${inst.ram}M` : '', inst.javaArgs || ''].join(' ').trim();
   if (jargs) data.profiles[key].javaArgs = jargs;
   else delete data.profiles[key].javaArgs;
+  if (inst.resolution) data.profiles[key].resolution = { width: inst.resolution.width, height: inst.resolution.height };
+  else delete data.profiles[key].resolution;
+  inst.lastPlayed = new Date().toISOString(); saveInst(inst);
   fs.writeFileSync(f, JSON.stringify(data, null, 2));
 
   const candidates = [
