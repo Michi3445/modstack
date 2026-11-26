@@ -989,7 +989,7 @@ async function mountSkin(sk, name) {
   if (S.nameTag !== false && skinview3d.NameTagObject) { try { v.nameTag = new skinview3d.NameTagObject(data.name || name, { textStyle: 'white', backgroundStyle: 'rgba(0,0,0,0.45)', font: '44px "Segoe UI", Arial, sans-serif' }); } catch {} }
   if (v.resetCameraPose) v.resetCameraPose();
   { // Kamera leicht seitlich und etwas von oben: Figur steht leicht schraeg
-    const d = v.camera.position.length() || 60, a = -0.32;
+    const d = v.camera.position.length() || 60, a = -0.55;
     v.camera.position.set(Math.sin(a) * d, 7, Math.cos(a) * d); v.camera.lookAt(0, 0, 0); if (v.controls.update) v.controls.update();
   }
   v.controls.enableZoom = false; v.controls.enablePan = false;
