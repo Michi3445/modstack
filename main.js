@@ -17,7 +17,7 @@ let win;
 app.setPath('userData', path.join(app.getPath('appData'), 'modmanager'));
 const hasAppLock = !app.isPackaged || app.requestSingleInstanceLock();
 require('./friends')(ipcMain, app.getPath('userData'), readMinecraftAccount, buildShareCode, notifyFriendChat);
-require('./updater')(ipcMain, app, status);
+require('./updater')(ipcMain, app, status, appSettings);
 const instRoot = () => path.join(app.getPath('userData'), 'instances');
 const mcDir = () => path.join(process.env.APPDATA || '', '.minecraft');
 
@@ -26,22 +26,25 @@ function status(msg) {
 }
 
 let friendNotification;
-function notifyFriendChat({ arrived, unread }) {
+function notifyFriendChat({ arrived, unread, contactsChanged, requested, requests }) {
   if (!win || win.isDestroyed()) return;
   const settings = appSettings();
-  const message = arrived.length > 1 ? `Neue Nachrichten in ${arrived.length} Chats`
-    : arrived[0].kind === 'pack' ? 'Ein Freund hat ein Modpack geteilt.' : 'Du hast eine neue Chatnachricht.';
-  if (settings.friendsSound !== false) shell.beep();
+  const message = requested > 0 ? requested === 1 ? 'Du hast eine neue Freundschaftsanfrage.' : `Du hast ${requested} neue Freundschaftsanfragen.`
+    : arrived.length > 1 ? `Neue Nachrichten in ${arrived.length} Chats`
+      : arrived[0]?.kind === 'pack' ? 'Ein Freund hat ein Modpack geteilt.' : arrived.length ? 'Du hast eine neue Chatnachricht.' : '';
   const popup = settings.friendsPopup !== false;
-  win.webContents.send('friendChat', { arrived, unread, toast: popup && win.isFocused() ? message : '' });
-  if (!popup || win.isFocused() || !Notification.isSupported()) return;
+  win.webContents.send('friendChat', {
+    arrived, unread, contactsChanged, requests, requested, sound: !!message && settings.friendsSound !== false,
+    toast: popup && win.isFocused() ? message : '',
+  });
+  if (!message || !popup || win.isFocused() || !Notification.isSupported()) return;
   friendNotification?.close();
   friendNotification = new Notification({ title: 'Modstack · Freunde', body: message, silent: true });
   friendNotification.on('click', () => {
     if (!win || win.isDestroyed()) return;
     if (win.isMinimized()) win.restore();
     win.show();
-    win.webContents.send('friendChat', { open: true });
+    win.webContents.send('friendChat', { open: true, showRequests: requested > 0 });
   });
   friendNotification.show();
 }
@@ -1289,6 +1292,7 @@ ipcMain.handle('win:fullscreen', () => { win.setFullScreen(!win.isFullScreen());
 // ---------- Fenster ----------
 function createWindow() {
   win = new BrowserWindow({
+    show: process.env.MODSTACK_UPDATE_VERIFY_ONLY !== '1',
     width: 1180,
     height: 760,
     minWidth: 860,
@@ -1298,6 +1302,7 @@ function createWindow() {
     titleBarOverlay: { color: '#101216', symbolColor: '#c9ced8', height: 36 },
     autoHideMenuBar: true,
     webPreferences: {
+      autoplayPolicy: 'no-user-gesture-required',
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,

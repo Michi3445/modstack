@@ -18,7 +18,7 @@ A lightweight Minecraft mod manager for Windows, built with Electron.
 
 ```
 npm install
-npx @electron/packager . Modstack --platform=win32 --arch=x64
+npx @electron/packager . Modstack --platform=win32 --arch=x64 --ignore='\.log$'
 ```
 
 Personal, non-commercial project.
@@ -42,6 +42,8 @@ The portable Windows x64 app checks for signed GitHub releases at startup and un
 as a string such as `"1.11.0"`. Only an administrator can change the announcement.
 If the announcement is missing or inaccessible, Modstack checks the latest GitHub release.
 Windows runtime updates keep the previous program folder beside the updated app.
+App updates download in the background and install when closing Modstack. This can
+be disabled under **Optionen → Updates**.
 
 For a release, bump the app version, package the Windows build, and ZIP the
 `Modstack-win32-x64` directory including its directory name. Run

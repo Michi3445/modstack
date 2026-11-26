@@ -488,18 +488,59 @@
   .friends-form label { display: grid; gap: 5px; margin: 0 0 12px; }
   .friends-form input { width: 100%; }
   .friends-form button { margin: 0 8px 4px 0; }
-  .friends-actions, .friends-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .friends-row { padding: 8px 0; border-top: 1px solid var(--line); }
-  .friends-row b { margin-right: auto; overflow-wrap: anywhere; }
-  .friend-chat header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-  .friend-chat header h1 { margin: 0 auto 0 0; overflow-wrap: anywhere; }
-  .chat-scroll { display: flex; flex-direction: column; gap: 8px; height: clamp(150px, 49vh, 520px); overflow-y: auto; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg1); }
-  .chat-message { align-self: start; display: grid; gap: 5px; max-width: 82%; padding: 8px 12px; border-radius: 10px; background: var(--bg3); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
-  .chat-message.mine { align-self: end; background: color-mix(in srgb, var(--accent) 17%, var(--bg3)); }
+  .messenger-page { max-width: 1160px; display: flex; flex-direction: column; height: 100%; min-height: 330px; }
+  .messenger-page > h1 { font-size: 21px; margin-bottom: 12px; }
+  .messenger-body { min-height: 0; flex: 1; grid-template-columns: minmax(192px, 270px) minmax(0, 1fr); gap: 0; justify-items: stretch; }
+  .messenger-body { border: 1px solid var(--line); border-radius: 14px; background: var(--bg1); overflow: hidden; }
+  .message-sidebar { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--line); background: var(--bg2); }
+  .message-side-head { display: flex; gap: 7px; padding: 12px 10px 8px; }
+  .message-search { min-width: 0; flex: 1; }
+  .message-add, .chat-attach { width: 35px; padding: 0; font-size: 21px; flex-shrink: 0; }
+  .message-tabs { display: flex; gap: 5px; padding: 0 10px 8px; }
+  .message-tabs button { flex: 1; background: transparent; padding: 6px 5px; color: var(--muted); }
+  .message-tabs button[aria-pressed="true"] { background: var(--bg3); color: var(--text); }
+  .message-contacts { flex: 1; overflow-y: auto; padding: 2px 7px 10px; }
+  .message-contact { width: 100%; padding: 8px; justify-content: flex-start; background: transparent; text-align: left; }
+  .message-contact[aria-current="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--bg3)); }
+  .message-contact strong { overflow: hidden; text-overflow: ellipsis; }
+  .message-contact.chat-unread::after { content: ''; width: 8px; height: 8px; margin-left: auto; flex: 0 0 8px; border-radius: 50%; background: var(--accent); }
+  .message-avatar { display: inline-grid; place-items: center; width: 35px; height: 35px; flex: 0 0 35px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 23%, var(--bg3)); color: var(--text); font-weight: 700; }
+  .message-request { display: flex; flex-wrap: wrap; gap: 7px; padding: 9px 5px; align-items: center; border-bottom: 1px solid var(--line); }
+  .message-request > div { flex: 1; min-width: 90px; overflow-wrap: anywhere; }
+  .message-request small { display: block; color: var(--muted); margin-top: 2px; }
+  .message-request button { padding: 5px 8px; }
+  .message-list-empty { padding: 12px 8px; }
+  .message-profile { border-top: 1px solid var(--line); padding: 9px; }
+  .message-profile > div { display: grid; gap: 5px; padding-top: 9px; }
+  .message-profile summary, .chat-menu summary { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .message-conversation { min-height: 0; min-width: 0; display: grid; }
+  .messenger-page .message-empty { margin: auto; padding: 16px; }
+  .friend-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .friend-chat header { display: flex; align-items: center; gap: 9px; padding: 10px 13px; border-bottom: 1px solid var(--line); background: var(--bg2); }
+  .friend-chat header h2 { margin: 0 auto 0 0; overflow-wrap: anywhere; }
+  .chat-menu { position: relative; }
+  .chat-menu summary { padding: 0 8px; font-size: 21px; }
+  .chat-menu button { position: absolute; z-index: 1; right: 0; top: 26px; background: var(--bg3); }
+  .chat-back { padding: 3px 8px; }
+  .friend-chat .chat-status { margin: 0; padding: 6px 12px; }
+  .chat-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 15px 15px 12px; }
+  .chat-scroll > p { margin: auto; text-align: center; }
+  .chat-day { align-self: center; color: var(--muted); font-size: 11px; margin: 5px 0 7px; }
+  .chat-message { align-self: start; display: grid; gap: 3px; max-width: 82%; padding: 8px 12px; border-radius: 13px 13px 13px 4px; background: var(--bg3); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+  .chat-message.mine { align-self: end; border-radius: 13px 13px 4px 13px; background: color-mix(in srgb, var(--accent) 25%, var(--bg3)); }
+  .chat-message.pack { min-width: min(180px, 82%); }
   .chat-message small, .chat-message time { color: var(--muted); font-size: 11px; }
-  .chat-compose, .chat-share { display: flex; gap: 8px; align-items: end; margin-top: 10px; }
+  .chat-message time { justify-self: end; }
+  .friend-chat footer { border-top: 1px solid var(--line); padding: 10px; background: var(--bg2); }
+  .chat-compose, .chat-share { display: flex; gap: 7px; align-items: stretch; }
+  .chat-share { margin-bottom: 8px; }
+  .chat-share[hidden] { display: none; }
   .chat-compose textarea, .chat-share select { flex: 1; min-width: 0; }
-  .chat-compose textarea { resize: vertical; }
+  .chat-compose textarea { resize: vertical; max-height: 100px; border-radius: 12px; }
+  @media (max-width: 590px) {
+    .messenger-body { grid-template-columns: minmax(0,1fr); }
+    .messenger-body:not(.has-chat) .message-conversation, .messenger-body.has-chat .message-sidebar { display: none; }
+  }
   button.ri { background: transparent; border: 0; }
   button.ri:hover { background: var(--bg3); }
   .ava { overflow: hidden; } .ava.editable { cursor: pointer; position: relative; }
@@ -917,7 +958,10 @@ function render() {
   const c = $('#content');
   if (view === 'packs') return renderPacks();
   if (view === 'home') return renderHome();
-  if (view === 'friends') return activeFriendChat?.panel.isConnected ? activeFriendChat.refresh() : renderFriends();
+  if (view === 'friends') {
+    if (!friendShareInstance && messenger?.panel.isConnected) return activeFriendChat ? activeFriendChat.refresh() : messenger.refresh();
+    return renderFriends();
+  }
   if (!cur) {
     c.innerHTML = `<div class="empty"><h2>${insts.length ? 'Keine Instanz gewählt' : 'Willkommen bei Modstack'}</h2>
       ${insts.length ? 'Wähle links eine Instanz aus.' : 'Lege eine Instanz an, installiere ein fertiges Modpack oder importiere ein CurseForge-Profil.'}
@@ -2145,12 +2189,14 @@ const SET_BUILD = {
     const info = appUpdateInfo;
     const controls = btns([
       ['Nach App-Updates suchen', () => checkAppUpdate(true)],
-      ...(info?.version ? [['Update installieren', installAppUpdate, 'primary']] : []),
+      ...(info?.version ? [[info.prepared ? 'Jetzt neu starten' : 'Update installieren', installAppUpdate, 'primary']] : []),
     ]);
     c.appendChild(sec('Modstack', info?.version
-      ? `Version ${info.version} verfügbar · ${Math.ceil(info.bytes / 1000000)} MB`
+      ? info.prepared ? `Version ${info.version} ist bereit.${S.autoAppUpdate !== false ? ' Sie wird beim Beenden installiert.' : ''}`
+        : `Version ${info.version} verfügbar · ${Math.ceil(info.bytes / 1000000)} MB`
       : info?.supported === false ? 'App-Updates sind im portablen Windows-Build verfügbar.'
         : `Installierte Version ${info?.current || window.__ver || '–'}`, controls));
+    c.appendChild(toggles([['Modstack automatisch aktualisieren', 'Updates werden im Hintergrund geladen und beim Beenden installiert.', S.autoAppUpdate !== false, (v) => setS({ autoAppUpdate: v }).then(() => { if (v) checkAppUpdate(false); })]]));
     const n = updTotal();
     const st = document.createElement('div');
     st.innerHTML = `<div class="kv"><span>Gefundene Updates</span><b>${n}</b></div><div class="kv"><span>Zuletzt geprüft</span><b>${lastCheck ? lastCheck.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr' : 'noch nicht'}</b></div>`;
@@ -2283,8 +2329,14 @@ async function checkAppUpdate(manual) {
   appUpdateChecking = true;
   try {
     const previous = appUpdateInfo?.version;
+    const wasPrepared = appUpdateInfo?.prepared;
     appUpdateInfo = await api.invoke('appUpdate:check');
-    if (appUpdateInfo.version && (manual || appUpdateInfo.version !== previous)) {
+    if (appUpdateInfo.version && !appUpdateInfo.prepared && S.autoAppUpdate !== false) {
+      appUpdateInfo = await api.invoke('appUpdate:prepare');
+    }
+    if (appUpdateInfo.prepared && (manual || !wasPrepared)) {
+      toast('Modstack ' + appUpdateInfo.version + ' wird beim Beenden installiert.');
+    } else if (appUpdateInfo.version && (manual || appUpdateInfo.version !== previous)) {
       toast('Modstack ' + appUpdateInfo.version + ' ist verfügbar. Öffne Optionen → Updates.');
     } else if (manual) {
       toast(appUpdateInfo.supported ? 'Modstack ist aktuell.' : 'App-Updates sind im portablen Windows-Build verfügbar.');
@@ -2301,8 +2353,8 @@ async function installAppUpdate() {
   if (!appUpdateInfo?.version || busy) return;
   const confirmed = await ask({
     title: 'Modstack aktualisieren?',
-    text: `Version ${appUpdateInfo.version} wird heruntergeladen. Danach startet Modstack neu.`,
-    okText: 'Herunterladen und neu starten',
+    text: appUpdateInfo.prepared ? `Modstack startet mit Version ${appUpdateInfo.version} neu.` : `Version ${appUpdateInfo.version} wird heruntergeladen. Danach startet Modstack neu.`,
+    okText: appUpdateInfo.prepared ? 'Neu starten' : 'Herunterladen und neu starten',
   });
   if (!confirmed || busy) return;
   try { await work('Lade App-Update …', () => call('appUpdate:install')); }
@@ -2426,6 +2478,7 @@ document.addEventListener('drop', (e) => e.preventDefault());
   startFriendNotifications();
   api.invoke('appUpdate:ready').then((error) => { if (error) toast('App-Update fehlgeschlagen. ' + error, true); }).catch(() => {});
   setTimeout(() => checkAppUpdate(false), 4000);
+  setInterval(() => checkAppUpdate(false), 2 * 3600000);
   if (S.autoCheck !== false) setTimeout(() => autoCheck(false), 2500);
   scheduleChecks();
 })();

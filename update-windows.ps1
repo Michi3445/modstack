@@ -5,6 +5,7 @@ $parent = [IO.Path]::GetDirectoryName($root)
 $exe = Join-Path $root 'Modstack.exe'
 $receipt = Join-Path $stage 'app-ready'
 $mode = $env:MODSTACK_UPDATER_MODE
+$restart = $env:MODSTACK_UPDATER_RESTART -ne '0'
 $archive = Join-Path $root 'resources\app.asar'
 $backup = Join-Path $stage 'previous'
 $newApp = $null
@@ -71,14 +72,25 @@ try {
   }
 
   $env:MODSTACK_UPDATE_RECEIPT = $receipt
-  try { $newApp = Start-Process -FilePath $exe -WorkingDirectory $root -PassThru }
-  finally { Remove-Item Env:MODSTACK_UPDATE_RECEIPT -ErrorAction SilentlyContinue }
+  try {
+    if ($restart) { $newApp = Start-Process -FilePath $exe -WorkingDirectory $root -PassThru }
+    else {
+      $env:MODSTACK_UPDATE_VERIFY_ONLY = '1'
+      $newApp = Start-Process -FilePath $exe -WorkingDirectory $root -WindowStyle Hidden -PassThru
+    }
+  } finally {
+    Remove-Item Env:MODSTACK_UPDATE_RECEIPT,Env:MODSTACK_UPDATE_VERIFY_ONLY -ErrorAction SilentlyContinue
+  }
   for ($attempt = 0; $attempt -lt 150 -and -not $newApp.HasExited; $attempt++) {
     if ((Test-Path -LiteralPath $receipt) -and (Get-Content -LiteralPath $receipt -Raw).Trim() -eq $env:MODSTACK_UPDATER_VERSION) {
       if ($mode -eq 'full') {
         $discardStage = $false
         $previousRoot = $root + '.previous-' + [IO.Path]::GetFileName($stage).Substring(17)
         try { [IO.Directory]::Move($backup, $previousRoot); $discardStage = $true } catch {}
+      }
+      if (-not $restart -and -not $newApp.WaitForExit(10000)) {
+        $newApp.Kill()
+        $newApp.WaitForExit()
       }
       return
     }
@@ -106,7 +118,7 @@ try {
     }
   } catch { $message += ' Wiederherstellung fehlgeschlagen. Sicherung: ' + $stage }
   [IO.File]::WriteAllText($env:MODSTACK_UPDATER_LOG, $message)
-  if ($exited -and (Test-Path -LiteralPath $exe)) { Start-Process -FilePath $exe -WorkingDirectory $root }
+  if ($restart -and $exited -and (Test-Path -LiteralPath $exe)) { Start-Process -FilePath $exe -WorkingDirectory $root }
 } finally {
   if ($discardStage) {
     Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue

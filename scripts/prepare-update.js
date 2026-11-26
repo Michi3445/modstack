@@ -19,7 +19,10 @@ async function main() {
     throw new Error('Aufruf: node scripts/prepare-update.js <Modstack-Ordner> <Windows-ZIP> <Ausgabeordner> [--full-only]');
   }
   const asar = path.join(appDir, 'resources', 'app.asar');
-  const { extractFile } = await import('@electron/asar');
+  const { extractFile, listPackage } = await import('@electron/asar');
+  const privateFile = listPackage(asar).find((name) =>
+    /(?:\.log$|[\\/](?:\.env(?:\.[^\\/]+)?|update-signing-key\.pem|launcher_accounts[^\\/]*\.json|friends-session))$/i.test(name));
+  if (privateFile) throw new Error('Die Windows-App enthält eine lokale Datei: ' + path.basename(privateFile));
   const { version } = JSON.parse(extractFile(asar, 'package.json').toString('utf8'));
   const electron = fs.readFileSync(path.join(appDir, 'version'), 'utf8').trim();
   if (!VERSION.test(version) || version !== require('../package.json').version || !VERSION.test(electron)) {

@@ -41,9 +41,10 @@ function parseManifest(raw) {
   return release;
 }
 
-async function github(file, version, timeout) {
+async function github(file, version, timeout, cancel) {
   let url = new URL(version ? REPO + '/download/v' + version + '/' + file : REPO + '/latest/download/' + file);
-  const signal = AbortSignal.timeout(timeout);
+  const deadline = AbortSignal.timeout(timeout);
+  const signal = cancel ? AbortSignal.any([deadline, cancel]) : deadline;
   for (let i = 0; i < 6; i++) {
     if (url.protocol !== 'https:' || !GITHUB_HOSTS.has(url.hostname) || url.port || url.username || url.password) break;
     const response = await fetch(url, { redirect: 'manual', signal });
@@ -91,8 +92,8 @@ async function announcedVersion() {
   } catch { return null; }
 }
 
-async function download(asset, version, destination, onProgress) {
-  const response = await github(asset.name, version, 240000);
+async function download(asset, version, destination, onProgress, cancel) {
+  const response = await github(asset.name, version, 240000, cancel);
   if (!response.ok || !response.body) {
     await response.body?.cancel();
     throw new Error('Das Update konnte nicht heruntergeladen werden.');
@@ -112,33 +113,39 @@ async function download(asset, version, destination, onProgress) {
   if (size !== asset.size || digest.digest('hex') !== asset.sha256) throw new Error('Der Update-Download ist beschädigt.');
 }
 
-module.exports = function registerUpdater(ipc, app, status) {
+module.exports = function registerUpdater(ipc, app, status, settings) {
   const supported = app.isPackaged && process.platform === 'win32' && process.arch === 'x64';
   const current = app.getVersion();
   const updateLog = path.join(app.getPath('userData'), 'app-update-error.log');
-  let pending, checking, installing = false;
+  const verifyOnly = process.env.MODSTACK_UPDATE_VERIFY_ONLY === '1';
+  let pending, checking, preparing, prepared, cancel, armed = false, quitPending = false;
+  const kindFor = (release) => release.electron === process.versions.electron && release.assets.asar ? 'asar' : 'full';
+  function updateInfo() {
+    const release = prepared?.release || pending;
+    if (!release) return { current, supported };
+    return { current, supported, version: release.version, bytes: release.assets[kindFor(release)].size, prepared: Boolean(prepared) };
+  }
 
   ipc.handle('appUpdate:check', () => {
-    if (!supported) return { current, supported };
+    if (!supported || prepared || verifyOnly) return updateInfo();
     if (!checking) {
       checking = (async () => {
         const announced = await announcedVersion();
-        const targeted = announced && newer(announced, current) ? await manifest(announced) : null;
-        const release = targeted || await manifest(null);
+        const latest = await manifest(null);
+        const release = announced && newer(announced, latest?.version || current) ? await manifest(announced) || latest : latest;
         pending = release && newer(release.version, current) ? release : null;
-        if (!pending) return { current, supported };
-        const kind = pending.electron === process.versions.electron && pending.assets.asar ? 'asar' : 'full';
-        return { current, supported, version: pending.version, bytes: pending.assets[kind].size };
+        return updateInfo();
       })().finally(() => { checking = null; });
     }
     return checking;
   });
 
-  ipc.handle('appUpdate:install', async () => {
-    if (!supported || installing || !pending) throw new Error('Es ist gerade kein App-Update verfügbar.');
-    installing = true;
-    const release = pending;
-    const kind = release.electron === process.versions.electron && release.assets.asar ? 'asar' : 'full';
+  function discardStage(stage) {
+    try { disk.rmSync(stage, { recursive: true, force: true, maxRetries: 2 }); } catch {}
+  }
+
+  async function prepare(release, automatic, signal) {
+    const kind = kindFor(release);
     const asset = release.assets[kind];
     const appDir = path.dirname(process.execPath);
     let stage;
@@ -151,30 +158,78 @@ module.exports = function registerUpdater(ipc, app, status) {
       }
       stage = fs.mkdtempSync(path.join(path.dirname(appDir), '.modstack-update-'));
       const target = path.join(stage, kind === 'asar' ? 'app.asar' : asset.name);
-      await download(asset, release.version, target, (size, total) => status(`App-Update: ${size}/${total} Bytes`));
+      await download(asset, release.version, target, (size, total) => {
+        if (!automatic) status(`App-Update: ${size}/${total} Bytes`);
+      }, signal);
       if (kind === 'asar' && JSON.parse(fs.readFileSync(path.join(target, 'package.json'), 'utf8')).version !== release.version) {
         throw new Error('Die Version im Update-Paket stimmt nicht überein.');
       }
-      const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
       fs.writeFileSync(path.join(stage, 'install.ps1'), fs.readFileSync(path.join(__dirname, 'update-windows.ps1')));
-      const command = "& ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $env:MODSTACK_UPDATER_STAGE 'install.ps1'))))";
-      Object.assign(process.env, {
-        MODSTACK_UPDATER_STAGE: stage, MODSTACK_UPDATER_ROOT: appDir,
-        MODSTACK_UPDATER_MODE: kind, MODSTACK_UPDATER_HASH: asset.sha256, MODSTACK_UPDATER_LOG: updateLog,
-        MODSTACK_UPDATER_ELECTRON: release.electron, MODSTACK_UPDATER_VERSION: release.version,
-      });
-      process.chdir(path.dirname(appDir));
-      app.relaunch({ execPath: powershell, args: ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', command] });
-      setTimeout(() => app.quit(), 150);
-      return true;
+      return { release, kind, asset, appDir, stage };
     } catch (error) {
-      if (stage) {
-        try { disk.rmSync(stage, { recursive: true, force: true, maxRetries: 2 }); } catch {}
-      }
-      installing = false;
+      if (stage) discardStage(stage);
       if (['EACCES', 'EPERM'].includes(error.code)) throw new Error('Modstack braucht Schreibzugriff auf seinen Programmordner.');
       if (error.name === 'TimeoutError' || error instanceof TypeError) throw new Error('Der Update-Download ist gerade nicht erreichbar.');
       throw error;
+    }
+  }
+
+  function preparePending(automatic) {
+    if (prepared) return Promise.resolve(prepared);
+    if (preparing) return preparing;
+    if (!supported || verifyOnly || !pending) throw new Error('Es ist gerade kein App-Update verfügbar.');
+    cancel = new AbortController();
+    preparing = prepare(pending, automatic, cancel.signal).then((result) => (prepared = result))
+      .finally(() => { preparing = null; cancel = null; });
+    return preparing;
+  }
+
+  function armUpdate(restart) {
+    const { release, kind, asset, appDir, stage } = prepared;
+    const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    const command = "& ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $env:MODSTACK_UPDATER_STAGE 'install.ps1'))))";
+    Object.assign(process.env, {
+      MODSTACK_UPDATER_STAGE: stage, MODSTACK_UPDATER_ROOT: appDir,
+      MODSTACK_UPDATER_MODE: kind, MODSTACK_UPDATER_HASH: asset.sha256, MODSTACK_UPDATER_LOG: updateLog,
+      MODSTACK_UPDATER_ELECTRON: release.electron, MODSTACK_UPDATER_VERSION: release.version,
+      MODSTACK_UPDATER_RESTART: restart ? '1' : '0',
+    });
+    process.chdir(path.dirname(appDir));
+    app.relaunch({ execPath: powershell, args: ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', command] });
+    armed = true;
+  }
+
+  ipc.handle('appUpdate:prepare', async () => {
+    if (settings().autoAppUpdate === false) return updateInfo();
+    await preparePending(true);
+    return updateInfo();
+  });
+
+  ipc.handle('appUpdate:install', async () => {
+    if (armed || quitPending) return false;
+    await preparePending(false);
+    if (armed || quitPending) return false;
+    armUpdate(true);
+    setTimeout(() => app.quit(), 150);
+    return true;
+  });
+
+  app.on('before-quit', (event) => {
+    if (armed || verifyOnly) return;
+    if (preparing) {
+      event.preventDefault();
+      if (quitPending) return;
+      quitPending = true;
+      cancel.abort();
+      preparing.catch(() => {}).finally(() => app.quit());
+      return;
+    }
+    if (!prepared) return;
+    if (settings().autoAppUpdate === false) { discardStage(prepared.stage); return; }
+    try { armUpdate(false); }
+    catch (error) {
+      fs.writeFileSync(updateLog, error.message);
+      discardStage(prepared.stage);
     }
   });
 
@@ -184,6 +239,7 @@ module.exports = function registerUpdater(ipc, app, status) {
       fs.writeFileSync(receipt, current);
       delete process.env.MODSTACK_UPDATE_RECEIPT;
     }
+    if (verifyOnly) { setTimeout(() => app.exit(0), 1200); return ''; }
     try {
       const error = fs.readFileSync(updateLog, 'utf8').trim();
       fs.rmSync(updateLog, { force: true });

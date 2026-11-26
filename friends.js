@@ -25,7 +25,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   const sessionFile = path.join(userData, 'friends-session');
   let config, session;
   let queue = Promise.resolve();
-  let inbox;
+  let inbox, contactSignature;
 
   function launcherName() {
     const name = readMinecraftAccount()?.name;
@@ -56,7 +56,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   }
 
   function setSession(data) {
-    if (!data || data.uid !== session?.uid) inbox = undefined;
+    if (!data || data.uid !== session?.uid) { inbox = undefined; contactSignature = undefined; }
     session = data;
     if (!data) fs.rmSync(sessionFile, { force: true });
     else if (safeStorage.isEncryptionAvailable()) {
@@ -178,13 +178,17 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     await db('/profiles/' + session.uid, { method: 'PUT', value: { name } });
   });
 
-  handle('list', async () => {
-    if (!session) throw new Error('Melde dich zuerst an.');
-    const uid = session.uid;
+  async function readLinks(uid) {
     await token();
     const lists = await Promise.all(['sender', 'recipient'].map((field) =>
       db('/links', { query: { orderBy: field, equalTo: uid } })));
-    const links = Object.assign({}, ...lists.map(({ value }) => value));
+    return Object.assign({}, ...lists.map(({ value }) => value));
+  }
+
+  handle('list', async () => {
+    if (!session) throw new Error('Melde dich zuerst an.');
+    const uid = session.uid;
+    const links = await readLinks(uid);
     // Namen sind pro Freund eine kleine Abfrage, in begrenzten Gruppen.
     const rows = [];
     const entries = Object.entries(links);
@@ -287,7 +291,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     const file = path.join(userData, 'friend-inbox-' + key + '.json');
     let saved;
     try { saved = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-    inbox = { file, cursor: Number(saved?.cursor) || 0, entries: saved?.entries || {} };
+    inbox = { file, cursor: Number(saved?.cursor) || 0, entries: saved?.entries || {}, requests: saved?.requests || [] };
     return inbox;
   }
 
@@ -296,12 +300,19 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   }
 
   function saveInbox(state) {
-    saveFile(state.file, JSON.stringify({ cursor: state.cursor, entries: state.entries }));
+    saveFile(state.file, JSON.stringify({ cursor: state.cursor, entries: state.entries, requests: state.requests }));
   }
 
   handle('unread', () => {
     init();
     return session ? unreadChats(chatInbox()) : [];
+  });
+
+  handle('friendState', () => {
+    init();
+    if (!session) return { unread: [], requests: [] };
+    const state = chatInbox();
+    return { unread: unreadChats(state), requests: state.requests };
   });
 
   handle('readChat', ({ id, messageId, at } = {}) => {
@@ -325,21 +336,34 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
       if (!session) return;
       const state = chatInbox();
       const query = state.cursor ? { ...CHAT_QUERY, startAt: state.cursor } : CHAT_QUERY;
-      const { value } = await db('/inbox/' + session.uid, { query });
+      const uid = session.uid;
+      await token();
+      const [messages, contacts] = await Promise.allSettled([db('/inbox/' + uid, { query }), readLinks(uid)]);
       const arrived = [];
-      for (const [id, mark] of Object.entries(value || {})) {
+      for (const [id, mark] of Object.entries(messages.value?.value || {})) {
         const previous = state.entries[id];
         state.cursor = Math.max(state.cursor, mark.at);
         if (previous && (previous.messageId === mark.messageId || previous.at > mark.at)) continue;
         state.entries[id] = { messageId: mark.messageId, at: mark.at, unread: true };
         arrived.push({ id, kind: mark.kind });
       }
-      if (arrived.length) {
-        saveInbox(state);
-        notifyChat({ arrived, unread: unreadChats(state) });
+      let contactsChanged = false, requested = 0, requestListChanged = false;
+      if (contacts.status === 'fulfilled') {
+        const links = Object.entries(contacts.value).sort(([a], [b]) => a.localeCompare(b, 'en'));
+        const signature = JSON.stringify(links.map(([id, link]) => [id, link.state]));
+        contactsChanged = signature !== contactSignature;
+        contactSignature = signature;
+        const incoming = links.filter(([, link]) => link.recipient === uid && link.state === 'pending').map(([id]) => id);
+        requested = incoming.filter((id) => !state.requests.includes(id)).length;
+        requestListChanged = requested > 0 || state.requests.length !== incoming.length;
+        state.requests = incoming;
       }
+      if (arrived.length || requestListChanged) saveInbox(state);
+      if (arrived.length || contactsChanged) notifyChat({ arrived, unread: unreadChats(state), contactsChanged, requested, requests: state.requests });
     }).catch(() => {}).finally(() => { polling = false; });
   }
-  setTimeout(pollChat, 2000).unref();
-  setInterval(pollChat, 15000).unref();
+  if (process.env.MODSTACK_UPDATE_VERIFY_ONLY !== '1') {
+    setTimeout(pollChat, 2000).unref();
+    setInterval(pollChat, 15000).unref();
+  }
 };
