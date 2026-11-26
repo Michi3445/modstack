@@ -251,6 +251,7 @@
   .key-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 9px 5px 11px; }
   .key-row + .key-row { border-top: 1px solid var(--line); }
   .key-row button { min-width: 42px; max-width: 52%; display: block; overflow: hidden; text-overflow: ellipsis; }
+  .key-row .key-inherited { color: var(--muted); }
   .key-capture { width: 390px; max-width: 92vw; }
   .key-capture-zone { padding: 23px 12px; text-align: center; border: 1px dashed var(--accent); border-radius: 8px; background: var(--bg3); cursor: crosshair; }
   .key-feedback { min-height: 1.4em; margin: 8px 0; color: var(--muted); }
@@ -1276,7 +1277,6 @@ async function installPack(h, btn) {
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Installiert ...';
   try {
     const inst = await work('Installiere Modpack ' + h.title + ' ...', () => call('mr:installPack', { projectId: h.id }));
-    if (S.defaultRam || S.defaultJavaArgs) await call('instances:settings', { id: inst.id, ram: S.defaultRam || 0, javaArgs: S.defaultJavaArgs || '' }, true).catch(() => {});
     tab = 'mods'; await load(inst.id); toast('„' + inst.name + '“ installiert');
   } catch { btn.disabled = false; btn.textContent = 'Installieren'; }
 }
@@ -1679,7 +1679,7 @@ async function renderSettings() {
   const keyPanel = c.querySelector('.pack-keys');
   keyPanel.ontoggle = () => {
     const keys = keyPanel.querySelector('#packKeybinds');
-    if (keyPanel.open && keys.isConnected) renderKeybinds(keys, i.id);
+    if (keyPanel.open && keys.isConnected) renderKeybinds(keys, { instanceId: i.id });
     else keys.replaceChildren();
   };
   // RAM
@@ -2166,7 +2166,7 @@ async function setS(patch) { S = await call('settings:set', patch); applySetting
 let setSec = 'look', setQuery = '';
 const SET_GROUPS = [
   ['Modstack', [['general', 'Allgemein'], ['look', 'Darstellung'], ['ui', 'Oberfläche'], ['home', 'Startseite']]],
-  ['Minecraft', [['play', 'Spielstart'], ['keybinds', 'Tastenbelegung']]],
+  ['Minecraft', [['defaults', 'Modpack-Standards'], ['play', 'Spielstart'], ['keybinds', 'Tastenbelegung']]],
   ['Verwaltung', [['updates', 'Updates'], ['downloads', 'Downloads'], ['data', 'Daten & Speicher'], ['about', 'Über Modstack']]],
 ];
 const SECS = SET_GROUPS.flatMap(([group, sections]) => sections.map(([key, label]) => [key, label, group]));
@@ -2358,15 +2358,25 @@ const SET_BUILD = {
       ['Benötigte Mods automatisch mitinstallieren', 'Zum Beispiel Fabric API, wenn ein Mod sie braucht', S.autoDeps !== false, (v) => setS({ autoDeps: v })],
     ])));
   },
-  play(c) {
-    const g = document.createElement('div');
-    const ramOn = toggleLine('Eigenen Standard-RAM verwenden', 'Wird bei neuen Instanzen und Modpacks eingetragen', !!S.defaultRam, (v) => setS({ defaultRam: v ? 4096 : 0 }));
-    g.appendChild(ramOn);
-    if (S.defaultRam) g.appendChild(slider('Standard-RAM', 2, 16, 0.5, S.defaultRam / 1024, (v) => v + ' GB', null, (v) => saveQuiet({ defaultRam: Math.round(v * 1024) })));
-    c.appendChild(sec('Arbeitsspeicher', 'Pro Instanz unter Einstellungen änderbar.', g));
+  defaults(c, searching) {
+    const ram = document.createElement('div');
+    ram.append(toggleLine('Eigenen Standard-RAM verwenden', 'Aus = Launcher-Standard', !!S.defaultRam, (v) => setS({ defaultRam: v ? 4096 : 0 })));
+    if (S.defaultRam) ram.append(slider('Standard-RAM', 1, Math.max(16, Math.ceil(S.defaultRam / 1024)), 0.5, S.defaultRam / 1024, (v) => v + ' GB', null, (v) => saveQuiet({ defaultRam: Math.round(v * 1024) })));
+    c.append(sec('Arbeitsspeicher', 'Vorgabe für neu erstellte und importierte Instanzen.', ram));
+    const view = document.createElement('div');
+    const fovOn = Number.isInteger(S.defaultFov);
+    view.append(toggleLine('Eigenes Sichtfeld verwenden', 'Aus = Sichtfeld des Modpacks oder von Minecraft', fovOn, (v) => setS({ defaultFov: v ? 70 : null })));
+    if (fovOn) view.append(slider('Sichtfeld (FOV)', 30, 110, 1, S.defaultFov, (v) => v + '°', null, (v) => saveQuiet({ defaultFov: v })));
+    c.append(sec('Sichtfeld (FOV)', '', view));
     const ja = document.createElement('input'); ja.style.width = '100%'; ja.placeholder = 'z.B. -XX:+UseG1GC'; ja.spellcheck = false; ja.value = S.defaultJavaArgs || '';
     ja.onchange = () => saveQuiet({ defaultJavaArgs: ja.value.trim() });
-    c.appendChild(sec('Standard-Java-Argumente', 'Für neue Instanzen. Nur für Fortgeschrittene.', ja));
+    c.append(sec('Standard-Java-Argumente', 'Für neue Instanzen. Nur für Fortgeschrittene.', ja));
+    const keys = document.createElement('div');
+    if (searching) keys.append(btns([['Modpack-Standards öffnen', () => selectSetting('defaults')]]));
+    c.append(sec('Standard-Tastenbelegung', 'Eigene Vorgaben für Tastatur und Maus überschreiben beim Import die jeweilige Modpack-Belegung.', keys));
+    if (!searching) renderKeybinds(keys, { preset: true });
+  },
+  play(c) {
     c.appendChild(sec('Beim Spielen', '', toggles([
       ['Modstack minimieren', 'Nach dem Klick auf Spielen', !!S.minimizeOnPlay, (v) => setS({ minimizeOnPlay: v })],
     ])));
@@ -2429,7 +2439,7 @@ function renderSettingsBody(resetScroll = false) {
   for (const [key, label, group] of SECS) {
     const box = document.createElement('div');
     if (key === 'keybinds') box.append(sec(label, 'Minecraft-Tastatur, Maus und Keybinds pro Instanz', btns([['Tasten bearbeiten', () => selectSetting(key)]])));
-    else SET_BUILD[key](box);
+    else SET_BUILD[key](box, true);
     const secs = [...box.children].filter((s) => s.classList.contains('sec'));
     let any = false;
     const sectionMatch = label.toLowerCase().includes(q) || group.toLowerCase() === q;
@@ -2596,7 +2606,6 @@ $('#nOk').onclick = async () => {
   const loader = $('#nLoader .on').dataset.v;
   const inst = await call('instances:create', { name, mc: $('#nMc').value, loader });
   $('#dlg').close(); $('#nName').value = '';
-  if (S.defaultRam || S.defaultJavaArgs) await call('instances:settings', { id: inst.id, ram: S.defaultRam || 0, javaArgs: S.defaultJavaArgs || '' }, true).catch(() => {});
   tab = 'search-mod'; await load(inst.id); toast('Instanz „' + name + '“ erstellt');
 };
 $('#newBtn').onclick = newInstance;

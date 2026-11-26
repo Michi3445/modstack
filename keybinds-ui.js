@@ -6,7 +6,7 @@ function keybindLabel(code, labels, fallback = 'Unbelegt') {
   return physical?.length === 1 && physical !== ' ' ? physical.toLocaleUpperCase() : labels[code] || fallback;
 }
 
-function captureKeybind(binding, data, id, onSaved) {
+function captureKeybind(binding, data, saveBinding, onSaved, preset) {
   const dialog = document.createElement('dialog');
   dialog.className = 'key-capture';
   dialog.setAttribute('aria-labelledby', 'keyCaptureTitle');
@@ -16,7 +16,7 @@ function captureKeybind(binding, data, id, onSaved) {
       <div class="key-capture-zone" tabindex="0" aria-label="Eingabe erfassen">Taste drücken oder hier mit der Maus klicken</div>
       <p class="key-feedback" role="status"></p>
       <div class="opts">
-        <button type="button" class="ghost sm" data-code="default">Standard wählen</button>
+        <button type="button" class="ghost sm" data-code="default">${preset ? 'Vorgabe entfernen' : 'Standard wählen'}</button>
         <button type="button" class="ghost sm" data-code="Unbound">Belegung entfernen</button>
       </div>
     </div>
@@ -29,13 +29,13 @@ function captureKeybind(binding, data, id, onSaved) {
   let saving = false;
   function select(code) {
     if (saving) return;
-    if (!Object.hasOwn(data.labels, code)) {
+    if (code !== null && !Object.hasOwn(data.labels, code)) {
       feedback.textContent = 'Diese Taste wird hier noch nicht unterstützt.';
       return;
     }
     selected = code;
-    zone.textContent = keybindLabel(code, data.labels);
-    const others = code === 'Unbound' ? [] : data.groups.flatMap((group) => group.bindings)
+    zone.textContent = code === null ? 'Keine Vorgabe' : keybindLabel(code, data.labels);
+    const others = code === null || code === 'Unbound' ? [] : data.groups.flatMap((group) => group.bindings)
       .filter((item) => item.id !== binding.id && item.code === code).map((item) => item.label);
     feedback.textContent = others.length ? 'Auch belegt für ' + others.join(', ') : '';
     save.disabled = false;
@@ -54,7 +54,7 @@ function captureKeybind(binding, data, id, onSaved) {
   };
   zone.oncontextmenu = (event) => event.preventDefault();
   for (const button of dialog.querySelectorAll('[data-code]')) {
-    button.onclick = () => select(button.dataset.code === 'default' ? binding.standard : button.dataset.code);
+    button.onclick = () => select(button.dataset.code === 'default' ? (preset ? null : binding.standard) : button.dataset.code);
   }
   dialog.querySelector('.df .ghost').onclick = () => { if (!saving) dialog.close(); };
   dialog.oncancel = (event) => { if (saving) event.preventDefault(); };
@@ -63,7 +63,7 @@ function captureKeybind(binding, data, id, onSaved) {
     if (!dialog.open || saving) return;
     saving = save.disabled = true;
     try {
-      const next = await api.invoke('instances:keybinds:save', { id, action: binding.id, code: selected, expected: binding.value });
+      const next = await saveBinding({ action: binding.id, code: selected, expected: binding.value });
       dialog.close();
       onSaved(next);
     } catch (error) {
@@ -76,13 +76,13 @@ function captureKeybind(binding, data, id, onSaved) {
   zone.focus();
 }
 
-function renderKeybinds(container, instanceId) {
-  if (!instanceId && !insts.length) {
+function renderKeybinds(container, { instanceId, preset = false } = {}) {
+  if (!preset && !instanceId && !insts.length) {
     container.textContent = 'Erstelle oder importiere zuerst eine Minecraft-Instanz.';
     return;
   }
   let select;
-  if (!instanceId) {
+  if (!preset && !instanceId) {
     if (!insts.some((instance) => instance.id === keybindInstance)) {
       keybindInstance = insts.find((instance) => instance.id === cur?.id)?.id || insts[0].id;
     }
@@ -116,10 +116,16 @@ function renderKeybinds(container, instanceId) {
         const edit = document.createElement('button');
         edit.type = 'button';
         edit.className = 'ghost sm';
-        edit.textContent = keybindLabel(binding.code, data.labels, binding.value);
+        const current = keybindLabel(binding.code, data.labels, binding.value);
+        const inherited = preset && binding.value === null;
+        edit.textContent = inherited ? 'Keine Vorgabe' : current;
+        if (inherited) edit.classList.add('key-inherited');
         edit.title = edit.textContent;
         edit.setAttribute('aria-label', binding.label + ' ändern. Aktuell ' + edit.textContent);
-        edit.onclick = () => captureKeybind(binding, data, id, (next) => draw(next, id, binding.id));
+        const save = (change) => preset
+          ? api.invoke('settings:keybinds:save', change)
+          : api.invoke('instances:keybinds:save', { id, ...change });
+        edit.onclick = () => captureKeybind(binding, data, save, (next) => draw(next, id, binding.id), preset);
         row.append(name, edit);
         section.append(row);
       }
@@ -131,10 +137,10 @@ function renderKeybinds(container, instanceId) {
     }
   }
   async function load() {
-    const id = instanceId || (keybindInstance = select.value);
+    const id = instanceId || (select && (keybindInstance = select.value));
     grid.textContent = 'Tastenbelegungen werden geladen …';
     try {
-      const data = await api.invoke('instances:keybinds:get', id);
+      const data = preset ? await api.invoke('settings:keybinds:get') : await api.invoke('instances:keybinds:get', id);
       await layoutReady;
       if (grid.isConnected && (!select || select.value === id)) draw(data, id);
     } catch (error) {

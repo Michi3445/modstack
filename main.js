@@ -4,7 +4,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const { execFile, spawn } = require('child_process');
-const { bindings, writeBinding } = require('./minecraft-keybinds');
+const { bindings, writeBinding, presetBindings, savePresetBinding, applyOptionDefaults } = require('./minecraft-keybinds');
 
 // ipcMain.handle ruft (event, daten) auf; die Handler unten erwarten nur die Daten.
 const ipcMain = { handle: (ch, fn) => rawIpc.handle(ch, (_e, data) => fn(data)) };
@@ -87,6 +87,23 @@ function saveInst(inst) {
   fs.writeFileSync(path.join(instDir(inst.id), 'instance.json'), JSON.stringify(inst, null, 2));
 }
 
+function instanceRam(value) {
+  const ram = Number(value);
+  return Number.isFinite(ram) && ram > 0 ? Math.max(1024, Math.min(65536, Math.trunc(ram))) : undefined;
+}
+
+function instanceJavaArgs(value) {
+  return String(value || '').replace(/-Xm[xs]\S*/g, '').trim() || undefined;
+}
+
+function saveNewInst(inst) {
+  const defaults = appSettings();
+  inst.ram = instanceRam(defaults.defaultRam);
+  inst.javaArgs = instanceJavaArgs(defaults.defaultJavaArgs);
+  applyOptionDefaults(path.join(instDir(inst.id), 'options.txt'), inst.mc, defaults);
+  saveInst(inst);
+}
+
 // ---------- Instanzen ----------
 ipcMain.handle('instances:list', () => {
   fs.mkdirSync(instRoot(), { recursive: true });
@@ -107,7 +124,7 @@ ipcMain.handle('instances:create', ({ name, mc, loader }) => {
   while (fs.existsSync(instDir(id))) id = safeName(name) + '_' + ++n;
   fs.mkdirSync(path.join(instDir(id), 'mods'), { recursive: true });
   const inst = { id, name, mc, loader, mods: [], created: new Date().toISOString() };
-  saveInst(inst);
+  saveNewInst(inst);
   return inst;
 });
 
@@ -440,8 +457,8 @@ ipcMain.handle('instances:duplicate', (id) => {
 
 ipcMain.handle('instances:settings', (p) => {
   const inst = readInst(p.id);
-  if ('ram' in p) inst.ram = p.ram ? Math.max(1024, Math.min(65536, parseInt(p.ram, 10) || 0)) : undefined;
-  if ('javaArgs' in p) inst.javaArgs = String(p.javaArgs || '').replace(/-Xm[xs]\S*/g, '').trim() || undefined;
+  if ('ram' in p) inst.ram = instanceRam(p.ram);
+  if ('javaArgs' in p) inst.javaArgs = instanceJavaArgs(p.javaArgs);
   if ('resolution' in p) {
     const r = p.resolution;
     inst.resolution = r && r.width >= 320 && r.height >= 240 ? { width: Math.min(7680, r.width | 0), height: Math.min(4320, r.height | 0) } : undefined;
@@ -518,16 +535,19 @@ ipcMain.handle('instances:info', (id) => {
 
 // ---------- App-Einstellungen, Konto, News ----------
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
-ipcMain.handle('settings:get', () => {
-  try { return readJson(settingsFile()); } catch { return {}; }
-});
-ipcMain.handle('settings:set', (patch) => {
-  let s = {};
-  try { s = readJson(settingsFile()); } catch {}
-  Object.assign(s, patch || {});
+function saveAppSettings(patch) {
+  const s = { ...appSettings(), ...patch };
   fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
   fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2));
   return s;
+}
+ipcMain.handle('settings:get', appSettings);
+ipcMain.handle('settings:set', saveAppSettings);
+ipcMain.handle('settings:keybinds:get', () => presetBindings(appSettings().defaultKeybinds));
+ipcMain.handle('settings:keybinds:save', (change) => {
+  const defaultKeybinds = savePresetBinding(appSettings().defaultKeybinds, change);
+  saveAppSettings({ defaultKeybinds });
+  return presetBindings(defaultKeybinds);
 });
 
 // Eigenes Hintergrundbild: wird in den Datenordner kopiert und als data-URL geliefert
@@ -789,7 +809,6 @@ async function importMrpack(buf, fallbackName, extra) {
   const id = newInstId(name);
   fs.mkdirSync(path.join(instDir(id), 'mods'), { recursive: true });
   const inst = { id, name, mc, loader, loaderVersion, mods: [], source: 'modrinth', ...(extra || {}) };
-  saveInst(inst);
 
   const dir = path.resolve(instDir(id));
   const files = (idx.files || []).filter((f) => !(f.env && f.env.client === 'unsupported'));
@@ -823,7 +842,7 @@ async function importMrpack(buf, fallbackName, extra) {
   }
   status('Hole Mod-Infos von Modrinth ...');
   await linkModrinth(inst, linkable);
-  saveInst(inst);
+  saveNewInst(inst);
   if (failed.length) {
     fs.writeFileSync(path.join(instDir(id), 'import-fehler.txt'), failed.join('\r\n'));
     status(`Modpack installiert, ${failed.length} Dateien fehlgeschlagen (import-fehler.txt)`);
@@ -865,7 +884,6 @@ async function importProfileZip(buf, fallbackName) {
   const dir = instDir(id);
   fs.mkdirSync(path.join(dir, 'mods'), { recursive: true });
   const inst = { id, name, mc, loader: pl.loader, loaderVersion: pl.version, mods: [], source: 'curseforge' };
-  saveInst(inst);
 
   const linkable = extractOverrides(entries, [(man.overrides || 'overrides')], inst);
 
@@ -894,7 +912,7 @@ async function importProfileZip(buf, fallbackName) {
   });
   status('Verknuepfe mit Modrinth (fuer Updates und Icons) ...');
   await linkModrinth(inst, linkable);
-  saveInst(inst);
+  saveNewInst(inst);
   if (failed.length) {
     fs.writeFileSync(path.join(dir, 'import-fehler.txt'), failed.join('\r\n'));
     status(`Import fertig, ${failed.length} von ${files.length} Dateien fehlgeschlagen (Liste: import-fehler.txt im Instanzordner)`);
@@ -1004,7 +1022,6 @@ ipcMain.handle('share:importCode', async (code) => {
   if (d.ig) inst.iconGen = d.ig;
   if (typeof d.ii === 'string' && d.ii.length < 20000 && /^[A-Za-z0-9+/=]+$/.test(d.ii)) inst.icon = 'data:image/jpeg;base64,' + d.ii;
   if (typeof d.ic === 'string' && /^https:\/\/cdn\.modrinth\.com\/[^"'\s]+$/.test(d.ic)) inst.icon = d.ic;
-  saveInst(inst);
   const want = [...(d.m || []).map((v) => [v, 'mod']), ...(d.r || []).map((v) => [v, 'resourcepack']), ...(d.s || []).map((v) => [v, 'shader'])];
   const kindOfV = new Map(want);
   const versions = [];
@@ -1026,7 +1043,7 @@ ipcMain.handle('share:importCode', async (code) => {
     status(`Lade geteilte Instanz ${++n}/${versions.length} ...`);
   });
   const missing = want.length - versions.length;
-  saveInst(inst);
+  saveNewInst(inst);
   status(`Import fertig: ${inst.mods.length} Dateien` + (failed.length || missing ? `, ${failed.length + missing} nicht gefunden` : ''));
   return inst;
 });

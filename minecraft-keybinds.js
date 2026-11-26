@@ -87,6 +87,19 @@ function availableControls(mc) {
   return controls.map(([title, list]) => [title, list.filter(([, , , since = 0]) => !minor || Number(minor) >= since)]);
 }
 
+function bindingView(mc, getValue, getCode) {
+  return {
+    labels: Object.fromEntries(Object.entries(keys).map(([code, [, , label]]) => [code, label])),
+    groups: availableControls(mc).map(([title, list]) => ({
+      title,
+      bindings: list.map(([id, label, standard]) => {
+        const value = getValue(id);
+        return { id, label, standard, value, code: value === null ? standard : getCode(value) };
+      }),
+    })),
+  };
+}
+
 function bindings(file, mc) {
   const { entries } = options(file);
   const byValue = new Map();
@@ -94,39 +107,48 @@ function bindings(file, mc) {
     byValue.set(modern, code);
     byValue.set(String(legacy), code);
   }
-  return {
-    labels: Object.fromEntries(Object.entries(keys).map(([code, [, , label]]) => [code, label])),
-    groups: availableControls(mc).map(([title, list]) => ({
-      title,
-      bindings: list.map(([id, label, standard]) => {
-        const value = entries.get('key_key.' + id)?.value ?? null;
-        return { id, label, standard, value, code: value === null ? standard : byValue.get(value) };
-      }),
-    })),
-  };
+  return bindingView(mc, (id) => entries.get('key_key.' + id)?.value ?? null, (value) => byValue.get(value));
 }
 
-function writeBinding(file, mc, { action, code, expected }) {
-  if (!Object.hasOwn(keys, code) || !availableControls(mc).some(([, list]) => list.some(([id]) => id === action))) {
-    throw new Error('Diese Tastenbelegung wird nicht unterstützt.');
-  }
-  const { bom, lines, entries } = options(file);
-  const name = 'key_key.' + action;
-  const entry = entries.get(name);
-  if ((entry?.value ?? null) !== expected) throw new Error('Die Belegung wurde inzwischen geändert. Wähle die Aktion erneut aus.');
+function validCode(code) {
+  return typeof code === 'string' && Object.hasOwn(keys, code);
+}
+
+function presetBindings(preset) {
+  return bindingView('', (id) => validCode(preset?.[id]) ? preset[id] : null, (value) => value);
+}
+
+function savePresetBinding(preset, { action, code, expected }) {
+  const list = presetBindings(preset).groups.flatMap((group) => group.bindings);
+  const binding = list.find((item) => item.id === action);
+  if (!binding || (code !== null && !validCode(code))) throw new Error('Diese Tastenbelegung wird nicht unterstützt.');
+  if (binding.value !== expected) throw new Error('Die Vorgabe wurde inzwischen geändert.');
+  return Object.fromEntries(list.map(({ id, value }) => [id, id === action ? code : value]).filter(([, value]) => value !== null));
+}
+
+function optionBindingValue(entries, mc, code) {
   const [modern, legacy] = keys[code];
   const legacyGame = /^1\.(?:[0-9]|1[0-2])(?:\.|$|[-_])/.test(mc);
   // Pre-1.13 files and files with no data version use the original numeric format.
-  const value = !legacyGame && Number(entries.get('version')?.value) >= 1519 ? modern : String(legacy);
-  if (entry?.value === value) return;
-  const line = name + ':' + value;
-  if (entry) lines[entry.index] = line;
-  else {
-    const eol = lines[1] || '\n';
-    if (lines.at(-1)) lines.push(eol, line);
-    else lines[lines.length - 1] = line;
-    lines.push(eol);
+  return !legacyGame && Number(entries.get('version')?.value) >= 1519 ? modern : String(legacy);
+}
+
+function writeOptions(file, { bom, lines, entries }, changes) {
+  let dirty = false;
+  for (const [name, value] of changes) {
+    const entry = entries.get(name);
+    if (entry?.value === value) continue;
+    dirty = true;
+    const line = name + ':' + value;
+    if (entry) lines[entry.index] = line;
+    else {
+      const eol = lines[1] || '\n';
+      if (lines.at(-1)) lines.push(eol, line);
+      else lines[lines.length - 1] = line;
+      lines.push(eol, '');
+    }
   }
+  if (!dirty) return;
   const temporary = path.join(path.dirname(file), '.options-' + randomUUID() + '.tmp');
   try {
     fs.writeFileSync(temporary, bom + lines.join(''), { encoding: 'latin1', flag: 'wx' });
@@ -136,4 +158,26 @@ function writeBinding(file, mc, { action, code, expected }) {
   }
 }
 
-module.exports = { bindings, writeBinding };
+function writeBinding(file, mc, { action, code, expected }) {
+  if (!validCode(code) || !availableControls(mc).some(([, list]) => list.some(([id]) => id === action))) {
+    throw new Error('Diese Tastenbelegung wird nicht unterstützt.');
+  }
+  const current = options(file);
+  const name = 'key_key.' + action;
+  if ((current.entries.get(name)?.value ?? null) !== expected) throw new Error('Die Belegung wurde inzwischen geändert. Wähle die Aktion erneut aus.');
+  writeOptions(file, current, [[name, optionBindingValue(current.entries, mc, code)]]);
+}
+
+function applyOptionDefaults(file, mc, { defaultFov, defaultKeybinds }) {
+  const fov = Number.isInteger(defaultFov) && defaultFov >= 30 && defaultFov <= 110 ? defaultFov : null;
+  const assigned = availableControls(mc).flatMap(([, list]) => list)
+    .filter(([id]) => validCode(defaultKeybinds?.[id]));
+  if (fov === null && !assigned.length) return;
+  const current = options(file);
+  const changes = assigned.map(([id]) => ['key_key.' + id, optionBindingValue(current.entries, mc, defaultKeybinds[id])]);
+  // Minecraft stores this as an offset from its normal 70° FOV.
+  if (fov !== null) changes.push(['fov', String((fov - 70) / 40)]);
+  writeOptions(file, current, changes);
+}
+
+module.exports = { bindings, writeBinding, presetBindings, savePresetBinding, applyOptionDefaults };
