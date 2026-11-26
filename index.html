@@ -197,7 +197,7 @@
   .skinhint { color: var(--dim); font-size: 11px; margin: -10px 0 14px; }
   .skin { height: 360px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 18px; position: relative; }
   .skin img { height: 290px; image-rendering: pixelated; filter: drop-shadow(0 16px 24px rgba(0,0,0,.55)); animation: bob 4s ease-in-out infinite; }
-  .skin::after { content: ''; position: absolute; bottom: -6px; left: 50%; width: 120px; height: 16px; margin-left: -60px; border-radius: 50%; background: radial-gradient(rgba(0,0,0,.55), transparent 70%); }
+  .skin::after { content: ''; position: absolute; bottom: 52px; left: 50%; width: 110px; height: 18px; margin-left: -55px; border-radius: 50%; background: radial-gradient(rgba(0,0,0,.55), transparent 70%); }
   @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
   .skin .noskin { width: 150px; height: 260px; border: 1.5px dashed #3a404d; border-radius: 14px; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); padding: 12px; font-size: 12px; }
   .launch { display: flex; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 25%, transparent); }
@@ -431,18 +431,17 @@
   .det-notes { white-space: pre-wrap; color: #c9ced8; font-size: 12.5px; background: rgba(255,255,255,.04); border-radius: 10px; padding: 9px 11px; user-select: text; }
   .det-btns { display: flex; gap: 6px; flex-wrap: wrap; } .det-btns button { flex: 1; }
   /* Raum-Stile */
-  .room.synth .floor { top: 63%; background-image: linear-gradient(color-mix(in srgb, var(--c1) 55%, transparent) 2px, transparent 2px), linear-gradient(90deg, color-mix(in srgb, var(--c2) 55%, transparent) 2px, transparent 2px); background-size: 64px 64px; -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,.15) 0%, #000 25%, rgba(0,0,0,.4) 75%, transparent 100%); }
-  .room.synth .sun { position: absolute; left: 50%; top: 63%; width: 380px; height: 380px; margin-left: -190px; transform: translateY(-72%); border-radius: 50%; background: linear-gradient(180deg, var(--c2), var(--c1) 70%); opacity: .5; -webkit-mask-image: linear-gradient(to bottom, #000 0 48%, transparent 48%), repeating-linear-gradient(to bottom, transparent 0 9px, #000 9px 22px); -webkit-mask-composite: source-over; }
-  .room.synth .sunglow { position: absolute; left: 50%; top: 63%; width: 560px; height: 300px; margin-left: -280px; transform: translateY(-80%); border-radius: 50%; background: radial-gradient(color-mix(in srgb, var(--c1) 35%, transparent), transparent 65%); filter: blur(10px); }
-  .room.synth .horizon { position: absolute; left: 0; right: 0; top: 63%; height: 2px; background: linear-gradient(90deg, transparent, var(--c1) 20%, var(--c2) 80%, transparent); box-shadow: 0 0 22px 3px color-mix(in srgb, var(--c1) 70%, transparent); }
-  .room.winter .floor { top: 64%; background: linear-gradient(rgba(255,255,255,.07) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,.05) 1.5px, transparent 1.5px), linear-gradient(to bottom, rgba(225,238,255,.30), rgba(225,238,255,.10)); background-size: 70px 70px, 70px 70px, 100% 100%; -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.6) 60%, transparent 100%); animation: none !important; }
-  .room.winter .snowline { position: absolute; left: 0; right: 0; top: calc(64% - 6px); height: 14px; background: linear-gradient(to bottom, transparent, rgba(235,244,255,.35)); filter: blur(3px); }
+  .room.synth .floor { top: var(--hz, 63%); background-image: linear-gradient(color-mix(in srgb, var(--c1) 55%, transparent) 2px, transparent 2px), linear-gradient(90deg, color-mix(in srgb, var(--c2) 55%, transparent) 2px, transparent 2px); background-size: 64px 64px; -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,.15) 0%, #000 25%, rgba(0,0,0,.4) 75%, transparent 100%); }
+  .room.synth .sun { position: absolute; left: 50%; top: var(--hz, 63%); width: 320px; height: 320px; margin-left: -160px; transform: translateY(-96%); border-radius: 50%; background: linear-gradient(180deg, var(--c2), var(--c1) 70%); opacity: .5; -webkit-mask-image: linear-gradient(to bottom, #000 0 48%, transparent 48%), repeating-linear-gradient(to bottom, transparent 0 9px, #000 9px 22px); -webkit-mask-composite: source-over; }
+  .room.synth .sunglow { position: absolute; left: 50%; top: var(--hz, 63%); width: 560px; height: 300px; margin-left: -280px; transform: translateY(-75%); border-radius: 50%; background: radial-gradient(color-mix(in srgb, var(--c1) 35%, transparent), transparent 65%); filter: blur(10px); }
+  .room.synth .horizon { position: absolute; left: 0; right: 0; top: var(--hz, 63%); height: 2px; background: linear-gradient(90deg, transparent, var(--c1) 20%, var(--c2) 80%, transparent); box-shadow: 0 0 22px 3px color-mix(in srgb, var(--c1) 70%, transparent); }
+  .room.winter .floor { top: var(--hz, 64%); background: linear-gradient(rgba(255,255,255,.07) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,.05) 1.5px, transparent 1.5px), linear-gradient(to bottom, rgba(225,238,255,.20), rgba(225,238,255,.04)); background-size: 70px 70px, 70px 70px, 100% 100%; -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.6) 60%, transparent 100%); animation: none !important; }
+  .room.winter .snowline { position: absolute; left: 0; right: 0; top: calc(var(--hz, 64%) - 6px); height: 14px; background: linear-gradient(to bottom, transparent, rgba(235,244,255,.35)); filter: blur(3px); }
   .room.winter .moon { position: absolute; top: 9%; right: 13%; width: 84px; height: 84px; border-radius: 50%; background: radial-gradient(circle at 38% 38%, #ffffff, #dfe9ff 55%, #b9c9ef); box-shadow: 0 0 60px 18px rgba(200,220,255,.25); opacity: .9; }
-  .room.winter .trees { position: absolute; bottom: 36%; height: 130px; width: 42%; background-repeat: repeat-x; background-position: bottom; background-size: auto 100%; opacity: .9;
+  .room.winter .trees { position: absolute; top: calc(var(--hz, 64%) - 128px); height: 130px; width: 34%; background-repeat: repeat-x; background-position: bottom; background-size: auto 100%; opacity: .9;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='130'><g fill='%23081019'><path d='M30 10 L50 50 H40 L58 85 H44 L64 125 H-4 L16 85 H2 L20 50 H10 Z'/><path d='M92 40 L106 68 H99 L112 95 H102 L116 126 H68 L82 95 H72 L85 68 H78 Z'/></g><g fill='%23e8f1ff' opacity='.55'><path d='M30 10 L38 26 H22 Z'/><path d='M92 40 L98 52 H86 Z'/></g></svg>"); }
   .room.winter .trees.l { left: 0; } .room.winter .trees.r { right: 0; transform: scaleX(-1); }
   .room canvas.rsnow { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .roomBtn { position: absolute; top: 14px; right: 16px; z-index: 2; font-size: 12px; padding: 6px 11px; }
 
   /* Weihnachts-Lichterkette */
   #titlebar { z-index: 3; }
@@ -1396,7 +1395,6 @@ async function renderHome() {
   c.innerHTML = `<div class="home"${showDet ? '' : ' style="grid-template-columns:1fr"'}>
     <div class="home-l">
       ${roomHTML()}
-      <button class="ghost roomBtn" id="hRoom" title="Raum-Stil wechseln">▦ Raum: ${ROOMS[roomStyle()]}</button>
       <div class="hero">
         <div class="home-hi">${hi}${name ? ',' : ''}</div>
         <div class="home-name" id="hName"></div>
@@ -1412,7 +1410,6 @@ async function renderHome() {
     </div>
     ${showDet ? '<div class="home-r" id="hDet"></div>' : ''}
   </div>`;
-  $('#hRoom').onclick = () => { const k = Object.keys(ROOMS); setS({ roomStyle: k[(k.indexOf(roomStyle()) + 1) % k.length], room: true }); };
   { const rs = document.querySelector('.room canvas.rsnow'); if (rs) snowfall(rs, { density: 4200 }); }
   $('#hName').textContent = name || 'Willkommen';
   if (name && S.nameTag !== false && S.showSkin !== false) { $('#hName').style.display = 'none'; document.querySelector('.home-hi').textContent = hi + ', ' + name; }
@@ -1426,9 +1423,11 @@ async function renderHome() {
   $('#hPick').onclick = (e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); showAt(pickItems(), r.right - 230, r.bottom + 4); };
   $('#hPick').onmousedown = (e) => e.stopPropagation();
   fillHomeUpd($('#hUpd'));
+  watchRoom();
   try { playtimes = await call('instances:playtimes', undefined, true); } catch {}
+  placeRoom();
   if (view !== 'home') return;
-  drawCards(last);
+  drawCards(last); placeRoom();
   if (showDet) drawDetails(last);
 }
 
@@ -1666,6 +1665,26 @@ function roomHTML() {
   if (st === 'winter') return '<div class="room winter"><div class="moon"></div><div class="trees l"></div><div class="trees r"></div><div class="snowline"></div><i class="floor"></i><canvas class="rsnow"></canvas></div>';
   if (st === 'synth') return '<div class="room synth"><div class="sunglow"></div><div class="sun"></div><div class="horizon"></div><i class="floor"></i></div>';
   return '';
+}
+
+// Horizont des Raums genau auf Fusshoehe der Figur legen (sonst ueberlappt es je nach Fenstergroesse)
+let roomRO = null;
+function placeRoom() {
+  const room = document.querySelector('.home-l .room'), hl = document.querySelector('.home-l');
+  if (!room || !hl) return;
+  const sk = $('#hSkin');
+  const useSkin = sk && sk.style.display !== 'none' && sk.getBoundingClientRect().height > 80;
+  const ref = useSkin ? sk : document.querySelector('.home-l .launch');
+  if (!ref) return;
+  const r = ref.getBoundingClientRect(), h = hl.getBoundingClientRect();
+  const y = useSkin ? r.bottom - h.top + hl.scrollTop - 60 : r.top - h.top + hl.scrollTop - 26;
+  room.style.setProperty('--hz', Math.round(y) + 'px');
+}
+function watchRoom() {
+  if (roomRO) roomRO.disconnect();
+  const hl = document.querySelector('.home-l'); if (!hl) return;
+  roomRO = new ResizeObserver(() => placeRoom()); roomRO.observe(hl);
+  placeRoom();
 }
 
 // Weihnachts-Lichterkette unter der Titelleiste
