@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain: rawIpc, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain: rawIpc, shell, dialog, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -709,6 +709,15 @@ async function importMrpack(buf, fallbackName, extra) {
     status(`Lade Modpack-Dateien ${++done}/${files.length} ...`);
   });
   linkable.push(...extractOverrides(entries, ['overrides', 'client-overrides'], inst));
+  // Bild aus einem Modstack-Export uebernehmen
+  const msj = entries.find((e) => e.name === 'modstack.json');
+  if (msj) {
+    try {
+      const x = JSON.parse(msj.data().toString('utf8'));
+      if (typeof x.icon === 'string' && x.icon.length < 400000 && /^(data:image\/(png|jpeg|webp|gif|svg\+xml)[;,]|https:\/\/cdn\.modrinth\.com\/)/.test(x.icon)) inst.icon = x.icon;
+      if (x.iconGen && typeof x.iconGen.i === 'string') inst.iconGen = { i: x.iconGen.i.slice(0, 20), p: String(x.iconGen.p || '').slice(0, 20) };
+    } catch {}
+  }
   status('Hole Mod-Infos von Modrinth ...');
   await linkModrinth(inst, linkable);
   saveInst(inst);
@@ -862,9 +871,19 @@ ipcMain.handle('share:code', (id) => {
   const data = { n: inst.name, mc: inst.mc, l: inst.loader, lv: inst.loaderVersion || undefined, m: pick('mod'), r: pick('resourcepack'), s: pick('shader') };
   if (inst.iconGen) data.ig = inst.iconGen;
   if (inst.icon && /^https:\/\/cdn\.modrinth\.com\//.test(inst.icon) && inst.icon.length < 300) data.ic = inst.icon;
-  const code = 'MS1-' + zlib.deflateRawSync(Buffer.from(JSON.stringify(data)), { level: 9 }).toString('base64url');
+  const enc = () => 'MS1-' + zlib.deflateRawSync(Buffer.from(JSON.stringify(data)), { level: 9 }).toString('base64url');
+  // Eigenes hochgeladenes Bild als kleines Vorschaubild mitgeben, solange der Code Discord-tauglich bleibt (unter 1900 Zeichen)
+  let iconInCode = !inst.icon || !inst.icon.startsWith('data:image');
+  if (!iconInCode) {
+    for (const [px, q] of [[48, 75], [40, 70], [32, 65], [24, 60]]) {
+      try { data.ii = nativeImage.createFromDataURL(inst.icon).resize({ width: px, height: px, quality: 'best' }).toJPEG(q).toString('base64'); } catch { delete data.ii; break; }
+      if (enc().length <= 1900) { iconInCode = true; break; }
+      delete data.ii;
+    }
+  }
+  const code = enc();
   const skipped = inst.mods.filter((m) => !m.versionId && !m.disabled).map((m) => m.title);
-  return { code, included: data.m.length + data.r.length + data.s.length, skipped };
+  return { code, included: data.m.length + data.r.length + data.s.length, skipped, iconInCode };
 });
 
 ipcMain.handle('share:importCode', async (code) => {
@@ -876,6 +895,7 @@ ipcMain.handle('share:importCode', async (code) => {
   fs.mkdirSync(path.join(instDir(id), 'mods'), { recursive: true });
   const inst = { id, name: String(d.n || 'Geteilte Instanz').slice(0, 80), mc: d.mc, loader: d.l, loaderVersion: d.lv || undefined, mods: [], created: new Date().toISOString(), source: 'shared' };
   if (d.ig) inst.iconGen = d.ig;
+  if (typeof d.ii === 'string' && d.ii.length < 20000 && /^[A-Za-z0-9+/=]+$/.test(d.ii)) inst.icon = 'data:image/jpeg;base64,' + d.ii;
   if (typeof d.ic === 'string' && /^https:\/\/cdn\.modrinth\.com\/[^"'\s]+$/.test(d.ic)) inst.icon = d.ic;
   saveInst(inst);
   const want = [...(d.m || []).map((v) => [v, 'mod']), ...(d.r || []).map((v) => [v, 'resourcepack']), ...(d.s || []).map((v) => [v, 'shader'])];
@@ -941,6 +961,7 @@ ipcMain.handle('share:exportMrpack', async ({ id, includeConfig }) => {
   const depKey = { fabric: 'fabric-loader', quilt: 'quilt-loader', forge: 'forge', neoforge: 'neoforge' }[inst.loader];
   const index = { formatVersion: 1, game: 'minecraft', versionId: '1.0.0', name: inst.name, summary: 'Exportiert aus Modstack', files, dependencies: { minecraft: inst.mc, ...(lv ? { [depKey]: lv } : {}) } };
   zipFiles.unshift({ name: 'modrinth.index.json', data: Buffer.from(JSON.stringify(index, null, 2)) });
+  if (inst.icon || inst.iconGen) zipFiles.push({ name: 'modstack.json', data: Buffer.from(JSON.stringify({ icon: inst.icon, iconGen: inst.iconGen })) });
   fs.writeFileSync(res.filePath, writeZip(zipFiles));
   status('Modpack gespeichert: ' + path.basename(res.filePath));
   shell.showItemInFolder(res.filePath);

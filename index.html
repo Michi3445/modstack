@@ -1120,7 +1120,8 @@ async function openShare(i) {
     const r = await call('share:code', i.id);
     $('#shCode').value = r.code;
     $('#shSkip').textContent = r.skipped.length ? `${r.skipped.length} Eintrag/Einträge nicht enthalten (nicht auf Modrinth): ${r.skipped.slice(0, 3).join(', ')}${r.skipped.length > 3 ? ' …' : ''}. Nutze dafür die Datei.` : `${r.included} Einträge enthalten`;
-    if (!r.skipped.length) $('#shSkip').style.color = 'var(--muted)'; else $('#shSkip').style.color = '';
+    if (!r.iconInCode) $('#shSkip').textContent += ' · Eigenes Bild passt nicht in den Code, in der Datei ist es dabei.';
+    if (!r.skipped.length && r.iconInCode) $('#shSkip').style.color = 'var(--muted)'; else $('#shSkip').style.color = '';
   } catch { $('#shCode').value = ''; }
 }
 $('#shCopy').onclick = async () => {
