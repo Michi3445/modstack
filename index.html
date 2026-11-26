@@ -76,6 +76,12 @@
   .badges { display: flex; gap: 6px; flex-wrap: wrap; }
   .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--bg3); color: #c3c8d1; border: 1px solid #323743; }
   #headBtns { display: flex; gap: 8px; }
+  #packSettingsBtn { width: 36px; padding-inline: 0; font-size: 16px; }
+  @media (max-width: 1040px) {
+    #head { flex-wrap: wrap; gap: 8px 12px; }
+    #head .ttl { flex-basis: calc(100% - 76px); }
+    #headBtns { margin-left: auto; }
+  }
   #tabs { display: flex; gap: 2px; padding: 14px 24px 0; border-bottom: 1px solid var(--line); }
   .tab { padding: 9px 14px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
   .tab:hover { color: var(--text); }
@@ -396,6 +402,11 @@
   .stats div { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); border-radius: 10px; padding: 10px 12px; }
   .stats b { display: block; font-size: 16px; } .stats span { color: var(--muted); font-size: 11.5px; }
   .ramscale { display: flex; justify-content: space-between; color: var(--dim); font-size: 11px; margin-top: 4px; padding-right: 70px; }
+  #ramSw { padding: 0; border: 0; background: #3a404c; }
+  #ramSw.on { background: var(--accent2); }
+  .pack-keys { margin-top: 14px; border-top: 1px solid var(--line); }
+  .pack-keys summary { cursor: pointer; padding: 12px 0 0; font-weight: 600; }
+  .pack-keys[open] summary { margin-bottom: 10px; }
   .folders { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
   .folders div { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); cursor: pointer; font-size: 12.5px; }
   .folders div:hover { border-color: color-mix(in srgb, var(--c1) 50%, transparent); background: rgba(255,255,255,.07); }
@@ -654,6 +665,7 @@
       <div class="ava" id="headAva"></div>
       <div class="ttl"><h1 id="title"></h1><div class="badges" id="badges"></div></div>
       <div id="headBtns">
+        <button class="ghost" id="packSettingsBtn" title="Arbeitsspeicher und Tastenbelegung" aria-label="Arbeitsspeicher und Tastenbelegung">⚙</button>
         <button class="ghost" id="shareBtn" title="Instanz teilen">Teilen</button><button class="ghost" id="folderBtn" title="Instanzordner öffnen">Ordner</button>
         <button class="primary big" id="playBtn">▶ Spielen</button>
       </div>
@@ -865,7 +877,7 @@ function instItems(i) {
     { l: 'Teilen ...', d: n, a: () => openShare(i) },
     { l: 'Bild ändern ...', d: n, a: () => openIconPicker(i) },
     { l: 'Duplizieren', d: n || busy, a: () => duplicateInst(i) },
-    { l: 'Einstellungen', d: n, a: () => { select(i); setTab('settings'); } },
+    { l: 'Einstellungen', d: n, a: () => openPackSettings(i) },
     '-',
     { l: 'Löschen ...', k: 'Entf', d: n || busy, danger: true, a: () => deleteInst(i) },
   ];
@@ -956,6 +968,8 @@ async function load(selId) {
 }
 function select(i) { if (view !== 'inst') markView('inst'); cur = i; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); }
 function setTab(t) { if (view !== 'inst') setView('inst'); tab = t; renderHead(); render(); }
+function openPackSettings(i) { tab = 'settings'; select(i); $('#content').scrollTop = 0; }
+$('#packSettingsBtn').onclick = () => openPackSettings(cur);
 function showPacks() { setView('packs'); }
 function markView(v) { if (v !== 'home' && skinViewer) { try { skinViewer.dispose(); } catch {} skinViewer = null; } if (v !== 'friends') { activeFriendChat = undefined; friendShareInstance = undefined; } view = v; document.querySelectorAll('.ri[data-v]').forEach((r) => r.classList.toggle('on', r.dataset.v === v)); $('#side').style.display = v === 'home' || v === 'friends' ? 'none' : ''; }
 function setView(v) { markView(v); renderList(); renderHead(); render(); }
@@ -1600,43 +1614,42 @@ const fmtAgo = (d) => {
   if (s < 86400 * 30) return 'vor ' + Math.round(s / 86400) + ' Tagen';
   return fmtDate(d);
 };
-async function saveInstSet(patch, msg) {
-  try { cur = await call('instances:settings', { id: cur.id, ...patch }); insts = insts.map((i) => (i.id === cur.id ? cur : i)); renderHead(); toast(msg || 'Gespeichert. Gilt ab dem nächsten Spielen.'); } catch {}
+async function saveInstSet(id, patch, msg) {
+  try {
+    const saved = await call('instances:settings', { id, ...patch });
+    insts = insts.map((instance) => instance.id === id ? saved : instance);
+    if (cur?.id === id) { cur = saved; renderHead(); }
+    toast(msg || 'Gespeichert. Gilt ab dem nächsten Spielen.');
+    return saved;
+  } catch {}
 }
 
 async function renderSettings() {
+  const id = cur?.id;
   if (!sysInfo) { try { sysInfo = await call('sys:info', undefined, true); } catch { sysInfo = { totalMb: 8192 }; } }
-  if (tab !== 'settings' || !cur) return;
+  if (!id || view !== 'inst' || tab !== 'settings' || cur?.id !== id) return;
   const i = cur;
-  const maxGb = Math.max(2, Math.floor(sysInfo.totalMb / 1024) - 2);
+  const maxGb = Math.min(64, Math.max(2, Math.floor(sysInfo.totalMb / 1024) - 2, Math.ceil((i.ram || 0) / 1024)));
   const nm = i.mods.filter((m) => kindOf(m) === 'mod').length;
   const c = $('#content');
   c.innerHTML = `<div class="isgrid">
+    <div class="card iscard span2" id="packConfig">
+      <h3>Arbeitsspeicher</h3>
+      <div class="tline" style="border:0;padding:4px 0 10px"><div><span id="ramLabel">Eigenen RAM-Wert verwenden</span><small>${(sysInfo.totalMb / 1024).toFixed(0)} GB im PC · Aus = Launcher-Standard</small></div><button type="button" class="sw" id="ramSw" role="switch" aria-labelledby="ramLabel"></button></div>
+      <div class="line" id="ramLine"><input type="range" id="ram" min="1" max="${maxGb}" step="0.5" aria-label="Arbeitsspeicher für dieses Modpack"><b id="ramV" style="width:60px;text-align:right"></b></div>
+      <div class="ramscale"><span>1 GB</span><span>${maxGb} GB</span></div>
+      <details class="pack-keys"><summary>Tastenbelegung</summary><div id="packKeybinds"></div></details>
+    </div>
+
     <div class="card iscard span2">
       <div class="ishead"><div class="ava big" id="isAva"></div><div style="flex:1;min-width:0"><div class="isname" id="isName" title="Klicken zum Umbenennen"></div>
         <div class="badges" style="margin-top:6px"><span class="badge">Minecraft ${i.mc}</span><span class="badge">${LNAME[i.loader] || i.loader}${i.loaderVersion ? ' ' + i.loaderVersion : ''}</span>${i.pack ? `<span class="badge">Modpack ${i.pack.version || ''}</span>` : ''}${i.source === 'curseforge' ? '<span class="badge">aus CurseForge</span>' : ''}</div></div>
         <button class="primary" id="isPlay">▶ Spielen</button></div>
-      <div class="stats">
-        <div><b>${nm}</b><span>Mods</span></div>
-        <div><b>${i.mods.length - nm}</b><span>Pakete</span></div>
-        <div><b id="stWorlds">…</b><span>Welten</span></div>
-        <div><b id="stShots">…</b><span>Screenshots</span></div>
-        <div><b id="stSize">…</b><span>Größe</span></div>
-        <div><b>${fmtAgo(i.lastPlayed)}</b><span>Zuletzt gespielt</span></div>
-      </div>
     </div>
-
-    <div class="card iscard"><h3>Arbeitsspeicher</h3><p>Dein PC hat ${(sysInfo.totalMb / 1024).toFixed(0)} GB. Für große Modpacks sind 6 bis 8 GB sinnvoll.</p>
-      <div class="tline" style="border:0;padding:4px 0 10px"><div><span>Eigenen Wert verwenden</span><small>Aus = Standard des Launchers (2 GB)</small></div><div class="sw" id="ramSw"></div></div>
-      <div class="line" id="ramLine"><input type="range" id="ram" min="2" max="${maxGb}" step="0.5"><b id="ramV" style="width:60px;text-align:right"></b></div>
-      <div class="ramscale"><span>2 GB</span><span>${maxGb} GB</span></div></div>
 
     <div class="card iscard"><h3>Fenstergröße</h3><p>Auflösung, in der Minecraft startet.</p>
       <select id="resSel">${RES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
       <div class="line" id="resCustom" style="margin-top:10px;display:none"><input id="resW" type="number" min="320" placeholder="Breite" style="width:110px"> × <input id="resH" type="number" min="240" placeholder="Höhe" style="width:110px"><button class="ghost sm" id="resOk">Übernehmen</button></div></div>
-
-    <div class="card iscard"><h3>Tastenbelegung</h3><p>Tastatur und Maus für diese Instanz einstellen.</p>
-      <div class="line"><button class="ghost" id="isKeys">Tasten bearbeiten</button></div></div>
 
     <div class="card iscard"><h3>Java</h3><p id="javaInfo">Wird geprüft …</p>
       <label style="display:block;margin:10px 0 5px;font-size:12px;color:var(--muted)">Weitere Java-Argumente (nur für Fortgeschrittene)</label>
@@ -1644,6 +1657,15 @@ async function renderSettings() {
 
     <div class="card iscard"><h3>Ordner</h3><p>Direkt in die Ordner dieser Instanz springen.</p>
       <div class="folders">${[['root', 'Instanz', '▤'], ['mods', 'Mods', '◆'], ['saves', 'Welten', '◍'], ['screenshots', 'Screenshots', '▣'], ['resourcepacks', 'Ressourcenpakete', '◧'], ['shaderpacks', 'Shader', '✦'], ['config', 'Konfiguration', '⚙'], ['logs', 'Logs', '≡']].map(([k, l, ico]) => `<div data-sub="${k}"><i>${ico}</i>${l}</div>`).join('')}</div></div>
+
+    <div class="card iscard"><h3>Statistik</h3><div class="stats">
+      <div><b>${nm}</b><span>Mods</span></div>
+      <div><b>${i.mods.length - nm}</b><span>Pakete</span></div>
+      <div><b id="stWorlds">…</b><span>Welten</span></div>
+      <div><b id="stShots">…</b><span>Screenshots</span></div>
+      <div><b id="stSize">…</b><span>Größe</span></div>
+      <div><b>${fmtAgo(i.lastPlayed)}</b><span>Zuletzt gespielt</span></div>
+    </div></div>
 
     <div class="card iscard span2"><h3>Notizen</h3><p>Eigene Notizen zu dieser Instanz, zum Beispiel Server-Adressen oder Seeds.</p>
       <textarea id="notes" rows="3" placeholder="Notizen ..." spellcheck="false"></textarea></div>
@@ -1654,15 +1676,38 @@ async function renderSettings() {
   ava($('#isAva'), i); $('#isAva').classList.add('editable'); $('#isAva').title = 'Bild ändern'; $('#isAva').onclick = () => openIconPicker(i);
   $('#isName').textContent = i.name; $('#isName').onclick = () => renameInst(i);
   $('#isPlay').onclick = () => play(i);
-  $('#isKeys').onclick = () => openSettings('keybinds', i.id);
+  const keyPanel = c.querySelector('.pack-keys');
+  keyPanel.ontoggle = () => {
+    const keys = keyPanel.querySelector('#packKeybinds');
+    if (keyPanel.open && keys.isConnected) renderKeybinds(keys, i.id);
+    else keys.replaceChildren();
+  };
   // RAM
   const sw = $('#ramSw'), ram = $('#ram'), ramV = $('#ramV');
-  let ramOn = !!i.ram; ram.value = i.ram ? i.ram / 1024 : Math.min(4, maxGb);
-  const updRam = () => { sw.classList.toggle('on', ramOn); ram.disabled = !ramOn; $('#ramLine').style.opacity = ramOn ? 1 : 0.4; ramV.textContent = ramOn ? ram.value + ' GB' : 'Standard'; };
+  const ramLine = $('#ramLine');
+  let savedRam = i.ram, savingRam = false, ramOn = !!savedRam;
+  ram.value = savedRam ? savedRam / 1024 : Math.min(4, maxGb);
+  const updRam = () => {
+    sw.classList.toggle('on', ramOn); sw.setAttribute('aria-checked', String(ramOn));
+    sw.disabled = savingRam; ram.disabled = savingRam || !ramOn; ramLine.style.opacity = ramOn ? 1 : 0.4;
+    ramV.textContent = ramOn ? new Intl.NumberFormat('de', { maximumFractionDigits: 2 }).format(+ram.value) + ' GB' : 'Standard';
+  };
+  const saveRam = async () => {
+    savingRam = true;
+    updRam();
+    const saved = await saveInstSet(i.id, { ram: ramOn ? Math.round(+ram.value * 1024) : 0 });
+    if (saved) savedRam = saved.ram;
+    else {
+      ramOn = !!savedRam;
+      ram.value = savedRam ? savedRam / 1024 : Math.min(4, maxGb);
+    }
+    savingRam = false;
+    updRam();
+  };
   updRam();
-  sw.onclick = () => { ramOn = !ramOn; updRam(); saveInstSet({ ram: ramOn ? Math.round(parseFloat(ram.value) * 1024) : 0 }); };
+  sw.onclick = () => { ramOn = !ramOn; saveRam(); };
   ram.oninput = updRam;
-  ram.onchange = () => saveInstSet({ ram: Math.round(parseFloat(ram.value) * 1024) });
+  ram.onchange = saveRam;
   // Aufloesung
   const rs = $('#resSel'), rc = $('#resCustom');
   const curRes = i.resolution ? `${i.resolution.width}x${i.resolution.height}` : '';
@@ -1672,15 +1717,16 @@ async function renderSettings() {
     if (rs.value === 'custom') { rc.style.display = 'flex'; return; }
     rc.style.display = 'none';
     const [w, h] = rs.value.split('x').map(Number);
-    saveInstSet({ resolution: rs.value ? { width: w, height: h } : null });
+    saveInstSet(i.id, { resolution: rs.value ? { width: w, height: h } : null });
   };
-  $('#resOk').onclick = () => saveInstSet({ resolution: { width: +$('#resW').value, height: +$('#resH').value } });
+  $('#resOk').onclick = () => saveInstSet(i.id, { resolution: { width: +$('#resW').value, height: +$('#resH').value } });
   fancySelect(rs);
   // Java
   const ja = $('#jargs'); ja.value = i.javaArgs || '';
-  ja.onchange = () => saveInstSet({ javaArgs: ja.value });
+  ja.onchange = () => saveInstSet(i.id, { javaArgs: ja.value });
+  const javaInfo = $('#javaInfo');
   call('java:status', i.mc, true).then((j) => {
-    const el = $('#javaInfo'); if (!el) return;
+    const el = javaInfo; if (!el.isConnected) return;
     el.textContent = `Für Minecraft ${i.mc} wird Java ${j.major} gebraucht. ` + (j.path ? (j.own ? 'Ist installiert (von Modstack geladen).' : 'Ist auf deinem PC vorhanden.') : 'Noch nicht vorhanden. Modstack lädt es beim ersten Start automatisch herunter (einmalig, etwa 50 MB).');
     if (!j.path) {
       const b = document.createElement('button'); b.className = 'ghost sm'; b.style.marginTop = '8px'; b.textContent = 'Java ' + j.major + ' jetzt herunterladen';
@@ -1692,15 +1738,15 @@ async function renderSettings() {
   c.querySelectorAll('.folders div').forEach((d) => d.onclick = () => call('instances:openSub', { id: i.id, sub: d.dataset.sub }));
   // Notizen
   const nt = $('#notes'); nt.value = i.notes || '';
-  nt.onchange = () => saveInstSet({ notes: nt.value }, 'Notizen gespeichert');
+  nt.onchange = () => saveInstSet(i.id, { notes: nt.value }, 'Notizen gespeichert');
   // Verwalten
   $('#sRen').onclick = () => renameInst(i);
   $('#sDup').onclick = () => duplicateInst(i);
   $('#sDel').onclick = () => deleteInst(i);
   // Statistik
+  const size = $('#stSize'), worlds = $('#stWorlds'), shots = $('#stShots');
   call('instances:info', i.id, true).then((inf) => {
-    if (!$('#stSize')) return;
-    $('#stSize').textContent = fmtBytes(inf.bytes); $('#stWorlds').textContent = inf.worlds; $('#stShots').textContent = inf.screenshots;
+    size.textContent = fmtBytes(inf.bytes); worlds.textContent = inf.worlds; shots.textContent = inf.screenshots;
   }).catch(() => {});
 }
 
@@ -1804,7 +1850,7 @@ async function drawDetails(i) {
     <div class="det-sec"><h4>Welten</h4><div id="dWorldList"><div class="det-empty"><span class="spin"></span></div></div></div>
     <div class="det-sec"><h4>Mods</h4><div class="det-mods" id="dMods"></div></div>
     ${i.notes ? '<div class="det-sec"><h4>Notizen</h4><div class="det-notes" id="dNotes"></div></div>' : ''}
-    <div class="det-btns"><button class="ghost" id="dMan">Mods verwalten</button><button class="ghost" id="dSet">Einstellungen</button><button class="ghost" id="dShare">Teilen</button></div>
+    <div class="det-btns"><button class="ghost" id="dMan">Mods verwalten</button><button class="ghost" id="dSet">RAM &amp; Tasten</button><button class="ghost" id="dShare">Teilen</button></div>
   </div>`;
   ava(el.querySelector('.ava'), i);
   { const a = el.querySelector('.ava'); a.classList.add('editable'); a.title = 'Bild ändern'; a.onclick = () => openIconPicker(i); }
@@ -1812,7 +1858,7 @@ async function drawDetails(i) {
   if (i.notes) $('#dNotes').textContent = i.notes;
   if ($('#dUpd')) $('#dUpd').onclick = () => { kindFilter = 'upd'; tab = 'mods'; select(i); };
   $('#dMan').onclick = () => { tab = 'mods'; select(i); };
-  $('#dSet').onclick = () => { tab = 'settings'; select(i); };
+  $('#dSet').onclick = () => openPackSettings(i);
   $('#dShare').onclick = () => openShare(i);
   // Mod-Icons
   const mb = $('#dMods'); const withIcon = i.mods.filter((m) => kindOf(m) === 'mod');
@@ -2129,10 +2175,9 @@ function selectSetting(key) {
   setQuery = $('#snav .setsearch').value = '';
   renderSettingsBody(true);
 }
-function openSettings(section, instanceId) {
+function openSettings(section) {
   if (document.querySelector('dialog[open]')) return;
   if (SECS.some(([key]) => key === section)) { setSec = section; setQuery = ''; }
-  if (instanceId) keybindInstance = instanceId;
   const nav = $('#snav'); nav.innerHTML = '';
   const q = document.createElement('input'); q.type = 'search'; q.className = 'setsearch'; q.placeholder = 'Einstellungen suchen'; q.value = setQuery;
   q.setAttribute('aria-label', q.placeholder);

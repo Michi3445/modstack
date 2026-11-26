@@ -1274,12 +1274,13 @@ function launcherRunning() {
 }
 
 ipcMain.handle('play', async (id) => {
-  const inst = readInst(id);
+  const initial = readInst(id);
   if (await launcherRunning()) {
     throw new Error('Der Mojang-Launcher laeuft noch. Bitte schliessen, sonst ueberschreibt er das Profil.');
   }
-  await ensureVanilla(inst.mc);
-  const versionId = await ensureLoader(inst);
+  await ensureVanilla(initial.mc);
+  const versionId = await ensureLoader(initial);
+  const inst = readInst(id);
 
   const f = ensureLauncherProfilesFile();
   let data;

@@ -76,27 +76,29 @@ function captureKeybind(binding, data, id, onSaved) {
   zone.focus();
 }
 
-function renderKeybinds(container) {
-  const content = document.createElement('div');
-  container.append(content);
-  if (!insts.length) {
-    content.textContent = 'Erstelle oder importiere zuerst eine Minecraft-Instanz.';
+function renderKeybinds(container, instanceId) {
+  if (!instanceId && !insts.length) {
+    container.textContent = 'Erstelle oder importiere zuerst eine Minecraft-Instanz.';
     return;
   }
-  if (!insts.some((instance) => instance.id === keybindInstance)) {
-    keybindInstance = insts.find((instance) => instance.id === cur?.id)?.id || insts[0].id;
+  let select;
+  if (!instanceId) {
+    if (!insts.some((instance) => instance.id === keybindInstance)) {
+      keybindInstance = insts.find((instance) => instance.id === cur?.id)?.id || insts[0].id;
+    }
+    const picker = document.createElement('label');
+    picker.className = 'key-instance';
+    select = document.createElement('select');
+    for (const instance of insts) {
+      select.add(new Option(instance.name + ' · ' + instance.mc, instance.id));
+    }
+    select.value = keybindInstance;
+    picker.append('Minecraft-Instanz', select);
+    container.append(picker);
   }
-  const picker = document.createElement('label');
-  picker.className = 'key-instance';
-  const select = document.createElement('select');
-  for (const instance of insts) {
-    select.add(new Option(instance.name + ' · ' + instance.mc, instance.id));
-  }
-  select.value = keybindInstance;
-  picker.append('Minecraft-Instanz', select);
   const grid = document.createElement('div');
   grid.className = 'key-groups';
-  content.append(picker, grid);
+  container.append(grid);
   const layoutReady = keyLayout || navigator.keyboard?.getLayoutMap().then((map) => { keyLayout = map; }).catch(() => {});
 
   function draw(data, id, focusAction) {
@@ -129,16 +131,16 @@ function renderKeybinds(container) {
     }
   }
   async function load() {
-    const id = keybindInstance = select.value;
+    const id = instanceId || (keybindInstance = select.value);
     grid.textContent = 'Tastenbelegungen werden geladen …';
     try {
       const data = await api.invoke('instances:keybinds:get', id);
       await layoutReady;
-      if (grid.isConnected && select.value === id) draw(data, id);
+      if (grid.isConnected && (!select || select.value === id)) draw(data, id);
     } catch (error) {
-      if (grid.isConnected && select.value === id) grid.textContent = errText(error);
+      if (grid.isConnected && (!select || select.value === id)) grid.textContent = errText(error);
     }
   }
-  select.onchange = load;
+  if (select) select.onchange = load;
   load();
 }
