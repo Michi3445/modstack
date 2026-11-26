@@ -349,6 +349,38 @@ ipcMain.handle('mc:account', () => {
   return null;
 });
 
+// Skin + Umhang als data-URL (oeffentliche Mojang-Profil-API, kein Login noetig)
+const skinCache = new Map();
+ipcMain.handle('mc:skin', async ({ uuid, name }) => {
+  const key = (uuid || name || '').toLowerCase();
+  if (!key) return null;
+  if (skinCache.has(key)) return skinCache.get(key);
+  let id = uuid;
+  if (!id) {
+    const r = await fetch('https://api.mojang.com/users/profiles/minecraft/' + encodeURIComponent(name), { headers: { 'User-Agent': UA } });
+    if (!r.ok) return null;
+    id = (await r.json()).id;
+  }
+  const prof = await getJson('https://sessionserver.mojang.com/session/minecraft/profile/' + encodeURIComponent(String(id).replace(/-/g, '')));
+  const prop = (prof.properties || []).find((p) => p.name === 'textures');
+  if (!prop) return null;
+  const tex = JSON.parse(Buffer.from(prop.value, 'base64').toString('utf8')).textures || {};
+  const toData = async (u) => {
+    if (!u) return null;
+    const url = u.replace(/^http:/, 'https:');
+    if (!/^https:\/\/textures\.minecraft\.net\//.test(url)) return null;
+    return 'data:image/png;base64,' + (await fetchBuf(url)).toString('base64');
+  };
+  const out = {
+    name: prof.name,
+    slim: !!(tex.SKIN && tex.SKIN.metadata && tex.SKIN.metadata.model === 'slim'),
+    skin: await toData(tex.SKIN && tex.SKIN.url),
+    cape: await toData(tex.CAPE && tex.CAPE.url),
+  };
+  skinCache.set(key, out);
+  return out;
+});
+
 let newsCache = null;
 ipcMain.handle('mc:news', async () => {
   if (newsCache && Date.now() - newsCache.t < 30 * 60000) return newsCache.d;

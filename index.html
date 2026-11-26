@@ -179,7 +179,15 @@
   .home-l { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; min-width: 0; }
   .home-hi { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
   .home-name { font-size: 28px; font-weight: 700; margin-bottom: 8px; letter-spacing: .01em; }
-  .skin { height: 300px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 18px; position: relative; }
+  .skin canvas { cursor: grab; display: block; }
+  .skin canvas:active { cursor: grabbing; }
+  .skin::before { content: ''; position: absolute; inset: 10% 15% 0; border-radius: 50%; background: radial-gradient(color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%); pointer-events: none; }
+  .skinctl { position: absolute; top: 4px; right: -64px; display: flex; flex-direction: column; gap: 4px; z-index: 2; }
+  .skinctl div { width: 34px; height: 34px; border-radius: 8px; background: color-mix(in srgb, var(--bg2) 85%, transparent); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); font-size: 15px; }
+  .skinctl div:hover { color: #fff; border-color: var(--accent); }
+  .skinctl div.on { color: #fff; background: color-mix(in srgb, var(--accent) 25%, var(--bg2)); border-color: var(--accent); }
+  .skinhint { color: var(--dim); font-size: 11px; margin: -10px 0 14px; }
+  .skin { height: 360px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 18px; position: relative; }
   .skin img { height: 290px; image-rendering: pixelated; filter: drop-shadow(0 16px 24px rgba(0,0,0,.55)); animation: bob 4s ease-in-out infinite; }
   .skin::after { content: ''; position: absolute; bottom: -6px; left: 50%; width: 120px; height: 16px; margin-left: -60px; border-radius: 50%; background: radial-gradient(rgba(0,0,0,.55), transparent 70%); }
   @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
@@ -277,6 +285,7 @@
 <div id="bar"><span id="barMsg">Bereit</span><div id="prog"><i></i></div></div>
 <div id="toasts"></div>
 <div class="menu" id="ctx"></div>
+<script src="node_modules/skinview3d/bundles/skinview3d.bundle.js"></script>
 
 <dialog id="dlg">
   <div class="dh">Neue Instanz</div>
@@ -512,7 +521,7 @@ async function load(selId) {
 function select(i) { if (view !== 'inst') markView('inst'); cur = i; updatable = []; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); }
 function setTab(t) { if (view !== 'inst') setView('inst'); tab = t; renderHead(); render(); }
 function showPacks() { setView('packs'); }
-function markView(v) { view = v; document.querySelectorAll('.ri[data-v]').forEach((r) => r.classList.toggle('on', r.dataset.v === v)); $('#side').style.display = v === 'home' ? 'none' : ''; }
+function markView(v) { if (v !== 'home' && skinViewer) { try { skinViewer.dispose(); } catch {} skinViewer = null; } view = v; document.querySelectorAll('.ri[data-v]').forEach((r) => r.classList.toggle('on', r.dataset.v === v)); $('#side').style.display = v === 'home' ? 'none' : ''; }
 function setView(v) { markView(v); renderList(); renderHead(); render(); }
 document.querySelectorAll('.ri[data-v]').forEach((r) => r.onclick = () => setView(r.dataset.v));
 
@@ -837,6 +846,7 @@ async function renderHome() {
       <div class="home-hi">${hi}${name ? ',' : ''}</div>
       <div class="home-name" id="hName"></div>
       <div class="skin" id="hSkin"></div>
+      <div class="skinhint" id="hHint"></div>
       <div class="launch">
         <button class="go" id="hGo"><b>▶ SPIELEN</b><small id="hInst"></small></button>
         <button class="pick" id="hPick" title="Instanz wählen">▾</button>
@@ -847,13 +857,9 @@ async function renderHome() {
   </div>`;
   $('#hName').textContent = name || 'Willkommen';
   const sk = $('#hSkin');
-  if (S.showSkin === false) sk.style.display = 'none';
-  else if (name) {
-    const im = document.createElement('img');
-    im.alt = ''; im.src = 'https://mc-heads.net/body/' + encodeURIComponent((!S.playerName && account && account.uuid) || name) + '/300';
-    im.onerror = () => { sk.innerHTML = '<div class="noskin">Skin konnte nicht geladen werden</div>'; };
-    sk.appendChild(im);
-  } else sk.innerHTML = '<div class="noskin">Kein Minecraft-Konto gefunden.<br><br>Trag deinen Spielernamen unter Optionen ein, dann erscheint hier dein Skin.</div>';
+  if (S.showSkin === false) { sk.style.display = 'none'; $('#hHint').style.display = 'none'; }
+  else if (name) mountSkin(sk, name);
+  else sk.innerHTML = '<div class="noskin">Kein Minecraft-Konto gefunden.<br><br>Trag deinen Spielernamen unter Optionen ein, dann erscheint hier dein Skin.</div>';
   $('#hInst').textContent = last ? `${last.name} · ${last.mc} ${LNAME[last.loader] || ''}` : 'Noch keine Instanz';
   $('#hGo').onclick = () => last ? play(last) : newInstance();
   const pickItems = () => insts.length ? insts.map((i) => ({ l: `${i.name}  (${i.mc})`, a: async () => { S = await call('settings:set', { last: i.id }); renderHome(); } })) : [{ l: 'Neue Instanz ...', a: newInstance }];
@@ -878,6 +884,50 @@ async function renderHome() {
     if (n.link) d.onclick = () => call('app:openUrl', n.link);
     nb.appendChild(d);
   }
+}
+
+// ---------- 3D-Skin ----------
+let skinViewer = null;
+const ANIMS = [['idle', '▪', 'Stehen'], ['walk', '›', 'Gehen'], ['run', '»', 'Rennen'], ['wave', '∿', 'Winken']];
+function makeAnim(k) {
+  const v = window.skinview3d; if (!v) return null;
+  const C = { idle: v.IdleAnimation, walk: v.WalkingAnimation, run: v.RunningAnimation, wave: v.WaveAnimation }[k] || v.IdleAnimation;
+  return C ? new C() : null;
+}
+async function mountSkin(sk, name) {
+  if (skinViewer) { try { skinViewer.dispose(); } catch {} skinViewer = null; }
+  sk.innerHTML = '<span class="spin"></span>';
+  let data = null;
+  const useUuid = !S.playerName && account && account.uuid;
+  try { data = await call('mc:skin', useUuid ? { uuid: account.uuid } : { name }, true); } catch {}
+  if (view !== 'home' || !document.body.contains(sk)) return;
+  if (!window.skinview3d || !data || !data.skin) { sk.innerHTML = '<div class="noskin">Skin konnte nicht geladen werden.' + (data ? '' : '<br><br>Prüfe den Spielernamen unter Optionen.') + '</div>'; return; }
+  sk.innerHTML = '';
+  const canvas = document.createElement('canvas'); sk.appendChild(canvas);
+  const v = new skinview3d.SkinViewer({ canvas, width: 300, height: 360 });
+  skinViewer = v;
+  try { await v.loadSkin(data.skin, { model: data.slim ? 'slim' : 'default' }); } catch {}
+  if (data.cape && S.showCape !== false) { try { await v.loadCape(data.cape); } catch {} }
+  v.fov = 50; v.zoom = 0.78;
+  v.playerObject.rotation.y = 0.45;
+  v.controls.enableZoom = false; v.controls.enablePan = false;
+  v.autoRotate = S.skinRotate !== false && S.animations !== false; v.autoRotateSpeed = 0.6;
+  v.animation = S.animations === false ? null : makeAnim(S.skinAnim || 'idle');
+  // Bedienknoepfe
+  const ctl = document.createElement('div'); ctl.className = 'skinctl';
+  const btn = (txt, title, on, fn) => { const d = document.createElement('div'); d.textContent = txt; d.title = title; d.classList.toggle('on', on); d.onclick = fn; ctl.appendChild(d); return d; };
+  const rot = btn('⟳', 'Automatisch drehen', v.autoRotate, async () => { v.autoRotate = !v.autoRotate; rot.classList.toggle('on', v.autoRotate); S = await call('settings:set', { skinRotate: v.autoRotate }); });
+  const animBtns = ANIMS.map(([k, ico, l]) => btn(ico, l, (S.skinAnim || 'idle') === k, async () => {
+    v.animation = makeAnim(k); animBtns.forEach((b, i) => b.classList.toggle('on', ANIMS[i][0] === k));
+    S = await call('settings:set', { skinAnim: k });
+  }));
+  if (data.cape) { const cp = btn('▰', 'Umhang zeigen', S.showCape !== false, async () => {
+    const on = !(S.showCape !== false); S = await call('settings:set', { showCape: on }); cp.classList.toggle('on', on);
+    if (on) v.loadCape(data.cape); else v.resetCape ? v.resetCape() : v.loadCape(null);
+  }); }
+  btn('↺', 'Ansicht zurücksetzen', false, () => { if (v.resetCameraPose) v.resetCameraPose(); v.zoom = 0.78; });
+  sk.appendChild(ctl);
+  $('#hHint').textContent = 'Mit der Maus ziehen zum Drehen';
 }
 
 // ---------- Design / Einstellungen ----------
