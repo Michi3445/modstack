@@ -176,6 +176,14 @@
 
   /* Startseite */
   .home { display: grid; grid-template-columns: 1fr 340px; gap: 24px; height: calc(100% + 40px); margin: -16px -24px -24px; }
+  .home-l { position: relative; overflow: hidden; }
+  .room { position: absolute; inset: 0; pointer-events: none; perspective: 520px; perspective-origin: 50% 38%; }
+  .room i { position: absolute; left: -60%; right: -60%; height: 140%; background-image: linear-gradient(color-mix(in srgb, var(--accent) 30%, transparent) 1.5px, transparent 1.5px), linear-gradient(90deg, color-mix(in srgb, var(--accent) 30%, transparent) 1.5px, transparent 1.5px); background-size: 70px 70px; }
+  .room .floor { top: 66%; transform-origin: top; transform: rotateX(78deg); -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 55%); }
+  .room .ceil { bottom: 82%; transform-origin: bottom; transform: rotateX(-78deg); -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 45%); opacity: .5; }
+  body:not(.noanim) .room .floor { animation: floor 6s linear infinite; }
+  @keyframes floor { from { background-position: 0 0; } to { background-position: 0 70px; } }
+  .home-l > *:not(.room) { position: relative; z-index: 1; }
   .home-l { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; min-width: 0; }
   .home-hi { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
   .home-name { font-size: 28px; font-weight: 700; margin-bottom: 8px; letter-spacing: .01em; }
@@ -843,6 +851,7 @@ async function renderHome() {
   const recent = (S.recent || []).map((id) => insts.find((i) => i.id === id)).filter(Boolean).slice(0, 4);
   c.innerHTML = `<div class="home">
     <div class="home-l">
+      ${S.room === false ? '' : '<div class="room"><i class="ceil"></i><i class="floor"></i></div>'}
       <div class="home-hi">${hi}${name ? ',' : ''}</div>
       <div class="home-name" id="hName"></div>
       <div class="skin" id="hSkin"></div>
@@ -856,6 +865,7 @@ async function renderHome() {
     <div class="home-r"><h3>Minecraft-News</h3><div id="hNews"><div class="empty" style="padding:30px 0"><span class="spin"></span></div></div></div>
   </div>`;
   $('#hName').textContent = name || 'Willkommen';
+  if (name && S.nameTag !== false && S.showSkin !== false) { $('#hName').style.display = 'none'; document.querySelector('.home-hi').textContent = hi + ', ' + name; }
   const sk = $('#hSkin');
   if (S.showSkin === false) { sk.style.display = 'none'; $('#hHint').style.display = 'none'; }
   else if (name) mountSkin(sk, name);
@@ -908,7 +918,8 @@ async function mountSkin(sk, name) {
   skinViewer = v;
   try { await v.loadSkin(data.skin, { model: data.slim ? 'slim' : 'default' }); } catch {}
   if (data.cape && S.showCape !== false) { try { await v.loadCape(data.cape); } catch {} }
-  v.fov = 50; v.zoom = 0.78;
+  v.fov = 50; v.zoom = 0.72;
+  if (S.nameTag !== false && skinview3d.NameTagObject) { try { v.nameTag = new skinview3d.NameTagObject(data.name || name, { textStyle: 'white', backgroundStyle: 'rgba(0,0,0,0.45)', font: '44px "Segoe UI", Arial, sans-serif' }); } catch { try { v.nameTag = data.name || name; } catch {} } }
   v.playerObject.rotation.y = 0.45;
   v.controls.enableZoom = false; v.controls.enablePan = false;
   v.autoRotate = S.skinRotate !== false && S.animations !== false; v.autoRotateSpeed = 0.6;
@@ -952,7 +963,7 @@ function applySettings() {
   $('#main').className = 'fx-' + (S.fx || 'glow');
   call('win:overlay', { color: b.bg0 }, true).catch(() => {});
 }
-async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch)) renderHome(); }
+async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'room' in patch)) renderHome(); }
 
 let setSec = 'look';
 const SECS = [['look', 'Darstellung'], ['general', 'Allgemein'], ['play', 'Spielen'], ['about', 'Über']];
@@ -1004,7 +1015,9 @@ function renderSettingsBody() {
     const t = document.createElement('div');
     t.appendChild(toggleLine('Animationen', 'Übergänge, schwebender Skin, Lade-Animationen', S.animations !== false, (v) => setS({ animations: v })));
     t.appendChild(toggleLine('Beschriftung in der Seitenleiste', 'Text unter den Symbolen links', S.railLabels !== false, (v) => setS({ railLabels: v })));
-    t.appendChild(toggleLine('Skin auf der Startseite', 'Zeigt deine Spielfigur', S.showSkin !== false, (v) => setS({ showSkin: v })));
+    t.appendChild(toggleLine('Skin auf der Startseite', 'Zeigt deine Spielfigur in 3D', S.showSkin !== false, (v) => setS({ showSkin: v })));
+    t.appendChild(toggleLine('Namensschild über dem Skin', '', S.nameTag !== false, (v) => setS({ nameTag: v })));
+    t.appendChild(toggleLine('3D-Raum auf der Startseite', 'Bodenraster hinter der Spielfigur', S.room !== false, (v) => setS({ room: v })));
     c.appendChild(sec('Verhalten', '', t));
   } else if (setSec === 'general') {
     const inp = document.createElement('input'); inp.style.width = '320px'; inp.placeholder = account ? account.name + ' (aus dem Launcher)' : 'Spielername';
