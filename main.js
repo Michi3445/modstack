@@ -26,15 +26,16 @@ function status(msg) {
 }
 
 let friendNotification;
-function notifyFriendChat({ arrived, unread, contactsChanged, requested, requests }) {
+function notifyFriendChat({ arrived, unread, contactsChanged, requested = 0, requests, groupsChanged, newGroupInvites = 0, groupInvites }) {
   if (!win || win.isDestroyed()) return;
   const settings = appSettings();
-  const message = requested > 0 ? requested === 1 ? 'Du hast eine neue Freundschaftsanfrage.' : `Du hast ${requested} neue Freundschaftsanfragen.`
+  const message = newGroupInvites ? newGroupInvites === 1 ? 'Du hast eine neue Gruppeneinladung.' : `Du hast ${newGroupInvites} neue Gruppeneinladungen.`
+    : requested > 0 ? requested === 1 ? 'Du hast eine neue Freundschaftsanfrage.' : `Du hast ${requested} neue Freundschaftsanfragen.`
     : arrived.length > 1 ? `Neue Nachrichten in ${arrived.length} Chats`
       : arrived[0]?.kind === 'pack' ? 'Ein Freund hat ein Modpack geteilt.' : arrived.length ? 'Du hast eine neue Chatnachricht.' : '';
   const popup = settings.friendsPopup !== false;
   win.webContents.send('friendChat', {
-    arrived, unread, contactsChanged, requests, requested, sound: !!message && settings.friendsSound !== false,
+    arrived, unread, contactsChanged, requests, requested, groupsChanged, newGroupInvites, groupInvites, sound: !!message && settings.friendsSound !== false,
     toast: popup && win.isFocused() ? message : '',
   });
   if (!message || !popup || win.isFocused() || !Notification.isSupported()) return;
@@ -44,7 +45,7 @@ function notifyFriendChat({ arrived, unread, contactsChanged, requested, request
     if (!win || win.isDestroyed()) return;
     if (win.isMinimized()) win.restore();
     win.show();
-    win.webContents.send('friendChat', { open: true, showRequests: requested > 0 });
+    win.webContents.send('friendChat', { open: true, showRequests: requested > 0, showGroups: newGroupInvites > 0 });
   });
   friendNotification.show();
 }

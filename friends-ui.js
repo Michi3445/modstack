@@ -1,12 +1,12 @@
 let activeFriendChat, friendShareInstance, messenger;
-let friendsPane = 'chats', friendRequestCount = 0;
+let friendsPane = 'chats', friendRequestCount = 0, groupInviteCount = 0;
 let unreadFriendChats = new Set();
 
 function markUnreadFriendChats(ids) {
   unreadFriendChats = new Set(ids);
   const rail = $('[data-v="friends"]');
   let badge = $('.rbadge', rail);
-  const count = ids.length + friendRequestCount;
+  const count = ids.length + friendRequestCount + groupInviteCount;
   if (count) {
     if (!badge) { badge = document.createElement('i'); badge.className = 'rbadge'; rail.append(badge); }
     badge.textContent = count > 99 ? '99+' : count;
@@ -23,24 +23,27 @@ function startFriendNotifications() {
   chime.preload = 'auto';
   api.onFriendChat((event) => {
     if (event.open) {
-      if (event.showRequests) friendsPane = 'requests';
+      if (event.showGroups) friendsPane = 'groups';
+      else if (event.showRequests) friendsPane = 'requests';
       setView('friends');
-      if (event.showRequests) messenger?.draw();
+      if (event.showGroups || event.showRequests) messenger?.draw();
       return;
     }
     friendRequestCount = event.requests.length;
+    groupInviteCount = event.groupInvites?.length || 0;
     markUnreadFriendChats(event.unread);
     if (event.sound) {
       chime.currentTime = 0;
       chime.play().catch(() => {});
     }
-    if (event.toast && (event.requested || event.arrived.some(({ id }) => id !== activeFriendChat?.entry.id))) toast(event.toast);
+    if (event.toast && (event.requested || event.newGroupInvites || event.arrived.some(({ id }) => id !== activeFriendChat?.entry.id))) toast(event.toast);
     if (event.arrived.some(({ id }) => id === activeFriendChat?.entry.id)) activeFriendChat.refresh();
-    if (event.contactsChanged && messenger?.panel.isConnected) messenger.refresh();
+    if ((event.contactsChanged || event.groupsChanged) && messenger?.panel.isConnected) messenger.refresh();
   });
   window.addEventListener('focus', () => activeFriendChat?.refresh());
-  api.invoke('friends:friendState').then(({ unread, requests }) => {
+  api.invoke('friends:friendState').then(({ unread, requests, groupInvites }) => {
     friendRequestCount = requests.length;
+    groupInviteCount = groupInvites?.length || 0;
     markUnreadFriendChats(unread);
   }).catch(() => {});
 }
@@ -110,6 +113,7 @@ async function renderFriends(showSetup = false, notice = '') {
     }
     if (!state.uid) {
       friendRequestCount = 0;
+      groupInviteCount = 0;
       markUnreadFriendChats([]);
       const form = showForm(`
         <label>E-Mail-Adresse<input name="email" type="email" autocomplete="username" maxlength="254" required></label>
@@ -141,7 +145,7 @@ async function renderFriends(showSetup = false, notice = '') {
 }
 
 const minecraftHeads = new Map();
-function friendAvatar({ name, avatar: custom }) {
+function friendAvatar({ name, avatar: custom, group }) {
   const avatar = document.createElement('span');
   avatar.className = 'message-avatar';
   avatar.textContent = Array.from(name.trim())[0]?.toUpperCase() || '?';
@@ -155,7 +159,7 @@ function friendAvatar({ name, avatar: custom }) {
     img.decode().then(() => avatar.replaceChildren(img)).catch(() => {});
   }
   if (custom) show(custom, false);
-  else if (/^[A-Za-z0-9_]{3,16}$/.test(name)) {
+  else if (!group && /^[A-Za-z0-9_]{3,16}$/.test(name)) {
     const key = name.toLowerCase();
     if (!minecraftHeads.has(key)) {
       const head = api.invoke('mc:skin', { name }).then(async (data) => {
@@ -193,7 +197,7 @@ function mountMessenger(panel, body, account, notice, button, act) {
         <input type="search" class="message-search" placeholder="Freunde suchen …" aria-label="Freunde suchen">
         <button type="button" class="ghost message-add" title="Freund hinzufügen" aria-label="Freund hinzufügen">+</button>
       </div>
-      <nav class="message-tabs" aria-label="Freunde"><button type="button" data-pane="chats">Chats</button><button type="button" data-pane="requests">Anfragen</button></nav>
+      <nav class="message-tabs" aria-label="Freunde"><button type="button" data-pane="chats">Chats</button><button type="button" data-pane="groups">Gruppen</button><button type="button" data-pane="requests">Anfragen</button></nav>
       <div class="message-contacts"></div>
       <details class="message-profile"><summary></summary><div></div></details>
     </aside>
@@ -246,28 +250,42 @@ function mountMessenger(panel, body, account, notice, button, act) {
   };
   const prefs = document.createElement('div');
   prefs.className = 'message-preferences';
-  for (const [text, on, update] of [
-    ['Ton', S.friendsSound !== false, (v) => setS({ friendsSound: v })],
-    ['Pop-up', S.friendsPopup !== false, (v) => setS({ friendsPopup: v })],
-    ['Online anzeigen (nur Freunde)', S.friendsOnline === true, (v) => changePresence('friendsOnline', v)],
-    ['Modpack im Status', S.friendsPlaying === true, (v) => changePresence('friendsPlaying', v)],
+  let packSwitch;
+  for (const [text, hint, on, update] of [
+    ['Ton', 'Bei neuen Nachrichten und Anfragen', S.friendsSound !== false, (v) => setS({ friendsSound: v })],
+    ['Pop-up', 'Benachrichtigungen anzeigen', S.friendsPopup !== false, (v) => setS({ friendsPopup: v })],
+    ['Online anzeigen', 'Nur für bestätigte Freunde', S.friendsOnline === true, (v) => changePresence('friendsOnline', v)],
+    ['Modpack im Status', 'Bei sichtbarem Online-Status', S.friendsPlaying === true, (v) => changePresence('friendsPlaying', v)],
   ]) {
     const label = document.createElement('label');
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = on;
+    input.setAttribute('role', 'switch');
+    const textWrap = document.createElement('span');
+    const name = document.createElement('strong'), description = document.createElement('small');
+    name.textContent = text;
+    description.textContent = hint;
+    textWrap.append(name, description);
+    const pill = document.createElement('span');
+    pill.className = 'message-toggle';
+    pill.setAttribute('aria-hidden', 'true');
     input.onchange = async () => {
       input.disabled = true;
       try { await update(input.checked); }
       catch { input.checked = !input.checked; }
-      finally { input.disabled = false; }
+      finally {
+        input.disabled = false;
+        packSwitch.disabled = S.friendsOnline !== true;
+      }
     };
-    label.append(input, document.createTextNode(text));
+    if (text === 'Modpack im Status') { packSwitch = input; input.disabled = S.friendsOnline !== true; }
+    label.append(input, textWrap, pill);
     prefs.append(label);
   }
   options.append(prefs, button('Abmelden', () => act('logout')));
 
-  let rows = [], working = false, refreshing = false, again = false;
+  let rows = [], groups = [], groupsError = '', working = false, refreshing = false, again = false;
   function emptyConversation() {
     body.classList.remove('has-chat');
     activeFriendChat = undefined;
@@ -293,6 +311,14 @@ function mountMessenger(panel, body, account, notice, button, act) {
   }
 
   $('.message-add', body).onclick = async () => {
+    if (friendsPane === 'groups') {
+      showGroupDialog(null, rows, (group) => {
+        groups.push(group);
+        refresh();
+        openChat(group);
+      });
+      return;
+    }
     const code = await ask({ title: 'Freund hinzufügen', text: 'Gib den MSF-Freundescode ein.', input: '', okText: 'Anfrage senden' });
     if (typeof code === 'string' && code.trim()) change('invite', code, 'Freundschaftsanfrage gesendet.');
   };
@@ -302,35 +328,51 @@ function mountMessenger(panel, body, account, notice, button, act) {
   };
   search.oninput = () => draw();
 
+  function openChat(entry) {
+    if (entry.id === activeFriendChat?.entry.id) { activeFriendChat.refresh(); return; }
+    const goBack = () => { emptyConversation(); draw(); };
+    const leaveOrRemove = async () => {
+      if (entry.group) {
+        if (await ask({ title: 'Gruppe verlassen?', text: entry.name, okText: 'Verlassen', danger: true })) {
+          await change('groups:remove', { id: entry.id, uid: account.uid });
+        }
+      } else if (await ask({ title: 'Freund entfernen?', text: entry.name, okText: 'Entfernen', danger: true })) {
+        await change('respond', { id: entry.id, accept: false });
+      }
+    };
+    openFriendChat(entry, stage, goBack, leaveOrRemove, () => showGroupDialog(entry, rows, refresh));
+    body.classList.add('has-chat');
+    draw();
+  }
+
   function draw() {
     if (!panel.isConnected) return;
     for (const item of body.querySelectorAll('.message-tabs button')) {
       item.setAttribute('aria-pressed', String(item.dataset.pane === friendsPane));
       if (item.dataset.pane === 'requests') item.textContent = friendRequestCount ? `Anfragen (${friendRequestCount})` : 'Anfragen';
+      if (item.dataset.pane === 'groups') item.textContent = groupInviteCount ? `Gruppen (${groupInviteCount})` : 'Gruppen';
     }
+    const adding = friendsPane === 'groups' ? 'Gruppe erstellen' : 'Freund hinzufügen';
+    $('.message-add', body).title = adding;
+    $('.message-add', body).setAttribute('aria-label', adding);
+    search.placeholder = friendsPane === 'groups' ? 'Gruppen suchen …' : 'Freunde suchen …';
+    search.setAttribute('aria-label', search.placeholder);
     list.replaceChildren();
     const query = search.value.trim().toLocaleLowerCase('de');
-    const filtered = rows.filter((row) => row.accepted === (friendsPane === 'chats') && row.name.toLocaleLowerCase('de').includes(query));
+    const source = friendsPane === 'groups' ? groups : rows.filter((row) => row.accepted === (friendsPane === 'chats'));
+    const filtered = source.filter((row) => row.name.toLocaleLowerCase('de').includes(query));
     if (!filtered.length) {
       const hint = document.createElement('p');
       hint.className = 'message-list-empty';
-      hint.textContent = query ? 'Keine Treffer.' : friendsPane === 'requests' ? 'Keine offenen Anfragen.' : 'Noch keine Unterhaltungen.';
+      hint.textContent = query ? 'Keine Treffer.' : friendsPane === 'groups'
+        ? groupsError || 'Noch keine Gruppen.' : friendsPane === 'requests' ? 'Keine offenen Anfragen.' : 'Noch keine Unterhaltungen.';
       list.append(hint);
     }
     for (const entry of filtered) {
       const name = document.createElement('strong');
       name.textContent = entry.name;
-      if (entry.accepted) {
-        const contact = button('', () => {
-          if (entry.id === activeFriendChat?.entry.id) { activeFriendChat.refresh(); return; }
-          openFriendChat(entry, stage, () => { emptyConversation(); draw(); }, async () => {
-            if (await ask({ title: 'Freund entfernen?', text: entry.name, okText: 'Entfernen', danger: true })) {
-              await change('respond', { id: entry.id, accept: false });
-            }
-          });
-          body.classList.add('has-chat');
-          draw();
-        });
+      if (entry.accepted || entry.state === 'member') {
+        const contact = button('', () => openChat(entry));
         contact.className = 'message-contact';
         contact.dataset.chat = entry.id;
         contact.classList.toggle('chat-unread', unreadFriendChats.has(entry.id));
@@ -353,12 +395,12 @@ function mountMessenger(panel, body, account, notice, button, act) {
         row.className = 'message-request';
         const title = document.createElement('div');
         const hint = document.createElement('small');
-        hint.textContent = entry.incoming ? 'Möchte dich hinzufügen' : 'Anfrage gesendet';
+        hint.textContent = entry.group ? 'Gruppeneinladung' : entry.incoming ? 'Möchte dich hinzufügen' : 'Anfrage gesendet';
         title.append(name, hint);
         row.append(friendAvatar(entry), title);
-        const respond = (accept) => change('respond', { id: entry.id, accept });
-        if (entry.incoming) row.append(button('Annehmen', () => respond(true), true));
-        row.append(button(entry.incoming ? 'Ablehnen' : 'Zurückziehen', () => respond(false)));
+        const respond = (accept) => change(entry.group ? 'groups:respond' : 'respond', { id: entry.id, accept });
+        if (entry.group || entry.incoming) row.append(button('Annehmen', () => respond(true), true));
+        row.append(button(entry.group || entry.incoming ? 'Ablehnen' : 'Zurückziehen', () => respond(false)));
         list.append(row);
       }
     }
@@ -369,15 +411,20 @@ function mountMessenger(panel, body, account, notice, button, act) {
     if (refreshing) { again = true; return; }
     refreshing = true;
     try {
-      const incoming = await api.invoke('friends:list');
+      const [friendsResult, groupsResult] = await Promise.allSettled([api.invoke('friends:list'), api.invoke('friends:groups:list')]);
       if (!panel.isConnected) return;
-      rows = incoming;
+      if (friendsResult.status === 'fulfilled') rows = friendsResult.value;
+      if (groupsResult.status === 'fulfilled') { groups = groupsResult.value; groupsError = ''; }
+      else groupsError = errText(groupsResult.reason);
       friendRequestCount = rows.filter((row) => !row.accepted && row.incoming).length;
+      groupInviteCount = groups.filter((row) => row.state === 'invited').length;
       const unread = await api.invoke('friends:unread');
       if (!panel.isConnected) return;
       markUnreadFriendChats(unread);
       if (activeFriendChat) {
-        const current = rows.find((row) => row.accepted && row.id === activeFriendChat.entry.id);
+        const current = activeFriendChat.entry.group
+          ? groups.find((row) => row.state === 'member' && row.id === activeFriendChat.entry.id)
+          : rows.find((row) => row.accepted && row.id === activeFriendChat.entry.id);
         if (current) activeFriendChat.updateContact(current);
         else emptyConversation();
       }
@@ -401,13 +448,123 @@ function mountMessenger(panel, body, account, notice, button, act) {
   }, 15000);
 }
 
-function openFriendChat(entry, stage, back, remove) {
+function showGroupDialog(group, friends, onChange) {
+  if (document.querySelector('dialog[open]')) return;
+  const dlg = document.createElement('dialog');
+  dlg.className = 'group-dialog';
+  dlg.innerHTML = `
+    <form>
+      <div class="dh" id="group-dialog-title"></div>
+      <div class="db">
+        <label class="group-name">Gruppenname<input name="name" maxlength="48" required></label>
+        <div class="group-members"></div>
+        <div class="group-invite"><b>Freunde einladen</b><div class="group-options"></div></div>
+        <p class="group-feedback" role="status"></p>
+      </div>
+      <div class="df"><button type="button" class="ghost">Schließen</button><button type="submit" class="primary"></button></div>
+    </form>`;
+  dlg.setAttribute('aria-labelledby', 'group-dialog-title');
+  $('.dh', dlg).textContent = group ? 'Mitglieder · ' + group.name : 'Gruppe erstellen';
+  const form = $('form', dlg);
+  const name = form.elements.name;
+  name.required = !group;
+  name.disabled = !!group;
+  $('.group-name', dlg).hidden = !!group;
+  const list = $('.group-members', dlg), choices = $('.group-options', dlg), feedback = $('.group-feedback', dlg);
+  const primary = $('button[type=submit]', dlg);
+  $('.group-invite', dlg).hidden = !!group && !group.owner;
+  primary.hidden = !!group && !group.owner;
+  primary.textContent = group ? 'Einladen' : 'Gruppe erstellen';
+  primary.disabled = !!group;
+  $('button[type=button]', dlg).onclick = () => dlg.close();
+  dlg.addEventListener('close', () => dlg.remove(), { once: true });
+  let pending = false;
+
+  function draw(members) {
+    list.replaceChildren();
+    const inGroup = new Set(members.map(({ uid }) => uid));
+    for (const member of members) {
+      const row = document.createElement('div');
+      row.className = 'group-member';
+      const label = document.createElement('span');
+      const role = member.owner ? 'Leitung' : member.state === 'invited' ? 'Eingeladen' : '';
+      label.textContent = member.name + (member.self ? ' (du)' : '') + (role ? ' · ' + role : '');
+      row.append(label);
+      if (group.owner && !member.owner) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'ghost';
+        remove.textContent = member.state === 'invited' ? 'Zurückziehen' : 'Entfernen';
+        remove.onclick = async () => {
+          if (pending || !await ask({ title: member.state === 'invited' ? 'Einladung zurückziehen?' : 'Mitglied entfernen?',
+            text: member.name, okText: remove.textContent, danger: true })) return;
+          pending = remove.disabled = true;
+          try {
+            await api.invoke('friends:groups:remove', { id: group.id, uid: member.uid });
+            await refreshMembers();
+            onChange();
+          } catch (err) { feedback.textContent = errText(err); }
+          finally { pending = remove.disabled = false; }
+        };
+        row.append(remove);
+      }
+      list.append(row);
+    }
+    choices.replaceChildren();
+    if (group && !group.owner) return;
+    for (const friend of friends.filter((entry) => entry.accepted && !inGroup.has(entry.uid))) {
+      const label = document.createElement('label');
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.name = 'friend';
+      check.value = friend.uid;
+      check.onchange = () => { if (group) primary.disabled = !new FormData(form).getAll('friend').length; };
+      label.append(check, document.createTextNode(friend.name));
+      choices.append(label);
+    }
+    if (!choices.children.length) choices.textContent = 'Keine weiteren bestätigten Freunde verfügbar.';
+    primary.disabled = !!group;
+  }
+
+  async function refreshMembers() {
+    try { draw(await api.invoke('friends:groups:members', group.id)); }
+    catch (err) { feedback.textContent = errText(err); }
+  }
+
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    if (pending || (group && !group.owner)) return;
+    pending = primary.disabled = true;
+    const selected = new FormData(form).getAll('friend');
+    try {
+      const result = await api.invoke(group ? 'friends:groups:invite' : 'friends:groups:create',
+        group ? { id: group.id, friends: selected } : { name: name.value, friends: selected });
+      if (group) {
+        await refreshMembers();
+        feedback.textContent = 'Einladungen gesendet.';
+        onChange();
+      } else {
+        dlg.close();
+        onChange(result);
+      }
+    } catch (err) {
+      feedback.textContent = errText(err);
+      primary.disabled = false;
+    } finally { pending = false; }
+  };
+  document.body.append(dlg);
+  if (group) refreshMembers();
+  else draw([]);
+  dlg.showModal();
+}
+
+function openFriendChat(entry, stage, back, remove, membersDialog) {
   const selectedInstance = friendShareInstance;
   friendShareInstance = undefined;
   const panel = document.createElement('section');
   panel.className = 'friend-chat';
   panel.innerHTML = `
-    <header><button type="button" class="ghost chat-back" aria-label="Zur Chatliste">‹</button><div class="chat-person"><h2></h2><small class="friend-activity" hidden></small></div><details class="chat-menu"><summary aria-label="Chat-Optionen">⋯</summary><button type="button" class="ghost chat-remove">Freund entfernen</button></details></header>
+    <header><button type="button" class="ghost chat-back" aria-label="Zur Chatliste">‹</button><div class="chat-person"><h2></h2><small class="friend-activity" hidden></small></div><button type="button" class="ghost chat-members" hidden>Mitglieder</button><details class="chat-menu"><summary aria-label="Chat-Optionen">⋯</summary><button type="button" class="ghost chat-remove">Freund entfernen</button></details></header>
     <nav class="message-tabs chat-history-tabs" aria-label="Unterhaltung"><button type="button" aria-pressed="true">Chat</button><button type="button" aria-pressed="false">Geteilt</button></nav>
     <p class="friends-status chat-status" role="status"></p>
     <div class="chat-scroll" aria-label="Nachrichten" tabindex="0"></div>
@@ -447,6 +604,22 @@ function openFriendChat(entry, stage, back, remove) {
   const share = $('.chat-share', panel), instances = share.elements.instance;
   const method = share.elements.method;
   const address = share.elements.address;
+  const channel = (name) => 'friends:' + (entry.group ? 'groups:' : '') + name;
+  const authors = new Map();
+  let membersLoaded = false;
+  async function loadAuthors() {
+    const rows = await api.invoke('friends:groups:members', entry.id);
+    for (const person of rows) authors.set(person.uid, person.name);
+    membersLoaded = true;
+  }
+  if (entry.group) {
+    method.hidden = method.disabled = true;
+    const members = $('.chat-members', panel);
+    members.hidden = false;
+    members.onclick = membersDialog;
+    if (entry.owner) $('.chat-menu', panel).hidden = true;
+    else $('.chat-remove', panel).textContent = 'Gruppe verlassen';
+  }
   method.onchange = () => {
     address.hidden = address.disabled = method.value !== 'server';
     address.required = !address.disabled;
@@ -546,7 +719,7 @@ function openFriendChat(entry, stage, back, remove) {
     if (loadingShared || !isOpen()) return;
     loadingShared = true;
     try {
-      const page = await api.invoke('friends:shared', { id: entry.id, before });
+      const page = await api.invoke(channel('shared'), { id: entry.id, before });
       if (!isOpen()) return;
       if (before && page.before === before) return;
       before = page.before;
@@ -591,10 +764,16 @@ function openFriendChat(entry, stage, back, remove) {
       }
       const bubble = document.createElement('article');
       bubble.className = 'chat-message' + (row.mine ? ' mine' : '') + (row.kind === 'pack' ? ' pack' : '');
+      if (entry.group && !row.mine) {
+        const author = document.createElement('small');
+        author.className = 'chat-author';
+        author.textContent = authors.get(row.from) || 'Früheres Mitglied';
+        bubble.append(author);
+      }
       if (row.kind === 'pack') {
         renderPack(bubble, row);
         if (loadedShared) shared.set(row.messageId, row);
-      } else bubble.textContent = row.content;
+      } else bubble.append(document.createTextNode(row.content));
       const sent = document.createElement('time');
       sent.textContent = time.format(row.at);
       bubble.append(sent);
@@ -609,7 +788,11 @@ function openFriendChat(entry, stage, back, remove) {
     if (reading) { readAgain = true; return; }
     reading = true;
     try {
-      const rows = await api.invoke('friends:chat', entry.id);
+      const rows = await api.invoke(channel('chat'), entry.id);
+      if (entry.group && (!membersLoaded || rows.some((row) => !row.mine && !authors.has(row.from)))) {
+        await loadAuthors().catch(() => {});
+        for (const row of rows) if (!authors.has(row.from)) authors.set(row.from, 'Früheres Mitglied');
+      }
       if (!isOpen()) return;
       paint(rows);
       if (status.dataset.readError) {
@@ -661,13 +844,13 @@ function openFriendChat(entry, stage, back, remove) {
   composer.onsubmit = async (event) => {
     event.preventDefault();
     const message = text.value;
-    if (await send('friends:sendText', composer, { text: message }) && text.value === message) text.value = '';
+    if (await send(channel('sendText'), composer, { text: message }) && text.value === message) text.value = '';
   };
   share.onsubmit = async (event) => {
     event.preventDefault();
     const instanceId = instances.value;
     const inviteMethod = method.value;
-    const sent = await send('friends:sendPack', share, { instanceId, method: inviteMethod, address: address.value }, async () => {
+    const sent = await send(channel('sendPack'), share, { instanceId, method: inviteMethod, address: address.value }, async () => {
       const { skipped, name } = await api.invoke('share:code', instanceId);
       const note = skipped.length ? ` ${skipped.length} lokale Einträge sind nur im .mrpack-Export enthalten.` : '';
       return ask({ title: inviteMethod ? 'Spieleinladung senden?' : 'Modpack senden?', text: `„${name}“ an ${entry.name} senden?${note}`, okText: 'Senden' });

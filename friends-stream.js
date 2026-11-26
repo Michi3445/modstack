@@ -1,4 +1,4 @@
-const LINK = /^[A-Za-z0-9_-]{1,128}~[A-Za-z0-9_-]{1,128}$/;
+const ROOM = /^(?:[A-Za-z0-9_-]{1,128}~[A-Za-z0-9_-]{1,128}|g-[a-f0-9]{32})$/;
 const FIELDS = new Set(['messageId', 'at', 'kind']);
 
 // Listen to the small per-user inbox; message bodies still use the chat's own access rules.
@@ -20,7 +20,7 @@ module.exports = async function streamInbox(url, controller, onMessage) {
     const changed = new Set();
     for (const [location, value] of updates) {
       const [id, field, extra] = location.slice(1).split('/');
-      if (!LINK.test(id) || extra !== undefined || (field !== undefined && !FIELDS.has(field))) continue;
+      if (!ROOM.test(id) || extra !== undefined || (field !== undefined && !FIELDS.has(field))) continue;
       if (!field) {
         if (value && typeof value === 'object') marks.set(id, value);
         else marks.delete(id);

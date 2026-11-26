@@ -33,6 +33,8 @@ The desktop app ships with the public Firebase Web App configuration in `friends
 Use **Freunde → Firebase ändern** while signed out to connect a different project.
 Accepted friends can message each other, set a profile picture, and share importable
 Modrinth-based instances in the chat. The **Geteilt** tab can browse older shared packs.
+Group chats support up to 12 people, including open invitations. The owner can invite
+confirmed friends and manage membership. Only members can read or send group messages.
 Online and active-pack visibility are optional and limited to accepted friends.
 An Essential card shares the pack and host name. Send and accept the actual world
 invitation in Essential. Server cards share the unmodified Minecraft server address.

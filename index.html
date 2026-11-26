@@ -519,8 +519,30 @@
   .message-list-empty { padding: 12px 8px; }
   .message-profile { border-top: 1px solid var(--line); padding: 9px; }
   .message-profile > div { display: grid; gap: 5px; padding-top: 9px; }
-  .message-preferences { display: grid; gap: 6px; padding: 5px 0; }
-  .message-preferences label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .message-preferences { display: grid; gap: 4px; padding: 5px 0; }
+  .message-preferences label { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 42px; padding: 5px 8px; border-radius: 8px; background: var(--bg1); cursor: pointer; }
+  .message-preferences label:hover { background: var(--bg3); }
+  .message-preferences input { position: absolute; left: 8px; top: 12px; width: 1px; height: 1px; opacity: 0; }
+  .message-preferences strong { display: block; font-size: 12px; }
+  .message-preferences small { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; }
+  .message-toggle { width: 34px; height: 19px; border-radius: 12px; position: relative; background: var(--bg4); border: 1px solid var(--line); }
+  .message-toggle::after { content: ''; position: absolute; left: 2px; top: 2px; width: 13px; height: 13px; background: var(--muted); border-radius: 50%; transition: transform .15s; }
+  .message-preferences input:checked ~ .message-toggle { background: var(--accent2); }
+  .message-preferences input:checked ~ .message-toggle::after { background: white; transform: translateX(15px); }
+  .message-preferences input:focus-visible ~ .message-toggle { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .message-preferences label:has(input:disabled) { opacity: .58; cursor: default; }
+  .chat-members[hidden], .group-dialog [hidden] { display: none; }
+  .chat-author { color: var(--accent) !important; }
+  .group-dialog { width: min(430px, calc(100vw - 30px)); }
+  .group-dialog .db { max-height: 57vh; overflow: auto; }
+  .group-dialog .group-name { display: grid; gap: 6px; margin: 6px 0 12px; }
+  .group-invite { margin-top: 8px; }
+  .group-options { display: grid; gap: 4px; margin-top: 6px; }
+  .group-options label { display: flex; align-items: center; gap: 7px; margin: 0; padding: 5px; }
+  .group-options input { width: auto; }
+  .group-member { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; }
+  .group-member button { padding: 4px 7px; }
+  .group-feedback:empty { display: none; }
   .message-profile summary, .chat-menu summary { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .message-conversation { min-height: 0; min-width: 0; display: grid; }
   .messenger-page .message-empty { margin: auto; padding: 16px; }

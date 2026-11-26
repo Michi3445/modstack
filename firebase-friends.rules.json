@@ -87,6 +87,74 @@
           }
         }
       },
+      "groupCards": {
+        "$gid": {
+          ".read": "auth != null && root.child('modstackFriends/groupMembers').child($gid).child(auth.uid).exists()",
+          ".write": "auth != null && $gid.matches(/^g-[a-f0-9]{32}$/) && !data.exists() && newData.child('owner').val() === auth.uid && newData.parent().parent().child('groupMembers').child($gid).child(auth.uid).val() === 'member'",
+          ".validate": "newData.hasChildren(['name','owner'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 48"
+          },
+          "owner": {
+            ".validate": "newData.isString() && newData.val() === auth.uid"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "groupMembers": {
+        "$gid": {
+          ".read": "auth != null && root.child('modstackFriends/groupMembers').child($gid).child(auth.uid).val() === 'member'",
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && $gid.matches(/^g-[a-f0-9]{32}$/) && $uid.matches(/^[A-Za-z0-9_-]{1,128}$/) && newData.parent().parent().parent().child('groupCards').child($gid).exists() && newData.val() === newData.parent().parent().parent().child('groupIndex').child($uid).child($gid).val() && ((!data.exists() && $uid === auth.uid && !root.child('modstackFriends/groupCards').child($gid).exists() && newData.parent().parent().parent().child('groupCards').child($gid).child('owner').val() === auth.uid && newData.val() === 'member') || (!data.exists() && $uid !== auth.uid && newData.parent().parent().parent().child('groupCards').child($gid).child('owner').val() === auth.uid && newData.val() === 'invited' && (root.child('modstackFriends/links').child(auth.uid + '~' + $uid).child('state').val() === 'friends' || root.child('modstackFriends/links').child($uid + '~' + auth.uid).child('state').val() === 'friends')) || ($uid === auth.uid && data.val() === 'invited' && newData.val() === 'member') || (data.exists() && !newData.exists() && $uid !== root.child('modstackFriends/groupCards').child($gid).child('owner').val() && ($uid === auth.uid || root.child('modstackFriends/groupCards').child($gid).child('owner').val() === auth.uid)))",
+            ".validate": "newData.val() === 'member' || newData.val() === 'invited'"
+          }
+        }
+      },
+      "groupIndex": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$gid": {
+            ".write": "auth != null && $gid.matches(/^g-[a-f0-9]{32}$/) && (auth.uid === $uid || newData.parent().parent().parent().child('groupCards').child($gid).child('owner').val() === auth.uid) && newData.val() === newData.parent().parent().parent().child('groupMembers').child($gid).child($uid).val()",
+            ".validate": "newData.val() === 'member' || newData.val() === 'invited'"
+          }
+        }
+      },
+      "groupChats": {
+        "$gid": {
+          ".read": "auth != null && root.child('modstackFriends/groupMembers').child($gid).child(auth.uid).val() === 'member' && query.orderByChild === 'at' && query.limitToLast > 0 && query.limitToLast <= 50",
+          ".indexOn": [
+            "at"
+          ],
+          "$message": {
+            ".write": "auth != null && root.child('modstackFriends/groupMembers').child($gid).child(auth.uid).val() === 'member' && !data.exists() && newData.exists() && newData.child('from').val() === auth.uid",
+            ".validate": "$message.matches(/^[a-f0-9]{32}$/) && newData.hasChildren(['from','at','kind','content']) && (newData.child('kind').val() === 'text' ? !newData.hasChild('title') && !newData.hasChild('skipped') : newData.hasChildren(['title','skipped']))",
+            "from": {
+              ".validate": "newData.isString()"
+            },
+            "at": {
+              ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
+            },
+            "kind": {
+              ".validate": "newData.val() === 'text' || newData.val() === 'pack'"
+            },
+            "content": {
+              ".validate": "newData.isString() && (newData.parent().child('kind').val() === 'text' ? newData.val().length > 0 && newData.val().length <= 2000 : newData.val().length <= 16000 && newData.val().matches(/^MS1-[A-Za-z0-9_-]+$/))"
+            },
+            "title": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+            },
+            "skipped": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      },
       "inbox": {
         "$uid": {
           ".read": "auth != null && auth.uid === $uid && query.orderByChild === 'at' && query.limitToLast > 0 && query.limitToLast <= 50",
@@ -94,8 +162,8 @@
             "at"
           ],
           "$id": {
-            ".write": "auth != null && auth.uid !== $uid && newData.exists() && root.child('modstackFriends/links').child($id).child('state').val() === 'friends' && ((root.child('modstackFriends/links').child($id).child('sender').val() === auth.uid && root.child('modstackFriends/links').child($id).child('recipient').val() === $uid) || (root.child('modstackFriends/links').child($id).child('recipient').val() === auth.uid && root.child('modstackFriends/links').child($id).child('sender').val() === $uid))",
-            ".validate": "newData.hasChildren(['messageId', 'at', 'kind']) && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('from').val() === auth.uid && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('to').val() === $uid && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('at').val() === newData.child('at').val() && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('kind').val() === newData.child('kind').val()",
+            ".write": "auth != null && auth.uid !== $uid && newData.exists() && ((root.child('modstackFriends/links').child($id).child('state').val() === 'friends' && ((root.child('modstackFriends/links').child($id).child('sender').val() === auth.uid && root.child('modstackFriends/links').child($id).child('recipient').val() === $uid) || (root.child('modstackFriends/links').child($id).child('recipient').val() === auth.uid && root.child('modstackFriends/links').child($id).child('sender').val() === $uid))) || ($id.matches(/^g-[a-f0-9]{32}$/) && root.child('modstackFriends/groupMembers').child($id).child(auth.uid).val() === 'member' && root.child('modstackFriends/groupMembers').child($id).child($uid).val() === 'member'))",
+            ".validate": "newData.hasChildren(['messageId', 'at', 'kind']) && ($id.matches(/^g-[a-f0-9]{32}$/) ? (newData.parent().parent().parent().child('groupChats').child($id).child(newData.child('messageId').val()).child('from').val() === auth.uid && newData.parent().parent().parent().child('groupChats').child($id).child(newData.child('messageId').val()).child('at').val() === newData.child('at').val() && newData.parent().parent().parent().child('groupChats').child($id).child(newData.child('messageId').val()).child('kind').val() === newData.child('kind').val()) : (newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('from').val() === auth.uid && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('at').val() === newData.child('at').val() && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('kind').val() === newData.child('kind').val() && newData.parent().parent().parent().child('chat').child($id).child(newData.child('messageId').val()).child('to').val() === $uid))",
             "messageId": {
               ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{32}$/)"
             },

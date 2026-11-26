@@ -5,6 +5,7 @@ const { isIP } = require('node:net');
 const { createHash, randomBytes } = require('node:crypto');
 const project = require('./friends-project.json');
 const streamInbox = require('./friends-stream');
+const { GROUP_ID, registerGroups } = require('./friends-groups');
 
 const UID = /^[A-Za-z0-9_-]{1,128}$/;
 const ROOT = '/modstackFriends';
@@ -29,7 +30,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   const sessionFile = path.join(userData, 'friends-session');
   let config, session;
   let queue = Promise.resolve();
-  let inbox, contactSignature, live, retry;
+  let inbox, contactSignature, groupSignature, live, retry;
   const appearances = new Map();
 
   function launcherName() {
@@ -66,6 +67,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
       appearances.clear();
       inbox = undefined;
       contactSignature = undefined;
+      groupSignature = undefined;
       live?.controller.abort();
       live = undefined;
       clearTimeout(retry);
@@ -279,12 +281,12 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
           accepted ? db('/activity/' + other).then((result) => result.value).catch(() => null) : null,
         ]);
         const status = activity?.at > Date.now() - 70000 ? activity : null;
-        return { id, incoming, name: profile?.name || 'Unbekanntes Profil', accepted, avatar: picture?.avatar, status };
+        return { id, uid: other, incoming, name: profile?.name || 'Unbekanntes Profil', accepted, avatar: picture?.avatar, status };
       })));
     }
     const state = chatInbox();
     const accepted = new Set(rows.filter((row) => row.accepted).map((row) => row.id));
-    const stale = unreadChats(state).filter((id) => !accepted.has(id));
+    const stale = unreadChats(state).filter((id) => !GROUP_ID.test(id) && !accepted.has(id));
     if (stale.length) {
       for (const id of stale) state.entries[id].unread = false;
       saveInbox(state);
@@ -399,7 +401,10 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     const file = path.join(userData, 'friend-inbox-' + key + '.json');
     let saved;
     try { saved = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-    inbox = { file, cursor: Number(saved?.cursor) || 0, entries: saved?.entries || {}, requests: saved?.requests || [] };
+    inbox = {
+      file, cursor: Number(saved?.cursor) || 0, entries: saved?.entries || {},
+      requests: saved?.requests || [], groupInvites: saved?.groupInvites || [],
+    };
     return inbox;
   }
 
@@ -408,8 +413,20 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   }
 
   function saveInbox(state) {
-    saveFile(state.file, JSON.stringify({ cursor: state.cursor, entries: state.entries, requests: state.requests }));
+    saveFile(state.file, JSON.stringify({
+      cursor: state.cursor, entries: state.entries, requests: state.requests, groupInvites: state.groupInvites,
+    }));
   }
+
+  registerGroups({ handle, db, signedIn: () => session?.uid, readLinks, buildShareCode,
+    clearUnread(keep) {
+      const state = chatInbox();
+      const stale = unreadChats(state).filter((id) => GROUP_ID.test(id) && !keep(id));
+      if (!stale.length) return;
+      for (const id of stale) state.entries[id].unread = false;
+      saveInbox(state);
+    },
+  });
 
   handle('unread', () => {
     init();
@@ -418,14 +435,14 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
 
   handle('friendState', () => {
     init();
-    if (!session) return { unread: [], requests: [] };
+    if (!session) return { unread: [], requests: [], groupInvites: [] };
     startInboxStream();
     const state = chatInbox();
-    return { unread: unreadChats(state), requests: state.requests };
+    return { unread: unreadChats(state), requests: state.requests, groupInvites: state.groupInvites };
   });
 
   handle('readChat', ({ id, messageId, at } = {}) => {
-    chatId(id);
+    if (!(session && typeof id === 'string' && GROUP_ID.test(id))) chatId(id);
     const state = chatInbox();
     const known = state.entries[id];
     if (typeof messageId === 'string' && MESSAGE_ID.test(messageId) && Number.isSafeInteger(at) &&
@@ -441,7 +458,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   function applyInboxMarks(state, entries) {
     const arrived = [];
     for (const [id, mark] of entries) {
-      if (!LINK_ID.test(id) || !mark || !MESSAGE_ID.test(mark.messageId) ||
+      if ((!LINK_ID.test(id) && !GROUP_ID.test(id)) || !mark || !MESSAGE_ID.test(mark.messageId) ||
           !Number.isSafeInteger(mark.at) || !['text', 'pack'].includes(mark.kind)) continue;
       const previous = state.entries[id];
       state.cursor = Math.max(state.cursor, mark.at);
@@ -467,7 +484,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
           const arrived = applyInboxMarks(state, entries);
           if (!arrived.length) return;
           saveInbox(state);
-          notifyChat({ arrived, unread: unreadChats(state), requests: state.requests, requested: 0 });
+          notifyChat({ arrived, unread: unreadChats(state), requests: state.requests, groupInvites: state.groupInvites });
         });
         if (result === 'auth_revoked' && live === listening && session.idToken === url.searchParams.get('auth')) {
           delete session.idToken;
@@ -491,9 +508,10 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
       const uid = session.uid;
       startInboxStream();
       await token();
-      const [messages, contacts] = await Promise.allSettled([
+      const [messages, contacts, groups] = await Promise.allSettled([
         live?.connected ? null : db('/inbox/' + uid, { query: inboxQuery(state) }),
         readLinks(uid),
+        db('/groupIndex/' + uid),
       ]);
       const arrived = applyInboxMarks(state, Object.entries(messages.value?.value || {}));
       let contactsChanged = false, requested = 0, requestListChanged = false;
@@ -507,8 +525,22 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
         requestListChanged = requested > 0 || state.requests.length !== incoming.length;
         state.requests = incoming;
       }
-      if (arrived.length || requestListChanged) saveInbox(state);
-      if (arrived.length || contactsChanged) notifyChat({ arrived, unread: unreadChats(state), contactsChanged, requested, requests: state.requests });
+      let groupsChanged = false, newGroupInvites = 0, groupListChanged = false;
+      if (groups.status === 'fulfilled') {
+        const entries = Object.entries(groups.value.value || {}).sort(([a], [b]) => a.localeCompare(b, 'en'));
+        const signature = JSON.stringify(entries);
+        groupsChanged = signature !== groupSignature;
+        groupSignature = signature;
+        const invites = entries.filter(([, value]) => value === 'invited').map(([id]) => id);
+        newGroupInvites = invites.filter((id) => !state.groupInvites.includes(id)).length;
+        groupListChanged = newGroupInvites > 0 || state.groupInvites.length !== invites.length;
+        state.groupInvites = invites;
+      }
+      if (arrived.length || requestListChanged || groupListChanged) saveInbox(state);
+      if (arrived.length || contactsChanged || groupsChanged) notifyChat({
+        arrived, unread: unreadChats(state), contactsChanged, requested, requests: state.requests,
+        groupsChanged, newGroupInvites, groupInvites: state.groupInvites,
+      });
     }).catch(() => {}).finally(() => { polling = false; });
   }
   if (process.env.MODSTACK_UPDATE_VERIFY_ONLY !== '1') {
