@@ -13,7 +13,7 @@
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
-  body { margin: 0; font: 13px/1.4 var(--font, "Segoe UI", Arial, sans-serif); background: var(--bg1); color: var(--text); display: flex; flex-direction: column; overflow: hidden; user-select: none; }
+  body { margin: 0; font: var(--fs, 13px)/1.4 var(--font, "Segoe UI", Arial, sans-serif); background: var(--bg1); color: var(--text); display: flex; flex-direction: column; overflow: hidden; user-select: none; }
   input, select, textarea { user-select: text; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: #2f3440; border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
@@ -316,6 +316,28 @@
   #bg canvas { position: absolute; inset: 0; }
   body.noanim #bg * { animation: none !important; }
 
+  /* Updates */
+  .rbadge { position: absolute; top: 4px; right: 6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--grad); color: #fff; font-size: 10.5px; font-weight: 700; font-style: normal; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--bg0); }
+  .upill { margin-left: auto; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: var(--grad); color: #fff; flex-shrink: 0; }
+  .badge.bupd { background: var(--grad); color: #fff; border-color: transparent; cursor: pointer; font-weight: 600; }
+  .updbanner { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 14px; margin-bottom: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--c1) 18%, transparent), color-mix(in srgb, var(--c2) 12%, transparent)); border: 1px solid color-mix(in srgb, var(--c1) 35%, transparent); }
+  .ub-ico { width: 38px; height: 38px; border-radius: 10px; background: var(--grad); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex-shrink: 0; }
+  .ub-t { flex: 1; min-width: 0; } .ub-t b { display: block; font-size: 14px; } .ub-t span { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .row.hasupd { border-color: color-mix(in srgb, var(--c1) 35%, transparent) !important; }
+  .row .t > span span { display: inline; }
+  .vfrom { color: var(--muted); text-decoration: line-through; opacity: .8; } .varrow { color: var(--c1); } .vto { color: #fff; font-weight: 600; }
+  button.sm { padding: 5px 11px; font-size: 12px; }
+  .chip-upd:not(.on) { color: var(--c1); border-color: color-mix(in srgb, var(--c1) 40%, transparent); }
+  .homeupd { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 8px 10px 8px 14px; border-radius: 12px; background: color-mix(in srgb, var(--bg2) 60%, transparent); backdrop-filter: blur(12px); border: 1px solid color-mix(in srgb, var(--c1) 35%, transparent); font-size: 12.5px; }
+  .homeupd span:not(.hu-dot) { color: var(--muted); }
+  .hu-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--grad); box-shadow: 0 0 10px var(--c1); animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  body.compact .row { padding: 6px 10px; margin-bottom: 4px; } body.compact .row img, body.compact .row .ph { width: 32px; height: 32px; }
+  body.compact .inst { padding: 5px 10px; } body.compact .inst .ava { width: 28px; height: 28px; font-size: 13px; }
+  .setsearch { width: 100%; margin-bottom: 10px; }
+  .snav div .n { margin-left: auto; font-size: 10.5px; color: var(--dim); }
+  .kv { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12.5px; } .kv span { color: var(--muted); }
+  .sec.hide { display: none; }
   #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
   .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
   .toast.err { border-left-color: var(--danger); }
@@ -411,7 +433,7 @@
 <script>
 const $ = (s, r = document) => r.querySelector(s);
 // window.api kommt aus preload.js und ist schon als globales "api" da
-let insts = [], cur = null, tab = 'mods', updatable = [], busy = 0, allVersions = null, modFilter = '';
+let insts = [], cur = null, tab = 'mods', busy = 0, allVersions = null, modFilter = '';
 const LCOL = { fabric: 'var(--fabric)', forge: 'var(--forge)', neoforge: 'var(--neoforge)', quilt: 'var(--quilt)' };
 const LNAME = { fabric: 'Fabric', forge: 'Forge', neoforge: 'NeoForge', quilt: 'Quilt' };
 
@@ -602,7 +624,7 @@ async function load(selId) {
   else if (cur) cur = insts.find((i) => i.id === cur.id) || null;
   renderList(); renderHead(); render();
 }
-function select(i) { if (view !== 'inst') markView('inst'); cur = i; updatable = []; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); }
+function select(i) { if (view !== 'inst') markView('inst'); cur = i; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); }
 function setTab(t) { if (view !== 'inst') setView('inst'); tab = t; renderHead(); render(); }
 function showPacks() { setView('packs'); }
 function markView(v) { if (v !== 'home' && skinViewer) { try { skinViewer.dispose(); } catch {} skinViewer = null; } view = v; document.querySelectorAll('.ri[data-v]').forEach((r) => r.classList.toggle('on', r.dataset.v === v)); $('#side').style.display = v === 'home' ? 'none' : ''; }
@@ -636,6 +658,7 @@ function renderList() {
     d.querySelector('small').textContent = `${i.mc} · ${LNAME[i.loader] || i.loader} · ${i.mods.filter((m) => kindOf(m) === 'mod').length} Mods`;
     d.onclick = () => select(i);
     d.ondblclick = () => play(i);
+    { const nu = updOf(i.id).length; if (nu && S.showBadges !== false) d.insertAdjacentHTML('beforeend', `<span class="upill" title="${nu} Update(s) verfügbar">↑ ${nu}</span>`); }
     d.oncontextmenu = (e) => { e.preventDefault(); select(i); showAt(instItems(i), e.clientX, e.clientY); };
     l.appendChild(d);
   }
@@ -658,6 +681,7 @@ function renderHead() {
   if (cur.ram) add((cur.ram / 1024).toFixed(cur.ram % 1024 ? 1 : 0) + ' GB RAM');
   if (cur.source === 'curseforge') add('aus CurseForge');
   if (cur.pack) add('Modpack ' + (cur.pack.version || ''));
+  { const nu = updOf(cur.id).length; if (nu) { const s = document.createElement('span'); s.className = 'badge bupd'; s.textContent = nu + ' Update' + (nu > 1 ? 's' : ''); s.onclick = () => { kindFilter = 'upd'; setTab('mods'); }; b.appendChild(s); } }
   $('#modCnt').textContent = cur.mods.length;
   $('#playBtn').disabled = !!busy;
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.t === tab));
@@ -688,15 +712,18 @@ function modTag(m) {
 
 function renderMods() {
   const c = $('#content');
-  c.innerHTML = `<div class="toolbar"><input id="mf" placeholder="Installiertes filtern ..."><button class="ghost" id="chk">Updates prüfen</button><button class="ghost" id="cfl">Konflikte prüfen</button><button id="updAll">Alle aktualisieren${updatable.length ? ' (' + updatable.length + ')' : ''}</button></div>
+  const ups = updOf(cur.id);
+  c.innerHTML = `${ups.length ? `<div class="updbanner"><div class="ub-ico">↑</div><div class="ub-t"><b>${ups.length} Update${ups.length > 1 ? 's' : ''} verfügbar</b><span>${ups.slice(0, 3).map((u) => u.title).join(', ')}${ups.length > 3 ? ' und ' + (ups.length - 3) + ' weitere' : ''}</span></div><button class="primary" id="ubAll">Alle aktualisieren</button></div>` : ''}
+    <div class="toolbar"><input id="mf" placeholder="Installiertes filtern ..."><button class="ghost" id="chk">Updates prüfen</button><button class="ghost" id="cfl">Konflikte prüfen</button>${ups.length ? '' : '<button id="updAll">Alle aktualisieren</button>'}</div>
     <div class="chips" id="chips"></div>
     <div id="drop">Jar- oder Zip-Dateien hierher ziehen (Mods, Ressourcenpakete, Shader)</div><div id="mods"></div>`;
-  const counts = { all: cur.mods.length, mod: 0, resourcepack: 0, shader: 0, off: 0 };
+  const counts = { all: cur.mods.length, upd: ups.length, mod: 0, resourcepack: 0, shader: 0, off: 0 };
   for (const m of cur.mods) { counts[kindOf(m)]++; if (m.disabled) counts.off++; }
+  if (kindFilter === 'upd' && !ups.length) kindFilter = 'all';
   const chips = $('#chips');
-  for (const [k, l] of [['all', 'Alle'], ['mod', 'Mods'], ['resourcepack', 'Ressourcenpakete'], ['shader', 'Shader'], ['off', 'Deaktiviert']]) {
+  for (const [k, l] of [['all', 'Alle'], ['upd', 'Updates'], ['mod', 'Mods'], ['resourcepack', 'Ressourcenpakete'], ['shader', 'Shader'], ['off', 'Deaktiviert']]) {
     if (k !== 'all' && !counts[k]) continue;
-    const ch = document.createElement('div'); ch.className = 'chip' + (kindFilter === k ? ' on' : ''); ch.textContent = `${l} (${counts[k]})`;
+    const ch = document.createElement('div'); ch.className = 'chip' + (kindFilter === k ? ' on' : '') + (k === 'upd' ? ' chip-upd' : ''); ch.textContent = `${l} (${counts[k]})`;
     ch.onclick = () => { kindFilter = k; renderMods(); };
     chips.appendChild(ch);
   }
@@ -711,45 +738,66 @@ function renderMods() {
     if (!paths.length) { toast('Nur .jar- und .zip-Dateien werden unterstützt', true); return; }
     try { await work('Füge Dateien hinzu ...', async () => { cur = await call('mods:addFiles', { id: cur.id, paths }); }); await load(); toast(paths.length + ' Datei(en) hinzugefügt'); } catch {}
   };
-  $('#chk').disabled = $('#updAll').disabled = $('#cfl').disabled = !!busy;
+  $('#chk').disabled = $('#cfl').disabled = !!busy;
   $('#chk').onclick = checkUpdates;
   $('#cfl').onclick = checkConflicts;
-  $('#updAll').onclick = updateAll;
+  if ($('#updAll')) { $('#updAll').disabled = !!busy; $('#updAll').onclick = updateAll; }
+  if ($('#ubAll')) { $('#ubAll').disabled = !!busy; $('#ubAll').onclick = updateAll; }
   drawMods();
 }
 
 function drawMods() {
   const box = $('#mods'); if (!box) return; box.innerHTML = '';
   const f = modFilter.trim().toLowerCase();
-  const list = [...cur.mods].sort((a, b) => a.title.localeCompare(b.title, 'de'))
-    .filter((m) => kindFilter === 'all' || (kindFilter === 'off' ? m.disabled : kindOf(m) === kindFilter))
+  const ups = updOf(cur.id);
+  const upFor = (m) => m.projectId && ups.find((u) => u.projectId === m.projectId);
+  const list = [...cur.mods].sort((a, b) => (upFor(b) ? 1 : 0) - (upFor(a) ? 1 : 0) || a.title.localeCompare(b.title, 'de'))
+    .filter((m) => kindFilter === 'all' || (kindFilter === 'off' ? m.disabled : kindFilter === 'upd' ? upFor(m) : kindOf(m) === kindFilter))
     .filter((m) => !f || (m.title + ' ' + m.file).toLowerCase().includes(f));
   if (!cur.mods.length) { box.innerHTML = '<div class="empty"><h2>Noch nichts installiert</h2>In den Tabs „Mods“, „Ressourcenpakete“ und „Shader“ findest du Inhalte von Modrinth.</div>'; return; }
   if (!list.length) { box.innerHTML = '<div class="empty">Kein Treffer.</div>'; return; }
   for (const m of list) {
-    const r = document.createElement('div'); r.className = 'row' + (m.disabled ? ' off' : '');
-    r.innerHTML = '<div class="ph">▣</div><div class="t"><b></b><span></span></div><div class="sw" title="Ein/Aus"></div><button class="iconbtn" title="Mehr">⋯</button>';
+    const u = upFor(m);
+    const r = document.createElement('div'); r.className = 'row' + (m.disabled ? ' off' : '') + (u ? ' hasupd' : '');
+    r.innerHTML = '<div class="ph">▣</div><div class="t"><b></b><span></span></div>' + (u ? '<button class="primary sm upbtn">Aktualisieren</button>' : '') + '<div class="sw" title="Ein/Aus"></div><button class="iconbtn more" title="Mehr">⋯</button>';
     if (m.icon) { const im = document.createElement('img'); im.src = m.icon; im.alt = ''; im.onerror = () => im.replaceWith(Object.assign(document.createElement('div'), { className: 'ph', textContent: '▣' })); r.firstChild.replaceWith(im); }
     const [cls, lbl] = modTag(m);
     const b = r.querySelector('b'); b.textContent = m.title;
     b.insertAdjacentHTML('beforeend', `<span class="tag ${cls}">${lbl}</span>`);
     if (kindOf(m) !== 'mod') b.insertAdjacentHTML('beforeend', `<span class="tag man">${KIND[kindOf(m)]}</span>`);
-    if (updatable.includes(m.projectId)) b.insertAdjacentHTML('beforeend', '<span class="tag upd">Update</span>');
-    r.querySelector('.t > span').textContent = (m.version ? m.version + ' · ' : '') + m.file + (m.disabled ? ' · deaktiviert' : '');
+    const sp = r.querySelector('.t > span');
+    if (u) {
+      b.insertAdjacentHTML('beforeend', '<span class="tag upd">Update</span>');
+      sp.innerHTML = '<span class="vfrom"></span> <span class="varrow">→</span> <span class="vto"></span>';
+      sp.querySelector('.vfrom').textContent = u.from || m.version || '?'; sp.querySelector('.vto').textContent = u.to;
+    } else sp.textContent = (m.version ? m.version + ' · ' : '') + m.file + (m.disabled ? ' · deaktiviert' : '');
     const sw = r.querySelector('.sw'); sw.classList.toggle('on', !m.disabled);
     sw.onclick = () => toggleMod(m);
+    if (u) r.querySelector('.upbtn').onclick = (e) => updateOne(m, e.currentTarget);
     const items = () => [
+      { l: 'Aktualisieren auf ' + (u ? u.to : ''), d: !u || busy, a: () => updateOne(m) },
       { l: m.disabled ? 'Aktivieren' : 'Deaktivieren', a: () => toggleMod(m) },
       { l: 'Im Ordner zeigen', a: () => call('app:showMod', { id: cur.id, file: m.file, kind: kindOf(m), disabled: !!m.disabled }) },
       { l: 'Auf Modrinth öffnen', d: !m.projectId, a: () => call('app:openUrl', 'https://modrinth.com/project/' + m.projectId) },
+      { l: 'Änderungen ansehen (Changelog)', d: !u, a: () => call('app:openUrl', 'https://modrinth.com/project/' + m.projectId + '/version/' + (u && u.versionId)) },
       { l: 'Auf CurseForge öffnen', d: !m.cf, a: () => call('app:openUrl', 'https://www.curseforge.com/projects/' + (m.cf && m.cf.projectId)) },
       '-',
       { l: 'Entfernen', danger: true, a: () => removeMod(m) },
     ];
     r.oncontextmenu = (e) => { e.preventDefault(); showAt(items(), e.clientX, e.clientY); };
-    r.querySelector('button').onclick = (e) => { e.stopPropagation(); const rc = e.currentTarget.getBoundingClientRect(); showAt(items(), rc.right - 230, rc.bottom + 4); };
+    r.querySelector('.more').onclick = (e) => { e.stopPropagation(); const rc = e.currentTarget.getBoundingClientRect(); showAt(items(), rc.right - 260, rc.bottom + 4); };
     box.appendChild(r);
   }
+}
+
+async function updateOne(m, btn) {
+  if (busy) return;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>'; }
+  try {
+    await work('Aktualisiere ' + m.title + ' ...', async () => { cur = await call('mr:updateOne', { id: cur.id, projectId: m.projectId }); });
+    upd[cur.id] = updOf(cur.id).filter((u) => u.projectId !== m.projectId);
+    await load(); refreshUpdBadges(); toast(m.title + ' aktualisiert');
+  } catch { if (btn) { btn.disabled = false; btn.textContent = 'Aktualisieren'; } }
 }
 
 async function toggleMod(m) {
@@ -757,7 +805,7 @@ async function toggleMod(m) {
 }
 
 async function removeMod(m) {
-  if (!(await ask({ title: 'Entfernen', text: `„${m.title}“ aus „${cur.name}“ entfernen?`, okText: 'Entfernen', danger: true }))) return;
+  if (S.confirmDelete !== false && !(await ask({ title: 'Entfernen', text: `„${m.title}“ aus „${cur.name}“ entfernen?`, okText: 'Entfernen', danger: true }))) return;
   cur = await call('mods:remove', { id: cur.id, file: m.file }); await load(); toast(m.title + ' entfernt');
 }
 
@@ -878,7 +926,7 @@ async function installPack(h, btn) {
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Installiert ...';
   try {
     const inst = await work('Installiere Modpack ' + h.title + ' ...', () => call('mr:installPack', { projectId: h.id }));
-    if (S.defaultRam) await call('instances:settings', { id: inst.id, ram: S.defaultRam, javaArgs: '' }, true).catch(() => {});
+    if (S.defaultRam || S.defaultJavaArgs) await call('instances:settings', { id: inst.id, ram: S.defaultRam || 0, javaArgs: S.defaultJavaArgs || '' }, true).catch(() => {});
     tab = 'mods'; await load(inst.id); toast('„' + inst.name + '“ installiert');
   } catch { btn.disabled = false; btn.textContent = 'Installieren'; }
 }
@@ -925,7 +973,7 @@ async function renderHome() {
   const hour = new Date().getHours();
   const hi = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend';
   const recent = (S.recent || []).map((id) => insts.find((i) => i.id === id)).filter(Boolean).slice(0, 4);
-  c.innerHTML = `<div class="home">
+  c.innerHTML = `<div class="home"${S.showNews === false ? ' style="grid-template-columns:1fr"' : ''}>
     <div class="home-l">
       ${S.room === false ? '' : '<div class="room"><i class="ceil"></i><i class="floor"></i></div>'}
       <div class="home-hi">${hi}${name ? ',' : ''}</div>
@@ -936,9 +984,10 @@ async function renderHome() {
         <button class="go" id="hGo"><b>▶ SPIELEN</b><small id="hInst"></small></button>
         <button class="pick" id="hPick" title="Instanz wählen">▾</button>
       </div>
+      <div id="hUpd"></div>
       <div class="recent" id="hRecent"></div>
     </div>
-    <div class="home-r"><h3>Minecraft-News</h3><div id="hNews"><div class="empty" style="padding:30px 0"><span class="spin"></span></div></div></div>
+    <div class="home-r"${S.showNews === false ? ' style="display:none"' : ''}><h3>Minecraft-News</h3><div id="hNews"><div class="empty" style="padding:30px 0"><span class="spin"></span></div></div></div>
   </div>`;
   $('#hName').textContent = name || 'Willkommen';
   if (name && S.nameTag !== false && S.showSkin !== false) { $('#hName').style.display = 'none'; document.querySelector('.home-hi').textContent = hi + ', ' + name; }
@@ -951,8 +1000,9 @@ async function renderHome() {
   const pickItems = () => insts.length ? insts.map((i) => ({ l: `${i.name}  (${i.mc})`, a: async () => { S = await call('settings:set', { last: i.id }); renderHome(); } })) : [{ l: 'Neue Instanz ...', a: newInstance }];
   $('#hPick').onclick = (e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); showAt(pickItems(), r.right - 230, r.bottom + 4); };
   $('#hPick').onmousedown = (e) => e.stopPropagation();
+  fillHomeUpd($('#hUpd'));
   const rb = $('#hRecent');
-  for (const i of recent) {
+  for (const i of (S.showRecent === false ? [] : recent)) {
     const d = document.createElement('div'); d.title = 'Spielen: ' + i.name;
     d.innerHTML = '<div class="ava"></div><span></span>'; ava(d.firstChild, i); d.lastChild.textContent = i.name;
     d.onclick = () => play(i); d.oncontextmenu = (e) => { e.preventDefault(); showAt(instItems(i), e.clientX, e.clientY); };
@@ -1022,7 +1072,7 @@ function lifeAnimation(v) {
     // Zufaellige Aktion
     const o = {};
     if (window.__forceAct && ACTIONS[window.__forceAct]) { st.act = window.__forceAct; st.actT = t; window.__forceAct = null; }
-    if (!st.act && t > st.next) { const keys = Object.keys(ACTIONS); st.act = keys[Math.floor(Math.random() * keys.length)]; st.actT = t; }
+    if (!st.act && t > st.next && S.skinActions !== false) { const keys = Object.keys(ACTIONS); st.act = keys[Math.floor(Math.random() * keys.length)]; st.actT = t; }
     let w = 0;
     if (st.act) {
       const [dur, fn] = ACTIONS[st.act];
@@ -1155,23 +1205,34 @@ function applySettings() {
   document.body.classList.toggle('noanim', S.animations === false);
   document.body.classList.toggle('nolabels', S.railLabels === false);
   document.body.classList.toggle('glass', S.glass !== false);
+  document.body.classList.toggle('compact', !!S.compact);
+  r.setProperty('--fs', (S.fontSize || 13) + 'px');
   $('#main').className = '';
   const key = [S.fx, S.accent, S.animations, S.bgBlur, S.bgVer].join('|');
   if (key !== lastBgKey) { lastBgKey = key; renderBg(); }
   $('#bg').style.opacity = Math.max(0.1, (S.fxStrength ?? 100) / 100);
   call('win:overlay', { color: b.bg0 }, true).catch(() => {});
 }
-async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'showCape' in patch || 'animations' in patch || 'room' in patch)) renderHome(); }
+async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'showCape' in patch || 'animations' in patch || 'room' in patch || 'showNews' in patch || 'showRecent' in patch || 'skinActions' in patch)) renderHome(); }
 
-let setSec = 'look';
-const SECS = [['look', 'Darstellung'], ['general', 'Allgemein'], ['play', 'Spielen'], ['about', 'Über']];
-function openSettings() {
+let setSec = 'look', setQuery = '';
+const SECS = [['look', 'Darstellung'], ['ui', 'Oberfläche'], ['home', 'Startseite'], ['general', 'Allgemein'], ['updates', 'Updates'], ['downloads', 'Downloads'], ['play', 'Spielen'], ['data', 'Daten & Speicher'], ['about', 'Über']];
+function openSettings(section) {
   if (document.querySelector('dialog[open]')) return;
+  if (typeof section === 'string') setSec = section;
   const nav = $('#snav'); nav.innerHTML = '';
-  for (const [k, l] of SECS) { const d = document.createElement('div'); d.textContent = l; d.dataset.k = k; d.onclick = () => { setSec = k; renderSettingsBody(); }; nav.appendChild(d); }
+  const q = document.createElement('input'); q.className = 'setsearch'; q.placeholder = 'Einstellung suchen ...'; q.value = setQuery;
+  q.oninput = () => { setQuery = q.value; renderSettingsBody(); };
+  nav.appendChild(q);
+  for (const [k, l] of SECS) {
+    const d = document.createElement('div'); d.dataset.k = k; d.innerHTML = '<span></span>' + (k === 'updates' ? '<span class="n" id="snavUpd"></span>' : '');
+    d.firstChild.textContent = l;
+    d.onclick = () => { setSec = k; setQuery = ''; q.value = ''; renderSettingsBody(); };
+    nav.appendChild(d);
+  }
   renderSettingsBody(); $('#setDlg').showModal(); document.activeElement && document.activeElement.blur();
 }
-$('#railSet').onclick = openSettings;
+$('#railSet').onclick = () => openSettings();
 $('#setClose').onclick = () => $('#setDlg').close();
 $('#setDir').onclick = () => call('app:openRoot');
 
@@ -1187,7 +1248,8 @@ function optRow(cur0, entries, onPick, deco) {
 }
 function sec(title, text, el) {
   const s = document.createElement('div'); s.className = 'sec';
-  s.innerHTML = '<h4></h4><p></p>'; s.firstChild.textContent = title; s.children[1].textContent = text;
+  s.innerHTML = '<h4></h4><p></p>'; s.firstChild.textContent = title; s.children[1].textContent = text || '';
+  if (!text) s.children[1].style.display = 'none';
   if (el) s.appendChild(el); return s;
 }
 function toggleLine(label, hint, on, fn) {
@@ -1197,20 +1259,31 @@ function toggleLine(label, hint, on, fn) {
   const sw = d.querySelector('.sw'); sw.classList.toggle('on', on); sw.onclick = () => fn(!on);
   return d;
 }
-function renderSettingsBody() {
-  if (!$('#setDlg').open && !$('#snav').children.length) return;
-  document.querySelectorAll('#snav div').forEach((d) => d.classList.toggle('on', d.dataset.k === setSec));
-  const c = $('#scont'); c.innerHTML = '';
-  if (setSec === 'look') {
+function toggles(list) { const t = document.createElement('div'); for (const x of list) t.appendChild(toggleLine(...x)); return t; }
+function slider(label, min, max, step, value, fmt, onInput, onChange) {
+  const d = document.createElement('div'); d.className = 'line'; d.style.cssText = 'display:flex;gap:10px;align-items:center;margin:4px 0';
+  d.innerHTML = '<span style="width:120px;color:var(--muted)"></span><input type="range"><b style="width:70px;text-align:right"></b>';
+  d.firstChild.textContent = label;
+  const r = d.querySelector('input'), v = d.querySelector('b');
+  Object.assign(r, { min, max, step }); r.value = value; v.textContent = fmt(+r.value);
+  r.oninput = () => { v.textContent = fmt(+r.value); onInput && onInput(+r.value); };
+  r.onchange = () => onChange(+r.value);
+  return d;
+}
+function btns(list) { const d = document.createElement('div'); d.className = 'opts'; for (const [l, fn, cls] of list) { const b = document.createElement('button'); b.className = cls || 'ghost'; b.textContent = l; b.onclick = () => fn(b); d.appendChild(b); } return d; }
+const saveQuiet = (patch) => call('settings:set', patch).then((s) => { S = s; return s; });
+const dot = (bg, extra) => Object.assign(document.createElement('span'), { className: 'sw-dot', style: `background:${bg};${extra || ''}` });
+const fmtBytes = (b) => b > 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : b > 1048576 ? (b / 1048576).toFixed(0) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+
+const SET_BUILD = {
+  look(c) {
     const curA = S.accent || 'neon';
     c.appendChild(sec('Farbverlauf', 'Verlauf für Knöpfe, Markierungen und Hintergrund-Effekte.',
-      optRow(curA, Object.entries(GRADS).map(([k, v]) => [k, v[0]]), (k) => setS({ accent: k }), (k) => Object.assign(document.createElement('span'), { className: 'sw-dot', style: `background:linear-gradient(135deg, ${GRADS[k][1]}, ${GRADS[k][2]})` }))));
+      optRow(curA, Object.entries(GRADS).map(([k, v]) => [k, v[0]]), (k) => setS({ accent: k }), (k) => dot(`linear-gradient(135deg, ${GRADS[k][1]}, ${GRADS[k][2]})`))));
     c.appendChild(sec('Einfarbig', 'Oder lieber eine einzelne Farbe.',
-      optRow(curA, Object.entries(ACCENTS).map(([k, v]) => [k, v[0]]), (k) => setS({ accent: k }), (k) => Object.assign(document.createElement('span'), { className: 'sw-dot', style: `background:${ACCENTS[k][1]}` }))));
-    c.appendChild(sec('Hintergrund', 'Grundfarbe der Oberfläche.',
-      optRow(S.base || 'dunkel', Object.entries(BASES).map(([k, v]) => [k, v[0]]), (k) => setS({ base: k }), (k) => Object.assign(document.createElement('span'), { className: 'sw-dot', style: `background:${BASES[k][1].bg2};border:1px solid #444` }))));
-    c.appendChild(sec('Schrift', 'Schriftart in der ganzen App.',
-      optRow(S.font || 'system', Object.entries(FONTS).map(([k, v]) => [k, v[0]]), (k) => setS({ font: k }), (k) => Object.assign(document.createElement('b'), { textContent: 'Aa', style: `font-family:${FONTS[k][1]}` }))));
+      optRow(curA, Object.entries(ACCENTS).map(([k, v]) => [k, v[0]]), (k) => setS({ accent: k }), (k) => dot(ACCENTS[k][1]))));
+    c.appendChild(sec('Grundfarbe', 'Farbe der Flächen und Leisten.',
+      optRow(S.base || 'dunkel', Object.entries(BASES).map(([k, v]) => [k, v[0]]), (k) => setS({ base: k }), (k) => dot(BASES[k][1].bg2, 'border:1px solid #444'))));
     const fxBox = document.createElement('div');
     fxBox.appendChild(optRow(S.fx || 'aurora', Object.entries(FX), async (k) => {
       if (k === 'image') {
@@ -1219,70 +1292,203 @@ function renderSettingsBody() {
       }
       setS({ fx: k, bgVer: Date.now() });
     }));
-    const sl = document.createElement('div'); sl.className = 'card'; sl.style.cssText = 'background:transparent;padding:0;margin:12px 0 0;border:0;backdrop-filter:none';
-    sl.innerHTML = '<div class="line"><span style="width:110px;color:var(--muted)">Stärke</span><input type="range" id="fxS" min="10" max="100" step="5"><b id="fxSV" style="width:50px;text-align:right"></b></div>'
-      + ((S.fx === 'image') ? '<div class="line" style="margin-top:8px"><span style="width:110px;color:var(--muted)">Unschärfe</span><input type="range" id="fxB" min="0" max="30" step="1"><b id="fxBV" style="width:50px;text-align:right"></b></div><div class="opts" style="margin-top:10px"><button class="ghost" id="fxPick">Anderes Bild ...</button><button class="ghost" id="fxClr">Bild entfernen</button></div>' : '');
-    fxBox.appendChild(sl);
-    c.appendChild(sec('Hintergrund-Effekt', 'Animierter Hintergrund hinter der ganzen App. Nutzt deine Akzentfarben.', fxBox));
-    const fs1 = $('#fxS', sl), fsv = $('#fxSV', sl); fs1.value = S.fxStrength ?? 100; fsv.textContent = fs1.value + ' %';
-    fs1.oninput = () => { fsv.textContent = fs1.value + ' %'; $('#bg').style.opacity = fs1.value / 100; };
-    fs1.onchange = () => call('settings:set', { fxStrength: +fs1.value }).then((s) => { S = s; });
+    const sl = document.createElement('div'); sl.style.marginTop = '12px';
+    sl.appendChild(slider('Stärke', 10, 100, 5, S.fxStrength ?? 100, (v) => v + ' %', (v) => { $('#bg').style.opacity = v / 100; }, (v) => saveQuiet({ fxStrength: v })));
     if (S.fx === 'image') {
-      const fb = $('#fxB', sl), fbv = $('#fxBV', sl); fb.value = S.bgBlur ?? 6; fbv.textContent = fb.value + ' px';
-      fb.oninput = () => { fbv.textContent = fb.value + ' px'; const im = $('#bg .img'); if (im) im.style.filter = `blur(${fb.value}px)`; };
-      fb.onchange = () => call('settings:set', { bgBlur: +fb.value }).then((s) => { S = s; lastBgKey = [S.fx, S.accent, S.animations, S.bgBlur, S.bgVer].join('|'); });
-      $('#fxPick', sl).onclick = async () => { try { if (await call('bg:pick')) setS({ bgVer: Date.now() }); } catch {} };
-      $('#fxClr', sl).onclick = async () => { await call('bg:clear'); setS({ fx: 'aurora' }); };
+      sl.appendChild(slider('Unschärfe', 0, 30, 1, S.bgBlur ?? 6, (v) => v + ' px', (v) => { const im = $('#bg .img'); if (im) im.style.filter = `blur(${v}px)`; },
+        (v) => saveQuiet({ bgBlur: v }).then(() => { lastBgKey = [S.fx, S.accent, S.animations, S.bgBlur, S.bgVer].join('|'); })));
+      sl.appendChild(btns([['Anderes Bild ...', async () => { try { if (await call('bg:pick')) setS({ bgVer: Date.now() }); } catch {} }], ['Bild entfernen', async () => { await call('bg:clear'); setS({ fx: 'aurora' }); }]]));
     }
-    const t = document.createElement('div');
-    t.appendChild(toggleLine('Glas-Effekt', 'Leisten und Fenster sind durchscheinend und lassen den Hintergrund durch', S.glass !== false, (v) => setS({ glass: v })));
-    t.appendChild(toggleLine('Animationen', 'Übergänge, schwebender Skin, Lade-Animationen', S.animations !== false, (v) => setS({ animations: v })));
-    t.appendChild(toggleLine('Beschriftung in der Seitenleiste', 'Text unter den Symbolen links', S.railLabels !== false, (v) => setS({ railLabels: v })));
-    t.appendChild(toggleLine('Skin auf der Startseite', 'Zeigt deine Spielfigur in 3D', S.showSkin !== false, (v) => setS({ showSkin: v })));
-    t.appendChild(toggleLine('Namensschild über dem Skin', '', S.nameTag !== false, (v) => setS({ nameTag: v })));
-    t.appendChild(toggleLine('Umhang zeigen', 'Falls dein Konto einen Umhang hat', S.showCape !== false, (v) => setS({ showCape: v })));
-    t.appendChild(toggleLine('3D-Raum auf der Startseite', 'Bodenraster hinter der Spielfigur', S.room !== false, (v) => setS({ room: v })));
-    c.appendChild(sec('Verhalten', '', t));
-  } else if (setSec === 'general') {
+    fxBox.appendChild(sl);
+    c.appendChild(sec('Hintergrund-Effekt', 'Animierter Hintergrund hinter der ganzen App, in deinen Akzentfarben.', fxBox));
+    c.appendChild(sec('Glas', '', toggles([['Glas-Effekt', 'Leisten, Karten und Fenster sind durchscheinend', S.glass !== false, (v) => setS({ glass: v })]])));
+  },
+  ui(c) {
+    c.appendChild(sec('Schrift', 'Schriftart in der ganzen App.',
+      optRow(S.font || 'system', Object.entries(FONTS).map(([k, v]) => [k, v[0]]), (k) => setS({ font: k }), (k) => Object.assign(document.createElement('b'), { textContent: 'Aa', style: `font-family:${FONTS[k][1]}` }))));
+    const g = document.createElement('div');
+    g.appendChild(slider('Schriftgröße', 11, 16, 0.5, S.fontSize ?? 13, (v) => v + ' px', (v) => document.documentElement.style.setProperty('--fs', v + 'px'), (v) => saveQuiet({ fontSize: v })));
+    g.appendChild(slider('Oberfläche', 80, 140, 5, Math.round((S.uiScale ?? 1) * 100), (v) => v + ' %', null, (v) => { call('win:zoomSet', v / 100); saveQuiet({ uiScale: v / 100 }); }));
+    c.appendChild(sec('Größe', 'Schrift und gesamte Oberfläche vergrößern oder verkleinern.', g));
+    c.appendChild(sec('Verhalten', '', toggles([
+      ['Animationen', 'Übergänge, bewegte Hintergründe, Skin-Animationen', S.animations !== false, (v) => setS({ animations: v })],
+      ['Kompakte Listen', 'Mehr Einträge auf einmal sehen', !!S.compact, (v) => setS({ compact: v })],
+      ['Beschriftung in der Seitenleiste', 'Text unter den Symbolen links', S.railLabels !== false, (v) => setS({ railLabels: v })],
+      ['Update-Zähler anzeigen', 'Zahl der Updates an Instanzen und in der Seitenleiste', S.showBadges !== false, (v) => setS({ showBadges: v }).then(refreshUpdBadges)],
+      ['Vor dem Löschen nachfragen', 'Bei Mods und Instanzen', S.confirmDelete !== false, (v) => setS({ confirmDelete: v })],
+    ])));
+  },
+  home(c) {
+    c.appendChild(sec('Spielfigur', '', toggles([
+      ['Skin anzeigen', 'Deine Spielfigur in 3D', S.showSkin !== false, (v) => setS({ showSkin: v })],
+      ['Zufällige Aktionen', 'Kopf kratzen, winken, strecken und mehr', S.skinActions !== false, (v) => setS({ skinActions: v })],
+      ['Namensschild', 'Name über dem Kopf', S.nameTag !== false, (v) => setS({ nameTag: v })],
+      ['Umhang', 'Falls dein Konto einen hat', S.showCape !== false, (v) => setS({ showCape: v })],
+      ['3D-Raum', 'Bodenraster hinter der Figur', S.room !== false, (v) => setS({ room: v })],
+    ])));
+    c.appendChild(sec('Inhalte', '', toggles([
+      ['Minecraft-News', 'Spalte rechts auf der Startseite', S.showNews !== false, (v) => setS({ showNews: v })],
+      ['Zuletzt gespielt', 'Schnellstart-Knöpfe unter dem Spielen-Knopf', S.showRecent !== false, (v) => setS({ showRecent: v })],
+    ])));
+  },
+  general(c) {
     const inp = document.createElement('input'); inp.style.width = '320px'; inp.placeholder = account ? account.name + ' (aus dem Launcher)' : 'Spielername';
     inp.value = S.playerName || ''; inp.spellcheck = false;
     inp.onchange = () => setS({ playerName: inp.value.trim() });
     c.appendChild(sec('Spielername', account ? 'Wird automatisch aus dem Minecraft-Launcher gelesen. Nur ausfüllen, wenn ein anderer Name angezeigt werden soll.' : 'Kein Konto im Minecraft-Launcher gefunden. Trag deinen Namen ein, um deinen Skin zu sehen.', inp));
     c.appendChild(sec('Startansicht', 'Was beim Öffnen von Modstack angezeigt wird.',
       optRow(S.startView || 'home', [['home', 'Start'], ['inst', 'Instanzen'], ['packs', 'Modpacks']], (k) => setS({ startView: k }))));
-    const b = document.createElement('div'); b.className = 'opts';
-    b.innerHTML = '<button class="ghost" id="sRoot">Instanzen-Ordner öffnen</button>';
-    c.appendChild(sec('Daten', 'Hier liegen alle Instanzen mit Mods, Welten und Einstellungen.', b));
-    $('#sRoot').onclick = () => call('app:openRoot');
-  } else if (setSec === 'play') {
-    const line = document.createElement('div'); line.className = 'card'; line.style.background = 'transparent'; line.style.padding = '0';
-    line.innerHTML = '<div class="line"><label class="check" style="margin:0"><input type="checkbox" id="dRamOn"> Eigener Wert</label><input type="range" id="dRam" min="2" max="16" step="0.5"><b id="dRamV" style="width:70px;text-align:right"></b></div>';
-    c.appendChild(sec('Standard-RAM für neue Instanzen', 'Wird bei neuen Instanzen und Modpacks automatisch eingetragen. Pro Instanz änderbar.', line));
-    const on = $('#dRamOn'), r = $('#dRam'), v = $('#dRamV');
-    on.checked = !!S.defaultRam; r.value = S.defaultRam ? S.defaultRam / 1024 : 4;
-    const upd = () => { r.disabled = !on.checked; v.textContent = on.checked ? r.value + ' GB' : 'Standard'; };
-    upd(); r.oninput = upd;
-    on.onchange = r.onchange = () => { upd(); call('settings:set', { defaultRam: on.checked ? Math.round(parseFloat(r.value) * 1024) : 0 }).then((s) => { S = s; }); };
-    c.appendChild(sec('Spielen', 'Modstack startet Minecraft über den offiziellen Launcher. Dort wählst du das Profil „[Modstack] Name“ und klickst auf Spielen. Der Mojang-Launcher muss vorher geschlossen sein.'));
-  } else {
-    const d = document.createElement('div'); d.className = 'opts';
-    d.innerHTML = '<button class="ghost" id="sGh">Quellcode auf GitHub</button><button class="ghost" id="sMr">Modrinth</button>';
-    c.appendChild(sec('Modstack ' + (window.__ver || ''), 'Schlanker Minecraft-Mod-Manager. Persönliches, nicht-kommerzielles Projekt. Mods kommen von Modrinth, CurseForge-Profile können importiert werden.', d));
-    $('#sGh').onclick = () => call('app:openUrl', 'https://github.com/Michi3445/modstack');
-    $('#sMr').onclick = () => call('app:openUrl', 'https://modrinth.com');
+  },
+  updates(c) {
+    const n = updTotal();
+    const st = document.createElement('div');
+    st.innerHTML = `<div class="kv"><span>Gefundene Updates</span><b>${n}</b></div><div class="kv"><span>Zuletzt geprüft</span><b>${lastCheck ? lastCheck.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr' : 'noch nicht'}</b></div>`;
+    st.appendChild(Object.assign(btns([['Jetzt nach Updates suchen', async (b) => { b.disabled = true; b.innerHTML = '<span class="spin"></span> Suche ...'; await autoCheck(true); renderSettingsBody(); }, 'primary']]), { style: 'margin-top:12px' }));
+    c.appendChild(sec('Status', 'Prüft alle Instanzen auf neuere Versionen von Mods, Ressourcenpaketen und Shadern (Modrinth).', st));
+    c.appendChild(sec('Automatisch suchen', '', toggles([
+      ['Im Hintergrund nach Updates suchen', 'Beim Start und danach regelmäßig', S.autoCheck !== false, (v) => setS({ autoCheck: v }).then(scheduleChecks)],
+      ['Windows-Benachrichtigung', 'Meldung, wenn neue Updates gefunden wurden', S.notify !== false, (v) => setS({ notify: v })],
+    ])));
+    c.appendChild(sec('Wie oft', 'Zusätzlich zur Prüfung beim Start.',
+      optRow(String(S.checkEvery ?? 6), [['0', 'Nur beim Start'], ['1', 'Stündlich'], ['6', 'Alle 6 Stunden'], ['24', 'Täglich']], (k) => setS({ checkEvery: +k }).then(scheduleChecks))));
+    c.appendChild(sec('Installieren', '', toggles([
+      ['Updates automatisch installieren', 'Ohne Nachfrage. Kann Modpacks durcheinanderbringen, darum standardmäßig aus.', !!S.autoUpdate, (v) => setS({ autoUpdate: v })],
+      ['Beta- und Alpha-Versionen erlauben', 'Sonst werden nur stabile Versionen angeboten', !!S.allowBeta, (v) => setS({ allowBeta: v })],
+    ])));
+  },
+  downloads(c) {
+    const g = document.createElement('div');
+    g.appendChild(slider('Gleichzeitig', 1, 12, 1, S.downloads ?? 6, (v) => v + (v === 1 ? ' Datei' : ' Dateien'), null, (v) => saveQuiet({ downloads: v })));
+    c.appendChild(sec('Parallele Downloads', 'Mehr ist schneller, braucht aber mehr Bandbreite. Bei Fehlern niedriger stellen.', g));
+    c.appendChild(sec('Abhängigkeiten', '', toggles([
+      ['Benötigte Mods automatisch mitinstallieren', 'Zum Beispiel Fabric API, wenn ein Mod sie braucht', S.autoDeps !== false, (v) => setS({ autoDeps: v })],
+    ])));
+  },
+  play(c) {
+    const g = document.createElement('div');
+    const ramOn = toggleLine('Eigenen Standard-RAM verwenden', 'Wird bei neuen Instanzen und Modpacks eingetragen', !!S.defaultRam, (v) => setS({ defaultRam: v ? 4096 : 0 }));
+    g.appendChild(ramOn);
+    if (S.defaultRam) g.appendChild(slider('Standard-RAM', 2, 16, 0.5, S.defaultRam / 1024, (v) => v + ' GB', null, (v) => saveQuiet({ defaultRam: Math.round(v * 1024) })));
+    c.appendChild(sec('Arbeitsspeicher', 'Pro Instanz unter Einstellungen änderbar.', g));
+    const ja = document.createElement('input'); ja.style.width = '100%'; ja.placeholder = 'z.B. -XX:+UseG1GC'; ja.spellcheck = false; ja.value = S.defaultJavaArgs || '';
+    ja.onchange = () => saveQuiet({ defaultJavaArgs: ja.value.trim() });
+    c.appendChild(sec('Standard-Java-Argumente', 'Für neue Instanzen. Nur für Fortgeschrittene.', ja));
+    c.appendChild(sec('Beim Spielen', '', toggles([
+      ['Modstack minimieren', 'Nach dem Klick auf Spielen', !!S.minimizeOnPlay, (v) => setS({ minimizeOnPlay: v })],
+    ])));
+    c.appendChild(sec('So funktioniert Spielen', 'Modstack startet Minecraft über den offiziellen Launcher. Dort wählst du das Profil „[Modstack] Name“ und klickst auf Spielen. Der Mojang-Launcher muss vorher geschlossen sein.'));
+  },
+  data(c) {
+    c.appendChild(sec('Ordner', 'Hier liegen alle Instanzen mit Mods, Welten und Einstellungen.', btns([['Instanzen-Ordner öffnen', () => call('app:openRoot')]])));
+    const du = document.createElement('div');
+    du.appendChild(btns([['Speicherplatz berechnen', async (b) => {
+      b.disabled = true; b.innerHTML = '<span class="spin"></span> Berechne ...';
+      let list = []; try { list = await call('app:diskUsage'); } catch {}
+      const tot = list.reduce((s, x) => s + x.bytes, 0);
+      du.innerHTML = `<div class="kv"><span><b style="color:var(--text)">Gesamt</b></span><b>${fmtBytes(tot)}</b></div>`;
+      for (const x of list) { const r = document.createElement('div'); r.className = 'kv'; r.innerHTML = '<span></span><b></b>'; r.firstChild.textContent = x.name; r.lastChild.textContent = fmtBytes(x.bytes); du.appendChild(r); }
+    }]]));
+    c.appendChild(sec('Speicherplatz', 'Wie viel Platz jede Instanz belegt.', du));
+    c.appendChild(sec('Aufräumen', 'Löscht zwischengespeicherte News, Skins und alte Loader-Installer. Deine Instanzen bleiben unberührt.', btns([['Cache leeren', async (b) => { const n = await call('app:clearCache'); news = null; b.textContent = 'Geleert' + (n ? ` (${n} Installer)` : ''); }]])));
+    c.appendChild(sec('Zurücksetzen', 'Setzt alle Einstellungen auf Standard. Instanzen und Mods bleiben erhalten.', btns([['Einstellungen zurücksetzen', async () => {
+      if (!(await ask({ title: 'Einstellungen zurücksetzen', text: 'Alle Einstellungen auf Standard setzen? Instanzen und Mods bleiben erhalten.', okText: 'Zurücksetzen', danger: true }))) return;
+      S = await call('settings:reset'); await call('bg:clear'); applySettings(); call('win:zoomSet', 1); renderSettingsBody(); toast('Einstellungen zurückgesetzt');
+    }, 'danger']])));
+  },
+  about(c) {
+    c.appendChild(sec('Modstack ' + (window.__ver || ''), 'Schlanker Minecraft-Mod-Manager. Persönliches, nicht-kommerzielles Projekt. Mods kommen von Modrinth, CurseForge-Profile können importiert werden.',
+      btns([['Quellcode auf GitHub', () => call('app:openUrl', 'https://github.com/Michi3445/modstack')], ['Modrinth', () => call('app:openUrl', 'https://modrinth.com')]])));
+    const k = document.createElement('div');
+    for (const [a, b] of [['Strg+N', 'Neue Instanz'], ['Strg+I', 'CurseForge-Profil importieren'], ['Strg+M', 'Modpacks'], ['Strg+H', 'Start'], ['Strg+L', 'Instanzen'], ['Strg+,', 'Einstellungen'], ['Strg+U', 'Updates prüfen'], ['Strg+Enter', 'Spielen'], ['F2', 'Umbenennen'], ['Entf', 'Löschen'], ['Strg+1 bis 4', 'Tabs wechseln'], ['F11', 'Vollbild']]) {
+      const r = document.createElement('div'); r.className = 'kv'; r.innerHTML = '<span></span><b></b>'; r.firstChild.textContent = b; r.lastChild.textContent = a; k.appendChild(r);
+    }
+    c.appendChild(sec('Tastenkürzel', '', k));
+    c.appendChild(sec('Verwendete Bibliotheken', 'Electron (MIT), skinview3d (MIT), three.js (MIT). Minecraft ist eine Marke von Mojang/Microsoft; Modstack ist nicht offiziell.'));
+  },
+};
+
+function renderSettingsBody() {
+  if (!$('#snav').children.length) return;
+  const q = setQuery.trim().toLowerCase();
+  document.querySelectorAll('#snav div[data-k]').forEach((d) => d.classList.toggle('on', !q && d.dataset.k === setSec));
+  const nu = $('#snavUpd'); if (nu) nu.textContent = updTotal() ? updTotal() : '';
+  const c = $('#scont'); const keep = c.scrollTop; c.innerHTML = '';
+  if (!q) { SET_BUILD[setSec](c); c.scrollTop = keep; return; }
+  let hits = 0;
+  for (const [k, l] of SECS) {
+    const box = document.createElement('div'); SET_BUILD[k](box);
+    const secs = [...box.children].filter((s) => s.classList.contains('sec'));
+    let any = false;
+    for (const s of secs) { const m = s.textContent.toLowerCase().includes(q); s.classList.toggle('hide', !m); any = any || m; }
+    if (!any) continue;
+    hits++;
+    const h = document.createElement('div'); h.style.cssText = 'font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin:6px 0 8px'; h.textContent = l;
+    c.appendChild(h); c.appendChild(box);
   }
+  if (!hits) c.innerHTML = '<div class="empty">Keine Einstellung gefunden.</div>';
 }
 
 // ---------- Aktionen ----------
+// ---------- Updates ----------
+let upd = {}, lastNotified = -1, checkTimer = null, lastCheck = null;
+const updOf = (id) => upd[id] || [];
+const updTotal = () => Object.values(upd).reduce((s, a) => s + a.length, 0);
+function refreshUpdBadges() {
+  const n = updTotal();
+  const ri = document.querySelector('.ri[data-v="inst"]');
+  let bd = ri.querySelector('.rbadge');
+  if (n && S.showBadges !== false) { if (!bd) { bd = document.createElement('i'); bd.className = 'rbadge'; ri.appendChild(bd); } bd.textContent = n > 99 ? '99+' : n; }
+  else if (bd) bd.remove();
+  renderList(); renderHead();
+  if (view === 'inst' && cur && tab === 'mods') renderMods();
+  if (view === 'home') { const hu = $('#hUpd'); if (hu) fillHomeUpd(hu); }
+}
+async function autoCheck(manual) {
+  if (busy && !manual) return;
+  try { upd = await call('mr:checkAll', undefined, true); } catch { return; }
+  lastCheck = new Date();
+  const n = updTotal();
+  refreshUpdBadges();
+  if (S.autoUpdate && n && !manual) {
+    for (const [id, list] of Object.entries(upd)) {
+      if (!list.length) continue;
+      try { await work('Aktualisiere automatisch ...', () => call('mr:updateAll', id)); } catch {}
+    }
+    toast(n + ' Update(s) automatisch installiert');
+    upd = await call('mr:checkAll', undefined, true).catch(() => ({})); await load(); refreshUpdBadges();
+    return;
+  }
+  if (n && n !== lastNotified) {
+    lastNotified = n;
+    const ni = Object.keys(upd).filter((k) => upd[k].length).length;
+    toast(`${n} Update${n > 1 ? 's' : ''} verfügbar in ${ni} Instanz${ni > 1 ? 'en' : ''}`);
+    if (S.notify !== false && document.hidden !== false && window.Notification) { try { new Notification('Modstack', { body: `${n} Mod-Update${n > 1 ? 's' : ''} verfügbar` }); } catch {} }
+  } else if (manual) toast(n ? n + ' Update(s) verfügbar' : 'Alles aktuell');
+}
+function scheduleChecks() {
+  if (checkTimer) clearInterval(checkTimer);
+  const h = S.checkEvery ?? 6;
+  if (S.autoCheck !== false && h > 0) checkTimer = setInterval(() => autoCheck(false), h * 3600000);
+}
+function fillHomeUpd(el) {
+  const n = updTotal();
+  if (!n) { el.innerHTML = ''; return; }
+  const ids = Object.keys(upd).filter((k) => upd[k].length);
+  el.innerHTML = `<div class="homeupd"><span class="hu-dot"></span><b>${n} Update${n > 1 ? 's' : ''} verfügbar</b><span>in ${ids.map((id) => (insts.find((i) => i.id === id) || { name: id }).name).slice(0, 2).join(', ')}${ids.length > 2 ? ' …' : ''}</span><button class="ghost sm" id="huGo">Anzeigen</button></div>`;
+  $('#huGo').onclick = () => { const i = insts.find((x) => x.id === ids[0]); if (i) { kindFilter = 'upd'; tab = 'mods'; select(i); } };
+}
+
 async function checkUpdates() {
   if (!cur || busy) return;
-  await work('Prüfe Updates ...', async () => { updatable = await call('mr:checkUpdates', cur.id); });
-  setBar(updatable.length + ' Update(s) verfügbar'); toast(updatable.length ? updatable.length + ' Update(s) verfügbar' : 'Alles aktuell');
-  if (tab === 'mods') renderMods();
+  let res = [];
+  try { await work('Prüfe Updates ...', async () => { res = await call('mr:checkUpdates', cur.id); }); } catch { return; }
+  upd[cur.id] = res;
+  setBar(res.length + ' Update(s) verfügbar'); toast(res.length ? res.length + ' Update(s) verfügbar' : 'Alles aktuell');
+  refreshUpdBadges();
 }
 async function updateAll() {
   if (!cur || busy) return;
-  try { await work('Aktualisiere ...', async () => { cur = await call('mr:updateAll', cur.id); }); updatable = []; await load(); toast('Aktualisiert'); } catch {}
+  try { await work('Aktualisiere ...', async () => { cur = await call('mr:updateAll', cur.id); }); upd[cur.id] = []; await load(); refreshUpdBadges(); toast('Aktualisiert'); } catch {}
 }
 async function checkConflicts() {
   if (!cur || busy) return;
@@ -1308,7 +1514,7 @@ async function renameInst(i) {
   await call('instances:rename', { id: i.id, name: n }); await load(i.id);
 }
 async function deleteInst(i) {
-  if (!(await ask({ title: 'Instanz löschen', text: `„${i.name}“ mit allen Mods, Welten und Einstellungen endgültig löschen?`, okText: 'Löschen', danger: true }))) return;
+  if (S.confirmDelete !== false && !(await ask({ title: 'Instanz löschen', text: `„${i.name}“ mit allen Mods, Welten und Einstellungen endgültig löschen?`, okText: 'Löschen', danger: true }))) return;
   await call('instances:delete', i.id); if (cur && cur.id === i.id) cur = null; await load(); toast('Instanz gelöscht');
 }
 function about() {
@@ -1333,7 +1539,7 @@ $('#nOk').onclick = async () => {
   const loader = $('#nLoader .on').dataset.v;
   const inst = await call('instances:create', { name, mc: $('#nMc').value, loader });
   $('#dlg').close(); $('#nName').value = '';
-  if (S.defaultRam) await call('instances:settings', { id: inst.id, ram: S.defaultRam, javaArgs: '' }, true).catch(() => {});
+  if (S.defaultRam || S.defaultJavaArgs) await call('instances:settings', { id: inst.id, ram: S.defaultRam || 0, javaArgs: S.defaultJavaArgs || '' }, true).catch(() => {});
   tab = 'search-mod'; await load(inst.id); toast('Instanz „' + name + '“ erstellt');
 };
 $('#newBtn').onclick = newInstance;
@@ -1366,7 +1572,10 @@ document.addEventListener('drop', (e) => e.preventDefault());
   call('app:version', undefined, true).then((v) => { window.__ver = v; }).catch(() => {});
   try { account = await call('mc:account', undefined, true); } catch { account = null; }
   markView(S.startView || 'home');
+  if (S.uiScale) call('win:zoomSet', S.uiScale, true).catch(() => {});
   await load();
+  if (S.autoCheck !== false) setTimeout(() => autoCheck(false), 2500);
+  scheduleChecks();
 })();
 </script>
 </body>

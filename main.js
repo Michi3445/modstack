@@ -23,6 +23,7 @@ function status(msg) {
 }
 
 // ---------- Hilfsfunktionen ----------
+const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, ''));
 async function getJson(url) {
   const r = await fetch(url, { headers: { 'User-Agent': UA } });
   if (!r.ok) throw new Error(`HTTP ${r.status} bei ${url}`);
@@ -50,7 +51,7 @@ function instDir(id) {
 }
 
 function readInst(id) {
-  return JSON.parse(fs.readFileSync(path.join(instDir(id), 'instance.json'), 'utf8'));
+  return readJson(path.join(instDir(id), 'instance.json'));
 }
 
 function saveInst(inst) {
@@ -64,7 +65,7 @@ ipcMain.handle('instances:list', () => {
   for (const d of fs.readdirSync(instRoot())) {
     const f = path.join(instRoot(), d, 'instance.json');
     if (fs.existsSync(f)) {
-      try { out.push(JSON.parse(fs.readFileSync(f, 'utf8'))); } catch {}
+      try { out.push(readJson(f)); } catch {}
     }
   }
   return out;
@@ -127,11 +128,15 @@ function loaderList(inst) {
   return inst.loader === 'quilt' ? ['quilt', 'fabric'] : [inst.loader];
 }
 
+function appSettings() { try { return readJson(settingsFile()); } catch { return {}; } }
+const conc = () => Math.max(1, Math.min(12, appSettings().downloads || 6));
+
 async function latestVersion(inst, projectId, kind) {
   let url = `${MR}/project/${projectId}/version?game_versions=${encodeURIComponent(JSON.stringify([inst.mc]))}`;
   if ((kind || 'mod') === 'mod') url += `&loaders=${encodeURIComponent(JSON.stringify(loaderList(inst)))}`;
   const vs = await getJson(url);
-  return vs.find((v) => v.version_type === 'release') || vs[0] || null; // neueste zuerst, stabile bevorzugt
+  if (appSettings().allowBeta) return vs[0] || null; // neueste zuerst
+  return vs.find((v) => v.version_type === 'release') || vs[0] || null; // stabile bevorzugt
 }
 
 async function installProject(inst, projectId, isDep, kind, warnings) {
@@ -151,7 +156,7 @@ async function installProject(inst, projectId, isDep, kind, warnings) {
   await download(f.url, path.join(instDir(inst.id), KIND_DIR[kind], f.filename), f.hashes && f.hashes.sha1);
   inst.mods.push({ file: f.filename, projectId, versionId: v.id, title: proj.title, icon: proj.icon_url || undefined, kind, version: v.version_number });
   saveInst(inst);
-  if (kind === 'mod') {
+  if (kind === 'mod' && appSettings().autoDeps !== false) {
     for (const d of v.dependencies || []) {
       if (d.dependency_type === 'required' && d.project_id) await installProject(inst, d.project_id, true, 'mod', warnings);
     }
@@ -166,36 +171,72 @@ ipcMain.handle('mr:install', async ({ id, projectId, kind }) => {
   return { inst: readInst(id), warnings };
 });
 
-ipcMain.handle('mr:checkUpdates', async (id) => {
-  const inst = readInst(id);
+// Prueft alle Modrinth-Eintraege einer Instanz; meldet nur echte Updates (neuer als die installierte Version)
+async function checkInst(inst, quiet) {
+  const list = inst.mods.filter((m) => m.projectId && m.versionId);
+  if (!list.length) return [];
+  const dates = {};
+  for (let i = 0; i < list.length; i += 100) {
+    try { for (const v of await getJson(`${MR}/versions?ids=${encodeURIComponent(JSON.stringify(list.slice(i, i + 100).map((m) => m.versionId)))}`)) dates[v.id] = v.date_published; } catch {}
+  }
   const res = [];
   let n = 0;
-  const list = inst.mods.filter((m) => m.projectId);
-  await pool(list, 6, async (m) => {
+  await pool(list, conc(), async (m) => {
     try {
       const v = await latestVersion(inst, m.projectId, kindOf(m));
-      if (v && v.id !== m.versionId) res.push(m.projectId);
+      if (v && v.id !== m.versionId && (!dates[m.versionId] || new Date(v.date_published) > new Date(dates[m.versionId]))) {
+        res.push({ projectId: m.projectId, title: m.title, from: m.version || '', to: v.version_number, versionId: v.id });
+      }
     } catch {}
-    status(`Pruefe Updates ${++n}/${list.length} ...`);
+    if (!quiet) status(`Pruefe Updates ${++n}/${list.length} ...`);
   });
   return res;
+}
+
+async function applyUpdate(inst, m, versionId) {
+  const v = await getJson(`${MR}/version/${versionId}`);
+  const f = v.files.find((x) => x.primary) || v.files[0];
+  const old = entryPath(inst.id, m);
+  m.file = f.filename; m.versionId = v.id; m.version = v.version_number;
+  const neu = entryPath(inst.id, m);
+  await download(f.url, neu, f.hashes && f.hashes.sha1);
+  if (old !== neu) fs.rmSync(old, { force: true });
+}
+
+ipcMain.handle('mr:checkUpdates', async (id) => checkInst(readInst(id)));
+
+ipcMain.handle('mr:checkAll', async () => {
+  const out = {};
+  fs.mkdirSync(instRoot(), { recursive: true });
+  for (const d of fs.readdirSync(instRoot())) {
+    let inst; try { inst = readJson(path.join(instRoot(), d, 'instance.json')); } catch { continue; }
+    try { out[inst.id] = await checkInst(inst, true); } catch { out[inst.id] = []; }
+  }
+  return out;
+});
+
+ipcMain.handle('mr:updateOne', async ({ id, projectId }) => {
+  const inst = readInst(id);
+  const m = inst.mods.find((x) => x.projectId === projectId);
+  if (!m) throw new Error('Mod nicht gefunden');
+  const v = await latestVersion(inst, projectId, kindOf(m));
+  if (!v || v.id === m.versionId) { status('Schon aktuell'); return inst; }
+  status('Aktualisiere ' + m.title + ' ...');
+  await applyUpdate(inst, m, v.id);
+  saveInst(inst);
+  status(m.title + ' aktualisiert auf ' + m.version);
+  return readInst(id);
 });
 
 ipcMain.handle('mr:updateAll', async (id) => {
   const inst = readInst(id);
+  const ups = await checkInst(inst, true);
   let count = 0, n = 0;
-  const list = inst.mods.filter((m) => m.projectId);
-  await pool(list, 4, async (m) => {
-    status(`Aktualisiere ${++n}/${list.length} ...`);
-    const v = await latestVersion(inst, m.projectId, kindOf(m));
-    if (!v || v.id === m.versionId) return;
-    const f = v.files.find((x) => x.primary) || v.files[0];
-    const old = entryPath(id, m);
-    m.file = f.filename; m.versionId = v.id; m.version = v.version_number;
-    const neu = entryPath(id, m);
-    await download(f.url, neu, f.hashes && f.hashes.sha1);
-    if (old !== neu) fs.rmSync(old, { force: true });
-    count++;
+  await pool(ups, Math.min(4, conc()), async (u) => {
+    status(`Aktualisiere ${++n}/${ups.length} ...`);
+    const m = inst.mods.find((x) => x.projectId === u.projectId);
+    if (!m) return;
+    try { await applyUpdate(inst, m, u.versionId); count++; } catch {}
   });
   saveInst(inst);
   status(count + ' Eintraege aktualisiert');
@@ -323,11 +364,11 @@ ipcMain.handle('instances:settings', ({ id, ram, javaArgs }) => {
 // ---------- App-Einstellungen, Konto, News ----------
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 ipcMain.handle('settings:get', () => {
-  try { return JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch { return {}; }
+  try { return readJson(settingsFile()); } catch { return {}; }
 });
 ipcMain.handle('settings:set', (patch) => {
   let s = {};
-  try { s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch {}
+  try { s = readJson(settingsFile()); } catch {}
   Object.assign(s, patch || {});
   fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
   fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2));
@@ -362,7 +403,7 @@ ipcMain.handle('mc:account', () => {
   for (const d of dirs) {
     for (const f of ['launcher_accounts_microsoft_store.json', 'launcher_accounts.json']) {
       try {
-        const j = JSON.parse(fs.readFileSync(path.join(d, f), 'utf8'));
+        const j = readJson(path.join(d, f));
         const acc = (j.accounts || {})[j.activeAccountLocalId] || Object.values(j.accounts || {})[0];
         if (acc && acc.minecraftProfile && acc.minecraftProfile.name) return { name: acc.minecraftProfile.name, uuid: acc.minecraftProfile.id };
       } catch {}
@@ -415,6 +456,39 @@ ipcMain.handle('mc:news', async () => {
   newsCache = { t: Date.now(), d };
   return d;
 });
+
+ipcMain.handle('settings:reset', () => { fs.rmSync(settingsFile(), { force: true }); return {}; });
+
+ipcMain.handle('app:clearCache', async () => {
+  newsCache = null; skinCache.clear();
+  let n = 0;
+  const tmp = app.getPath('temp');
+  for (const f of fs.readdirSync(tmp)) {
+    if (/^(neo)?forge-.*-installer\.jar$/i.test(f)) { try { fs.rmSync(path.join(tmp, f), { force: true }); n++; } catch {} }
+  }
+  if (win) await win.webContents.session.clearCache();
+  return n;
+});
+
+function dirSize(p) {
+  let s = 0;
+  try {
+    for (const e of fs.readdirSync(p, { withFileTypes: true })) {
+      const q = path.join(p, e.name);
+      if (e.isDirectory()) s += dirSize(q); else { try { s += fs.statSync(q).size; } catch {} }
+    }
+  } catch {}
+  return s;
+}
+ipcMain.handle('app:diskUsage', () => {
+  fs.mkdirSync(instRoot(), { recursive: true });
+  return fs.readdirSync(instRoot()).map((d) => {
+    let name = d; try { name = readJson(path.join(instRoot(), d, 'instance.json')).name; } catch {}
+    return { id: d, name, bytes: dirSize(path.join(instRoot(), d)) };
+  }).sort((a, b) => b.bytes - a.bytes);
+});
+
+ipcMain.handle('win:zoomSet', (factor) => { const f = Math.max(0.7, Math.min(1.6, +factor || 1)); win.webContents.setZoomFactor(f); return f; });
 
 ipcMain.handle('sys:info', () => ({ totalMb: Math.floor(require('os').totalmem() / 1048576) }));
 
@@ -548,7 +622,7 @@ async function importMrpack(buf, fallbackName, extra) {
   const files = (idx.files || []).filter((f) => !(f.env && f.env.client === 'unsupported'));
   const failed = [], linkable = [];
   let done = 0;
-  await pool(files, 6, async (f) => {
+  await pool(files, conc(), async (f) => {
     try {
       const dest = path.resolve(dir, f.path);
       if (!dest.startsWith(dir + path.sep)) throw new Error('ungueltiger Pfad');
@@ -616,7 +690,7 @@ async function importProfileZip(buf, fallbackName) {
   const files = man.files || [];
   const failed = [];
   let done = 0;
-  await pool(files, 6, async (f) => {
+  await pool(files, conc(), async (f) => {
     try {
       const info = (await getJson(`${CFW}/${f.projectID}/files/${f.fileID}`)).data;
       const data = await fetchBuf(`${CFW}/${f.projectID}/files/${f.fileID}/download`);
@@ -794,7 +868,7 @@ ipcMain.handle('play', async (id) => {
 
   const f = ensureLauncherProfilesFile();
   let data;
-  try { data = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { data = { profiles: {}, settings: {}, version: 3 }; }
+  try { data = readJson(f); } catch { data = { profiles: {}, settings: {}, version: 3 }; }
   data.profiles = data.profiles || {};
   const key = 'modmanager-' + inst.id;
   const now = new Date().toISOString();
@@ -820,6 +894,7 @@ ipcMain.handle('play', async (id) => {
   const exe = candidates.find((p) => fs.existsSync(p));
   if (exe) spawn(exe, [], { detached: true, stdio: 'ignore' }).unref();
   else spawn('explorer.exe', ['shell:AppsFolder\\Microsoft.4297127D64EC6_8wekyb3d8bbwe!Minecraft'], { detached: true, stdio: 'ignore' }).unref();
+  if (appSettings().minimizeOnPlay && win) win.minimize();
   status('Launcher gestartet. Waehle dort das Profil "[Modstack] ' + inst.name + '" und klicke Spielen.');
   return true;
 });
