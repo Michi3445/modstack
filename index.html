@@ -121,7 +121,7 @@
   dialog::backdrop { background: rgba(5,6,8,.65); }
   dialog .dh { padding: 16px 20px 4px; font-size: 16px; font-weight: 600; }
   dialog .db { padding: 6px 20px 4px; color: #c6cad2; }
-  dialog .db p { margin: 6px 0; }
+  dialog .db p { margin: 6px 0; white-space: pre-line; max-height: 50vh; overflow-y: auto; user-select: text; }
   dialog label { display: block; margin: 12px 0 5px; font-size: 12px; color: var(--muted); }
   dialog input, dialog select { width: 100%; }
   dialog .df { padding: 16px 20px; display: flex; gap: 8px; justify-content: flex-end; }
@@ -133,6 +133,30 @@
   .check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 6px; }
   .check input { width: auto; }
 
+  .chips { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .chip { padding: 4px 12px; border-radius: 20px; border: 1px solid #343a46; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .chip:hover { color: var(--text); }
+  .chip.on { border-color: var(--accent); color: #fff; background: rgba(63,185,80,.1); }
+  .sw { width: 34px; height: 19px; border-radius: 10px; background: #3a404c; position: relative; cursor: pointer; flex-shrink: 0; transition: .15s; }
+  .sw::after { content: ''; position: absolute; left: 3px; top: 3px; width: 13px; height: 13px; border-radius: 50%; background: #c9ced8; transition: .15s; }
+  .sw.on { background: var(--accent2); }
+  .sw.on::after { left: 18px; background: #fff; }
+  .row.off { opacity: .5; }
+  .ava img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+  .side-sep { height: 1px; background: var(--line); margin: 6px 8px; }
+  .navitem { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: #c9ced8; margin: 0 8px; }
+  .navitem:hover { background: var(--bg3); }
+  .navitem.sel { background: #23302a; box-shadow: inset 3px 0 0 var(--accent); color: #fff; }
+  .navitem .ico { width: 34px; height: 34px; border-radius: 8px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .card { background: var(--bg2); border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; max-width: 640px; }
+  .card h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+  .card p { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+  .card .line { display: flex; gap: 10px; align-items: center; }
+  input[type=range] { flex: 1; accent-color: var(--accent); padding: 0; border: 0; background: transparent; box-shadow: none; }
+  .pagehead { padding: 18px 24px 14px; border-bottom: 1px solid var(--line); }
+  .pagehead h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+  .pagehead div { color: var(--muted); }
+  .cats { color: var(--dim); font-size: 11px; }
   #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
   .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
   .toast.err { border-left-color: var(--danger); }
@@ -150,6 +174,8 @@
       <div class="lbl"><span>Instanzen</span><span id="instCount"></span></div>
       <input id="instFilter" placeholder="Instanzen filtern ...">
     </div>
+    <div id="packNav" class="navitem"><div class="ico">◆</div><div><b>Modpacks entdecken</b><br><small style="color:var(--muted)">Fertige Packs von Modrinth</small></div></div>
+    <div class="side-sep"></div>
     <div id="list"></div>
     <div id="sideFoot">
       <button class="primary" id="newBtn">+ Neue Instanz</button>
@@ -166,8 +192,11 @@
       </div>
     </div>
     <div id="tabs" style="display:none">
-      <div class="tab on" data-t="mods">Installierte Mods <span class="cnt" id="modCnt">0</span></div>
-      <div class="tab" data-t="search">Mods suchen</div>
+      <div class="tab on" data-t="mods">Installiert <span class="cnt" id="modCnt">0</span></div>
+      <div class="tab" data-t="search-mod">Mods</div>
+      <div class="tab" data-t="search-resourcepack">Ressourcenpakete</div>
+      <div class="tab" data-t="search-shader">Shader</div>
+      <div class="tab" data-t="settings">Einstellungen</div>
     </div>
     <div id="content"></div>
   </div>
@@ -220,7 +249,7 @@ function setBar(msg, err) {
   $('#barMsg').textContent = msg; $('#bar').className = err ? 'err' : '';
   const m = /(\d+)\/(\d+)/.exec(msg || '');
   const p = $('#prog');
-  if (m && +m[2] > 0) { p.style.display = 'block'; p.className = ''; p.firstElementChild.style.width = (100 * m[1] / m[2]) + '%'; }
+  if (busy && m && +m[2] > 0) { p.style.display = 'block'; p.className = ''; p.firstElementChild.style.width = (100 * m[1] / m[2]) + '%'; }
   else if (busy) { p.style.display = 'block'; p.className = 'ind'; p.firstElementChild.style.width = ''; }
   else p.style.display = 'none';
 }
@@ -261,7 +290,9 @@ const MENUS = [
   ['Datei', () => [
     { l: 'Neue Instanz ...', k: 'Strg+N', a: newInstance },
     { l: 'CurseForge-Profil importieren ...', k: 'Strg+I', a: () => openCf() },
-    { l: 'CurseForge-ZIP importieren ...', a: () => cfRun('cf:importZip') },
+    { l: 'Datei importieren (.mrpack / .zip) ...', a: () => cfRun('cf:importZip') },
+    '-',
+    { l: 'Modpacks entdecken', k: 'Strg+M', a: showPacks },
     '-',
     { l: 'Instanzen-Ordner öffnen', a: () => call('app:openRoot') },
     '-',
@@ -269,13 +300,16 @@ const MENUS = [
   ]],
   ['Instanz', () => instItems(cur)],
   ['Mods', () => [
-    { l: 'Installierte Mods', k: 'Strg+1', d: !cur, a: () => setTab('mods') },
-    { l: 'Mods suchen', k: 'Strg+2', d: !cur, a: () => setTab('search') },
+    { l: 'Installiert', k: 'Strg+1', d: !cur, a: () => setTab('mods') },
+    { l: 'Mods suchen', k: 'Strg+2', d: !cur, a: () => setTab('search-mod') },
+    { l: 'Ressourcenpakete suchen', k: 'Strg+3', d: !cur, a: () => setTab('search-resourcepack') },
+    { l: 'Shader suchen', k: 'Strg+4', d: !cur, a: () => setTab('search-shader') },
     '-',
     { l: 'Updates prüfen', k: 'Strg+U', d: !cur || busy, a: checkUpdates },
     { l: 'Alle aktualisieren', d: !cur || busy, a: updateAll },
+    { l: 'Konflikte prüfen', d: !cur || busy, a: checkConflicts },
     '-',
-    { l: 'Jar-Dateien hinzufügen: per Drag & Drop', d: true },
+    { l: 'Dateien hinzufügen: per Drag & Drop', d: true },
   ]],
   ['Ansicht', () => [
     { l: 'Neu laden', k: 'F5', a: () => load() },
@@ -302,6 +336,8 @@ function instItems(i) {
     '-',
     { l: 'Umbenennen ...', k: 'F2', d: n, a: () => renameInst(i) },
     { l: 'Ordner öffnen', k: 'Strg+O', d: n, a: () => call('instances:openFolder', i.id) },
+    { l: 'Duplizieren', d: n || busy, a: () => duplicateInst(i) },
+    { l: 'Einstellungen', d: n, a: () => { select(i); setTab('settings'); } },
     '-',
     { l: 'Löschen ...', k: 'Entf', d: n || busy, danger: true, a: () => deleteInst(i) },
   ];
@@ -356,8 +392,11 @@ document.addEventListener('keydown', (e) => {
   else if (c && k === 'u' && cur) h = checkUpdates;
   else if (c && k === 'o' && cur) h = () => call('instances:openFolder', cur.id);
   else if (c && e.key === 'Enter' && cur) h = () => play(cur);
+  else if (c && k === 'm') h = showPacks;
   else if (c && k === '1' && cur) h = () => setTab('mods');
-  else if (c && k === '2' && cur) h = () => setTab('search');
+  else if (c && k === '2' && cur) h = () => setTab('search-mod');
+  else if (c && k === '3' && cur) h = () => setTab('search-resourcepack');
+  else if (c && k === '4' && cur) h = () => setTab('search-shader');
   else if (c && (e.key === '+' || e.key === '=')) h = () => call('win:zoom', 0.5);
   else if (c && e.key === '-') h = () => call('win:zoom', -0.5);
   else if (c && k === '0') h = () => call('win:zoom', 0);
@@ -373,17 +412,27 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ---------- Daten ----------
+let view = 'inst', kindFilter = 'all';
+const KIND = { mod: 'Mod', resourcepack: 'Ressourcenpaket', shader: 'Shader' };
+const kindOf = (m) => m.kind || 'mod';
+
 async function load(selId) {
   insts = await call('instances:list');
   insts.sort((a, b) => a.name.localeCompare(b.name, 'de'));
-  if (selId) cur = insts.find((i) => i.id === selId) || null;
+  if (selId) { cur = insts.find((i) => i.id === selId) || null; if (cur) view = 'inst'; }
   else if (cur) cur = insts.find((i) => i.id === cur.id) || null;
   renderList(); renderHead(); render();
 }
-function select(i) { cur = i; updatable = []; modFilter = ''; renderList(); renderHead(); render(); }
-function setTab(t) { tab = t; renderHead(); render(); }
+function select(i) { view = 'inst'; cur = i; updatable = []; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); }
+function setTab(t) { view = 'inst'; tab = t; renderHead(); render(); }
+function showPacks() { view = 'packs'; renderList(); renderHead(); render(); }
+$('#packNav').onclick = showPacks;
 
-function ava(el, i) { el.textContent = (i.name.trim()[0] || '?').toUpperCase(); el.style.background = `linear-gradient(135deg, ${LCOL[i.loader] || '#555'}, #20242c 140%)`; }
+function ava(el, i) {
+  el.textContent = ''; el.style.background = `linear-gradient(135deg, ${LCOL[i.loader] || '#555'}, #20242c 140%)`;
+  if (i.icon) { const im = document.createElement('img'); im.src = i.icon; im.onerror = () => { im.remove(); el.textContent = (i.name.trim()[0] || '?').toUpperCase(); }; el.appendChild(im); }
+  else el.textContent = (i.name.trim()[0] || '?').toUpperCase();
+}
 
 function filteredInsts() {
   const f = $('#instFilter').value.trim().toLowerCase();
@@ -392,6 +441,7 @@ function filteredInsts() {
 $('#instFilter').oninput = renderList;
 
 function renderList() {
+  $('#packNav').classList.toggle('sel', view === 'packs');
   const l = $('#list'); l.innerHTML = '';
   $('#instCount').textContent = insts.length || '';
   const vis = filteredInsts();
@@ -399,11 +449,11 @@ function renderList() {
   else if (!vis.length) l.innerHTML = '<div class="empty" style="padding:30px 10px">Kein Treffer.</div>';
   for (const i of vis) {
     const d = document.createElement('div');
-    d.className = 'inst' + (cur && cur.id === i.id ? ' sel' : '');
+    d.className = 'inst' + (view === 'inst' && cur && cur.id === i.id ? ' sel' : '');
     d.innerHTML = '<div class="ava"></div><div class="meta"><b></b><small></small></div>';
     ava(d.firstChild, i);
     d.querySelector('b').textContent = i.name;
-    d.querySelector('small').textContent = `${i.mc} · ${LNAME[i.loader] || i.loader} · ${i.mods.length} Mods`;
+    d.querySelector('small').textContent = `${i.mc} · ${LNAME[i.loader] || i.loader} · ${i.mods.filter((m) => kindOf(m) === 'mod').length} Mods`;
     d.onclick = () => select(i);
     d.ondblclick = () => play(i);
     d.oncontextmenu = (e) => { e.preventDefault(); select(i); showAt(instItems(i), e.clientX, e.clientY); };
@@ -412,7 +462,7 @@ function renderList() {
 }
 
 function renderHead() {
-  const has = !!cur;
+  const has = view === 'inst' && !!cur;
   $('#head').style.display = has ? 'flex' : 'none';
   $('#tabs').style.display = has ? 'flex' : 'none';
   if (!has) return;
@@ -422,8 +472,12 @@ function renderHead() {
   const add = (t) => { const s = document.createElement('span'); s.className = 'badge'; s.textContent = t; b.appendChild(s); };
   add('Minecraft ' + cur.mc);
   add((LNAME[cur.loader] || cur.loader) + (cur.loaderVersion ? ' ' + cur.loaderVersion : ''));
-  add(cur.mods.length + ' Mods');
+  const nm = cur.mods.filter((m) => kindOf(m) === 'mod').length;
+  add(nm + ' Mods');
+  const np = cur.mods.length - nm; if (np) add(np + ' Pakete');
+  if (cur.ram) add((cur.ram / 1024).toFixed(cur.ram % 1024 ? 1 : 0) + ' GB RAM');
   if (cur.source === 'curseforge') add('aus CurseForge');
+  if (cur.pack) add('Modpack ' + (cur.pack.version || ''));
   $('#modCnt').textContent = cur.mods.length;
   $('#playBtn').disabled = !!busy;
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.t === tab));
@@ -432,26 +486,39 @@ document.querySelectorAll('.tab').forEach((t) => t.onclick = () => setTab(t.data
 
 function render() {
   const c = $('#content');
+  if (view === 'packs') return renderPacks();
   if (!cur) {
-    c.innerHTML = `<div class="empty"><h2>${insts.length ? 'Keine Instanz gewählt' : 'Willkommen'}</h2>
-      ${insts.length ? 'Wähle links eine Instanz aus.' : 'Lege eine Instanz an oder importiere ein CurseForge-Profil.'}
-      <div class="acts"><button class="primary" id="eNew">Neue Instanz</button><button class="ghost" id="eCf">CurseForge importieren</button></div></div>`;
-    $('#eNew').onclick = newInstance; $('#eCf').onclick = () => openCf();
+    c.innerHTML = `<div class="empty"><h2>${insts.length ? 'Keine Instanz gewählt' : 'Willkommen bei Modstack'}</h2>
+      ${insts.length ? 'Wähle links eine Instanz aus.' : 'Lege eine Instanz an, installiere ein fertiges Modpack oder importiere ein CurseForge-Profil.'}
+      <div class="acts"><button class="primary" id="eNew">Neue Instanz</button><button class="ghost" id="ePk">Modpacks entdecken</button><button class="ghost" id="eCf">CurseForge importieren</button></div></div>`;
+    $('#eNew').onclick = newInstance; $('#eCf').onclick = () => openCf(); $('#ePk').onclick = showPacks;
     return;
   }
-  tab === 'mods' ? renderMods() : renderSearch();
+  if (tab === 'mods') renderMods();
+  else if (tab === 'settings') renderSettings();
+  else renderSearch(tab.replace('search-', ''));
 }
 
 function modTag(m) {
-  if (m.projectId) return ['mr', 'Modrinth'];
   if (m.cf) return ['cf', 'CurseForge'];
+  if (m.projectId) return ['mr', 'Modrinth'];
   return ['man', 'Manuell'];
 }
 
 function renderMods() {
   const c = $('#content');
-  c.innerHTML = `<div class="toolbar"><input id="mf" placeholder="Installierte Mods filtern ..."><button class="ghost" id="chk">Updates prüfen</button><button id="updAll">Alle aktualisieren${updatable.length ? ' (' + updatable.length + ')' : ''}</button></div>
-    <div id="drop">Jar-Dateien hierher ziehen, um sie zu installieren</div><div id="mods"></div>`;
+  c.innerHTML = `<div class="toolbar"><input id="mf" placeholder="Installiertes filtern ..."><button class="ghost" id="chk">Updates prüfen</button><button class="ghost" id="cfl">Konflikte prüfen</button><button id="updAll">Alle aktualisieren${updatable.length ? ' (' + updatable.length + ')' : ''}</button></div>
+    <div class="chips" id="chips"></div>
+    <div id="drop">Jar- oder Zip-Dateien hierher ziehen (Mods, Ressourcenpakete, Shader)</div><div id="mods"></div>`;
+  const counts = { all: cur.mods.length, mod: 0, resourcepack: 0, shader: 0, off: 0 };
+  for (const m of cur.mods) { counts[kindOf(m)]++; if (m.disabled) counts.off++; }
+  const chips = $('#chips');
+  for (const [k, l] of [['all', 'Alle'], ['mod', 'Mods'], ['resourcepack', 'Ressourcenpakete'], ['shader', 'Shader'], ['off', 'Deaktiviert']]) {
+    if (k !== 'all' && !counts[k]) continue;
+    const ch = document.createElement('div'); ch.className = 'chip' + (kindFilter === k ? ' on' : ''); ch.textContent = `${l} (${counts[k]})`;
+    ch.onclick = () => { kindFilter = k; renderMods(); };
+    chips.appendChild(ch);
+  }
   const mf = $('#mf'); mf.value = modFilter;
   mf.oninput = () => { modFilter = mf.value; drawMods(); };
   const drop = $('#drop');
@@ -459,12 +526,13 @@ function renderMods() {
   drop.ondragleave = () => drop.classList.remove('over');
   drop.ondrop = async (e) => {
     e.preventDefault(); drop.classList.remove('over');
-    const paths = [...e.dataTransfer.files].map((f) => api.pathForFile(f)).filter((p) => /\.jar$/i.test(p));
-    if (!paths.length) { toast('Nur .jar-Dateien werden unterstützt', true); return; }
-    cur = await call('mods:addFiles', { id: cur.id, paths }); await load(); toast(paths.length + ' Datei(en) hinzugefügt');
+    const paths = [...e.dataTransfer.files].map((f) => api.pathForFile(f)).filter((p) => /\.(jar|zip)$/i.test(p));
+    if (!paths.length) { toast('Nur .jar- und .zip-Dateien werden unterstützt', true); return; }
+    try { await work('Füge Dateien hinzu ...', async () => { cur = await call('mods:addFiles', { id: cur.id, paths }); }); await load(); toast(paths.length + ' Datei(en) hinzugefügt'); } catch {}
   };
-  $('#chk').disabled = $('#updAll').disabled = !!busy;
+  $('#chk').disabled = $('#updAll').disabled = $('#cfl').disabled = !!busy;
   $('#chk').onclick = checkUpdates;
+  $('#cfl').onclick = checkConflicts;
   $('#updAll').onclick = updateAll;
   drawMods();
 }
@@ -472,20 +540,27 @@ function renderMods() {
 function drawMods() {
   const box = $('#mods'); if (!box) return; box.innerHTML = '';
   const f = modFilter.trim().toLowerCase();
-  const list = [...cur.mods].sort((a, b) => a.title.localeCompare(b.title, 'de')).filter((m) => !f || (m.title + ' ' + m.file).toLowerCase().includes(f));
-  if (!cur.mods.length) { box.innerHTML = '<div class="empty"><h2>Noch keine Mods</h2>Unter „Mods suchen“ findest du Mods von Modrinth.</div>'; return; }
+  const list = [...cur.mods].sort((a, b) => a.title.localeCompare(b.title, 'de'))
+    .filter((m) => kindFilter === 'all' || (kindFilter === 'off' ? m.disabled : kindOf(m) === kindFilter))
+    .filter((m) => !f || (m.title + ' ' + m.file).toLowerCase().includes(f));
+  if (!cur.mods.length) { box.innerHTML = '<div class="empty"><h2>Noch nichts installiert</h2>In den Tabs „Mods“, „Ressourcenpakete“ und „Shader“ findest du Inhalte von Modrinth.</div>'; return; }
   if (!list.length) { box.innerHTML = '<div class="empty">Kein Treffer.</div>'; return; }
   for (const m of list) {
-    const r = document.createElement('div'); r.className = 'row';
-    r.innerHTML = '<div class="ph">▣</div><div class="t"><b></b><span></span></div><button class="iconbtn" title="Mehr">⋯</button>';
+    const r = document.createElement('div'); r.className = 'row' + (m.disabled ? ' off' : '');
+    r.innerHTML = '<div class="ph">▣</div><div class="t"><b></b><span></span></div><div class="sw" title="Ein/Aus"></div><button class="iconbtn" title="Mehr">⋯</button>';
+    if (m.icon) { const im = document.createElement('img'); im.src = m.icon; im.alt = ''; im.onerror = () => im.replaceWith(Object.assign(document.createElement('div'), { className: 'ph', textContent: '▣' })); r.firstChild.replaceWith(im); }
     const [cls, lbl] = modTag(m);
     const b = r.querySelector('b'); b.textContent = m.title;
     b.insertAdjacentHTML('beforeend', `<span class="tag ${cls}">${lbl}</span>`);
+    if (kindOf(m) !== 'mod') b.insertAdjacentHTML('beforeend', `<span class="tag man">${KIND[kindOf(m)]}</span>`);
     if (updatable.includes(m.projectId)) b.insertAdjacentHTML('beforeend', '<span class="tag upd">Update</span>');
-    r.querySelector('.t > span').textContent = m.file;
+    r.querySelector('.t > span').textContent = (m.version ? m.version + ' · ' : '') + m.file + (m.disabled ? ' · deaktiviert' : '');
+    const sw = r.querySelector('.sw'); sw.classList.toggle('on', !m.disabled);
+    sw.onclick = () => toggleMod(m);
     const items = () => [
-      { l: 'Im Ordner zeigen', a: () => call('app:showMod', { id: cur.id, file: m.file }) },
-      { l: 'Auf Modrinth öffnen', d: !m.projectId, a: () => call('app:openUrl', 'https://modrinth.com/mod/' + m.projectId) },
+      { l: m.disabled ? 'Aktivieren' : 'Deaktivieren', a: () => toggleMod(m) },
+      { l: 'Im Ordner zeigen', a: () => call('app:showMod', { id: cur.id, file: m.file, kind: kindOf(m), disabled: !!m.disabled }) },
+      { l: 'Auf Modrinth öffnen', d: !m.projectId, a: () => call('app:openUrl', 'https://modrinth.com/project/' + m.projectId) },
       { l: 'Auf CurseForge öffnen', d: !m.cf, a: () => call('app:openUrl', 'https://www.curseforge.com/projects/' + (m.cf && m.cf.projectId)) },
       '-',
       { l: 'Entfernen', danger: true, a: () => removeMod(m) },
@@ -496,28 +571,36 @@ function drawMods() {
   }
 }
 
+async function toggleMod(m) {
+  try { cur = await call('mods:toggle', { id: cur.id, file: m.file }); await load(); } catch {}
+}
+
 async function removeMod(m) {
-  if (!(await ask({ title: 'Mod entfernen', text: `„${m.title}“ aus „${cur.name}“ entfernen?`, okText: 'Entfernen', danger: true }))) return;
+  if (!(await ask({ title: 'Entfernen', text: `„${m.title}“ aus „${cur.name}“ entfernen?`, okText: 'Entfernen', danger: true }))) return;
   cur = await call('mods:remove', { id: cur.id, file: m.file }); await load(); toast(m.title + ' entfernt');
 }
 
-let searchState = { q: '', offset: 0 };
-function renderSearch() {
+// ---------- Suche (Mods, Ressourcenpakete, Shader) ----------
+const searchState = {};
+const SEARCH_PH = { mod: 'Mods', resourcepack: 'Ressourcenpakete', shader: 'Shader' };
+function renderSearch(type) {
+  const st = searchState[type] || (searchState[type] = { q: '', offset: 0 });
   const c = $('#content');
-  c.innerHTML = `<div class="toolbar"><input id="q" placeholder="Mods auf Modrinth suchen (leer = beliebteste) ..."><button class="primary" id="go">Suchen</button></div><div id="res"></div><div class="more" id="more"></div>`;
-  $('#q').value = searchState.q;
+  c.innerHTML = `<div class="toolbar"><input id="q" placeholder="${SEARCH_PH[type]} auf Modrinth suchen (leer = beliebteste) ..."><button class="primary" id="go">Suchen</button></div>
+    ${type === 'shader' && (cur.loader === 'fabric' || cur.loader === 'quilt') ? '<div class="chips"><span class="cats">Für Shader brauchst du den Mod „Iris“ (Tab Mods).</span></div>' : ''}
+    <div id="res"></div><div class="more" id="more"></div>`;
+  $('#q').value = st.q;
   const run = async (append) => {
-    if (!append) { searchState = { q: $('#q').value, offset: 0 }; $('#res').innerHTML = '<div class="empty"><span class="spin"></span></div>'; }
-    setBar('Suche ...');
+    if (!append) { st.q = $('#q').value; st.offset = 0; $('#res').innerHTML = '<div class="empty"><span class="spin"></span></div>'; }
     let hits;
-    try { hits = await call('mr:search', { query: searchState.q, mc: cur.mc, loader: cur.loader, offset: searchState.offset }); }
-    catch { $('#res').innerHTML = '<div class="empty">Suche fehlgeschlagen.</div>'; return; }
-    if (!$('#res')) return;
+    try { hits = await call('mr:search', { query: st.q, mc: cur.mc, loader: cur.loader, offset: st.offset, type }); }
+    catch { if ($('#res')) $('#res').innerHTML = '<div class="empty">Suche fehlgeschlagen.</div>'; return; }
+    if (!$('#res') || tab !== 'search-' + type) return;
     setBar('Bereit');
     const res = $('#res'); if (!append) res.innerHTML = '';
-    if (!hits.length && !append) res.innerHTML = '<div class="empty">Nichts gefunden für diese Version und diesen Loader.</div>';
-    for (const h of hits) res.appendChild(hitRow(h));
-    searchState.offset += hits.length;
+    if (!hits.length && !append) res.innerHTML = '<div class="empty">Nichts gefunden für diese Version' + (type === 'mod' ? ' und diesen Loader' : '') + '.</div>';
+    for (const h of hits) res.appendChild(hitRow(h, type));
+    st.offset += hits.length;
     $('#more').innerHTML = hits.length === 20 ? '<button class="ghost" id="mb">Mehr laden</button>' : '';
     if ($('#mb')) $('#mb').onclick = () => run(true);
   };
@@ -527,7 +610,7 @@ function renderSearch() {
   run(false);
 }
 
-function hitRow(h) {
+function baseRow(h) {
   const r = document.createElement('div'); r.className = 'row';
   r.innerHTML = '<img alt=""><div class="t"><b></b><span class="d"></span><span class="a"></span></div><button class="primary"></button>';
   const img = r.querySelector('img');
@@ -535,20 +618,119 @@ function hitRow(h) {
   r.querySelector('b').textContent = h.title;
   r.querySelector('.d').textContent = h.description;
   r.querySelector('.a').textContent = `von ${h.author} · ${h.downloads.toLocaleString('de-DE')} Downloads`;
+  return r;
+}
+
+function hitRow(h, type) {
+  const r = baseRow(h);
   const btn = r.querySelector('button');
   const setBtn = () => { const has = cur.mods.some((m) => m.projectId === h.id); btn.textContent = has ? '✓ Installiert' : 'Installieren'; btn.disabled = has; btn.className = has ? 'ghost' : 'primary'; };
   setBtn();
   btn.onclick = async () => {
     btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Lädt';
-    try { await work('Installiere ' + h.title + ' ...', async () => { cur = await call('mr:install', { id: cur.id, projectId: h.id }); }); toast(h.title + ' installiert'); renderList(); renderHead(); }
-    catch {}
+    try {
+      await work('Installiere ' + h.title + ' ...', async () => {
+        const res = await call('mr:install', { id: cur.id, projectId: h.id, kind: type });
+        cur = res.inst;
+        if (res.warnings.length) toast('Achtung: ' + res.warnings.join('; '), true); else toast(h.title + ' installiert');
+      });
+      renderList(); renderHead();
+    } catch {}
     setBtn();
   };
   r.oncontextmenu = (e) => { e.preventDefault(); showAt([
     { l: 'Installieren', d: cur.mods.some((m) => m.projectId === h.id), a: () => btn.click() },
-    { l: 'Auf Modrinth öffnen', a: () => call('app:openUrl', 'https://modrinth.com/mod/' + (h.slug || h.id)) },
+    { l: 'Auf Modrinth öffnen', a: () => call('app:openUrl', 'https://modrinth.com/project/' + (h.slug || h.id)) },
   ], e.clientX, e.clientY); };
   return r;
+}
+
+// ---------- Modpacks ----------
+const packState = { q: '', offset: 0, loader: '', mc: '' };
+async function renderPacks() {
+  const c = $('#content');
+  c.innerHTML = `<div class="pagehead" style="margin:-16px -24px 16px"><h1>Modpacks entdecken</h1><div>Fertige Modpacks von Modrinth. Installieren legt automatisch eine neue Instanz an.</div></div>
+    <div class="toolbar"><input id="pq" placeholder="Modpacks suchen (leer = beliebteste) ...">
+      <select id="pl"><option value="">Alle Loader</option><option value="fabric">Fabric</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option><option value="quilt">Quilt</option></select>
+      <select id="pv"><option value="">Alle Versionen</option></select>
+      <button class="primary" id="pgo">Suchen</button></div>
+    <div id="res"></div><div class="more" id="more"></div>`;
+  $('#pq').value = packState.q; $('#pl').value = packState.loader;
+  const fillV = () => { $('#pv').innerHTML = '<option value="">Alle Versionen</option>' + (allVersions || []).map((v) => `<option>${v}</option>`).join(''); $('#pv').value = packState.mc; };
+  if (allVersions) fillV(); else call('mc:versions', undefined, true).then((v) => { allVersions = v; if ($('#pv')) fillV(); }).catch(() => {});
+  const run = async (append) => {
+    if (!append) { packState.q = $('#pq').value; packState.loader = $('#pl').value; packState.mc = $('#pv').value; packState.offset = 0; $('#res').innerHTML = '<div class="empty"><span class="spin"></span></div>'; }
+    let hits;
+    try { hits = await call('mr:search', { query: packState.q, type: 'modpack', loader: packState.loader, mc: packState.mc, offset: packState.offset }); }
+    catch { if ($('#res')) $('#res').innerHTML = '<div class="empty">Suche fehlgeschlagen.</div>'; return; }
+    if (view !== 'packs' || !$('#res')) return;
+    const res = $('#res'); if (!append) res.innerHTML = '';
+    if (!hits.length && !append) res.innerHTML = '<div class="empty">Keine Modpacks gefunden.</div>';
+    for (const h of hits) res.appendChild(packRow(h));
+    packState.offset += hits.length;
+    $('#more').innerHTML = hits.length === 20 ? '<button class="ghost" id="mb">Mehr laden</button>' : '';
+    if ($('#mb')) $('#mb').onclick = () => run(true);
+  };
+  $('#pgo').onclick = () => run(false);
+  $('#pq').onkeydown = (e) => { if (e.key === 'Enter') run(false); };
+  $('#pl').onchange = $('#pv').onchange = () => run(false);
+  run(false);
+}
+
+function packRow(h) {
+  const r = baseRow(h);
+  const vs = (h.versions || []).filter((v) => /^\d+\.\d+(\.\d+)?$/.test(v));
+  const span = vs.length ? (vs.length > 1 ? `${vs[0]} – ${vs[vs.length - 1]}` : vs[0]) : '';
+  if (span) r.querySelector('.a').textContent += ' · Minecraft ' + span;
+  const btn = r.querySelector('button'); btn.textContent = 'Installieren';
+  btn.onclick = () => installPack(h, btn);
+  r.oncontextmenu = (e) => { e.preventDefault(); showAt([
+    { l: 'Installieren', a: () => btn.click() },
+    { l: 'Auf Modrinth öffnen', a: () => call('app:openUrl', 'https://modrinth.com/modpack/' + (h.slug || h.id)) },
+  ], e.clientX, e.clientY); };
+  return r;
+}
+
+async function installPack(h, btn) {
+  if (busy) { toast('Bitte warten, bis die aktuelle Aktion fertig ist.', true); return; }
+  if (!(await ask({ title: 'Modpack installieren', text: `„${h.title}“ als neue Instanz installieren? Das lädt alle Mods des Packs herunter und kann ein paar Minuten dauern.`, okText: 'Installieren' }))) return;
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Installiert ...';
+  try {
+    const inst = await work('Installiere Modpack ' + h.title + ' ...', () => call('mr:installPack', { projectId: h.id }));
+    tab = 'mods'; await load(inst.id); toast('„' + inst.name + '“ installiert');
+  } catch { btn.disabled = false; btn.textContent = 'Installieren'; }
+}
+
+// ---------- Einstellungen ----------
+let sysInfo = null;
+async function renderSettings() {
+  if (!sysInfo) { try { sysInfo = await call('sys:info', undefined, true); } catch { sysInfo = { totalMb: 8192 }; } }
+  if (tab !== 'settings' || !cur) return;
+  const maxGb = Math.max(2, Math.floor(sysInfo.totalMb / 1024) - 2);
+  const c = $('#content');
+  c.innerHTML = `
+    <div class="card"><h3>Arbeitsspeicher (RAM)</h3><p>Wie viel RAM Minecraft für diese Instanz nutzen darf. Dein PC hat ${(sysInfo.totalMb / 1024).toFixed(0)} GB. Für große Modpacks sind 6 bis 8 GB sinnvoll. Aus = Standard des Launchers (2 GB).</p>
+      <div class="line"><label class="check" style="margin:0"><input type="checkbox" id="ramOn"> Eigener Wert</label><input type="range" id="ram" min="2" max="${maxGb}" step="0.5"><b id="ramV" style="width:60px;text-align:right"></b></div></div>
+    <div class="card"><h3>Weitere Java-Argumente</h3><p>Nur für Fortgeschrittene. Leer lassen, wenn du nicht weißt, was das ist.</p>
+      <input id="jargs" style="width:100%" placeholder="z.B. -XX:+UseG1GC" spellcheck="false"></div>
+    <div class="card"><h3>Instanz</h3><p>Minecraft ${cur.mc} · ${LNAME[cur.loader]}${cur.loaderVersion ? ' ' + cur.loaderVersion : ''} · Ordner: ${cur.id}</p>
+      <div class="line"><button class="ghost" id="sRen">Umbenennen</button><button class="ghost" id="sDup">Duplizieren</button><button class="ghost" id="sDir">Ordner öffnen</button><button class="danger" id="sDel" style="margin-left:auto">Löschen</button></div></div>
+    <div style="max-width:640px;display:flex;justify-content:flex-end"><button class="primary" id="sSave">Speichern</button></div>`;
+  const ramOn = $('#ramOn'), ram = $('#ram'), ramV = $('#ramV');
+  ramOn.checked = !!cur.ram; ram.value = cur.ram ? cur.ram / 1024 : Math.min(4, maxGb);
+  const upd = () => { ram.disabled = !ramOn.checked; ramV.textContent = ramOn.checked ? ram.value + ' GB' : 'Standard'; };
+  ram.oninput = upd; ramOn.onchange = upd; upd();
+  $('#jargs').value = cur.javaArgs || '';
+  $('#sRen').onclick = () => renameInst(cur);
+  $('#sDup').onclick = () => duplicateInst(cur);
+  $('#sDir').onclick = () => call('instances:openFolder', cur.id);
+  $('#sDel').onclick = () => deleteInst(cur);
+  $('#sSave').onclick = async () => {
+    try {
+      cur = await call('instances:settings', { id: cur.id, ram: ramOn.checked ? Math.round(parseFloat(ram.value) * 1024) : 0, javaArgs: $('#jargs').value });
+      await load(cur.id); toast('Einstellungen gespeichert. Gilt ab dem nächsten Spielen.');
+    } catch {}
+  };
 }
 
 // ---------- Aktionen ----------
@@ -560,7 +742,19 @@ async function checkUpdates() {
 }
 async function updateAll() {
   if (!cur || busy) return;
-  try { await work('Aktualisiere ...', async () => { cur = await call('mr:updateAll', cur.id); }); updatable = []; await load(); toast('Mods aktualisiert'); } catch {}
+  try { await work('Aktualisiere ...', async () => { cur = await call('mr:updateAll', cur.id); }); updatable = []; await load(); toast('Aktualisiert'); } catch {}
+}
+async function checkConflicts() {
+  if (!cur || busy) return;
+  let res;
+  try { res = await work('Prüfe Konflikte ...', () => call('mr:checkConflicts', cur.id)); } catch { return; }
+  setBar('Bereit');
+  if (!res.length) { toast('Keine bekannten Konflikte gefunden'); return; }
+  ask({ title: res.length + ' Hinweis(e) gefunden', text: res.join('\n'), okText: 'OK' });
+}
+async function duplicateInst(i) {
+  if (!i || busy) return;
+  try { const c = await work('Kopiere Instanz ...', () => call('instances:duplicate', i.id)); setBar('Bereit'); await load(c.id); toast('Kopie „' + c.name + '“ erstellt'); } catch {}
 }
 async function play(i) {
   if (!i || busy) return;
@@ -599,7 +793,7 @@ $('#nOk').onclick = async () => {
   const loader = $('#nLoader .on').dataset.v;
   const inst = await call('instances:create', { name, mc: $('#nMc').value, loader });
   $('#dlg').close(); $('#nName').value = '';
-  tab = 'search'; await load(inst.id); toast('Instanz „' + name + '“ erstellt');
+  tab = 'search-mod'; await load(inst.id); toast('Instanz „' + name + '“ erstellt');
 };
 $('#newBtn').onclick = newInstance;
 

@@ -97,9 +97,17 @@ ipcMain.handle('mc:versions', async () => {
 });
 
 // ---------- Modrinth ----------
-ipcMain.handle('mr:search', async ({ query, mc, loader, offset }) => {
-  const facets = [['project_type:mod'], [`versions:${mc}`]];
-  facets.push(loader === 'quilt' ? ['categories:quilt', 'categories:fabric'] : [`categories:${loader}`]);
+const KIND_DIR = { mod: 'mods', resourcepack: 'resourcepacks', shader: 'shaderpacks' };
+const kindOf = (m) => m.kind || 'mod';
+const entryPath = (id, m) => path.join(instDir(id), KIND_DIR[kindOf(m)], m.file + (m.disabled ? '.disabled' : ''));
+
+ipcMain.handle('mr:search', async ({ query, mc, loader, offset, type }) => {
+  type = type || 'mod';
+  const facets = [[`project_type:${type}`]];
+  if (type !== 'modpack') facets.push([`versions:${mc}`]);
+  if (type === 'mod') facets.push(loader === 'quilt' ? ['categories:quilt', 'categories:fabric'] : [`categories:${loader}`]);
+  if (type === 'modpack' && loader) facets.push([`categories:${loader}`]);
+  if (type === 'modpack' && mc) facets.push([`versions:${mc}`]);
   const url = `${MR}/search?query=${encodeURIComponent(query || '')}&facets=${encodeURIComponent(JSON.stringify(facets))}&limit=20&offset=${offset || 0}&index=${query ? 'relevance' : 'downloads'}`;
   const r = await getJson(url);
   return r.hits.map((h) => ({
@@ -110,6 +118,8 @@ ipcMain.handle('mr:search', async ({ query, mc, loader, offset }) => {
     description: h.description,
     downloads: h.downloads,
     icon: h.icon_url,
+    versions: h.versions,
+    categories: h.display_categories || h.categories,
   }));
 });
 
@@ -117,89 +127,200 @@ function loaderList(inst) {
   return inst.loader === 'quilt' ? ['quilt', 'fabric'] : [inst.loader];
 }
 
-async function latestVersion(inst, projectId) {
-  const url = `${MR}/project/${projectId}/version?loaders=${encodeURIComponent(JSON.stringify(loaderList(inst)))}&game_versions=${encodeURIComponent(JSON.stringify([inst.mc]))}`;
+async function latestVersion(inst, projectId, kind) {
+  let url = `${MR}/project/${projectId}/version?game_versions=${encodeURIComponent(JSON.stringify([inst.mc]))}`;
+  if ((kind || 'mod') === 'mod') url += `&loaders=${encodeURIComponent(JSON.stringify(loaderList(inst)))}`;
   const vs = await getJson(url);
-  return vs[0] || null; // neueste zuerst
+  return vs.find((v) => v.version_type === 'release') || vs[0] || null; // neueste zuerst, stabile bevorzugt
 }
 
-async function installProject(inst, projectId, isDep) {
+async function installProject(inst, projectId, isDep, kind, warnings) {
+  kind = kind || 'mod';
   if (inst.mods.some((m) => m.projectId === projectId)) return;
-  const v = await latestVersion(inst, projectId);
+  const v = await latestVersion(inst, projectId, kind);
   if (!v) {
     if (isDep) { status(`Abhaengigkeit ${projectId}: keine passende Version, uebersprungen`); return; }
-    throw new Error('Keine passende Version fuer ' + inst.mc + ' / ' + inst.loader);
+    throw new Error('Keine passende Version fuer ' + inst.mc + (kind === 'mod' ? ' / ' + inst.loader : ''));
   }
-  const f = v.files.find((x) => x.primary) || v.files[0];
   const proj = await getJson(`${MR}/project/${projectId}`);
+  // Konflikt mit installierten Mods?
+  const clash = (v.dependencies || []).filter((d) => d.dependency_type === 'incompatible' && d.project_id && inst.mods.some((m) => m.projectId === d.project_id));
+  for (const c of clash) warnings && warnings.push(`${proj.title} ist laut Autor inkompatibel mit ${inst.mods.find((m) => m.projectId === c.project_id).title}`);
+  const f = v.files.find((x) => x.primary) || v.files[0];
   status('Lade ' + proj.title + ' ...');
-  await download(f.url, path.join(instDir(inst.id), 'mods', f.filename), f.hashes && f.hashes.sha1);
-  inst.mods.push({ file: f.filename, projectId, versionId: v.id, title: proj.title });
+  await download(f.url, path.join(instDir(inst.id), KIND_DIR[kind], f.filename), f.hashes && f.hashes.sha1);
+  inst.mods.push({ file: f.filename, projectId, versionId: v.id, title: proj.title, icon: proj.icon_url || undefined, kind, version: v.version_number });
   saveInst(inst);
-  for (const d of v.dependencies || []) {
-    if (d.dependency_type === 'required' && d.project_id) await installProject(inst, d.project_id, true);
+  if (kind === 'mod') {
+    for (const d of v.dependencies || []) {
+      if (d.dependency_type === 'required' && d.project_id) await installProject(inst, d.project_id, true, 'mod', warnings);
+    }
   }
 }
 
-ipcMain.handle('mr:install', async ({ id, projectId }) => {
+ipcMain.handle('mr:install', async ({ id, projectId, kind }) => {
   const inst = readInst(id);
-  await installProject(inst, projectId, false);
-  status('Fertig');
-  return readInst(id);
+  const warnings = [];
+  await installProject(inst, projectId, false, kind, warnings);
+  status(warnings.length ? 'Installiert, aber: ' + warnings.join('; ') : 'Fertig');
+  return { inst: readInst(id), warnings };
 });
 
 ipcMain.handle('mr:checkUpdates', async (id) => {
   const inst = readInst(id);
   const res = [];
-  for (const m of inst.mods) {
-    if (!m.projectId) continue;
+  let n = 0;
+  const list = inst.mods.filter((m) => m.projectId);
+  await pool(list, 6, async (m) => {
     try {
-      const v = await latestVersion(inst, m.projectId);
+      const v = await latestVersion(inst, m.projectId, kindOf(m));
       if (v && v.id !== m.versionId) res.push(m.projectId);
     } catch {}
-  }
+    status(`Pruefe Updates ${++n}/${list.length} ...`);
+  });
   return res;
 });
 
 ipcMain.handle('mr:updateAll', async (id) => {
   const inst = readInst(id);
-  let count = 0;
-  for (const m of inst.mods) {
-    if (!m.projectId) continue;
-    const v = await latestVersion(inst, m.projectId);
-    if (!v || v.id === m.versionId) continue;
+  let count = 0, n = 0;
+  const list = inst.mods.filter((m) => m.projectId);
+  await pool(list, 4, async (m) => {
+    status(`Aktualisiere ${++n}/${list.length} ...`);
+    const v = await latestVersion(inst, m.projectId, kindOf(m));
+    if (!v || v.id === m.versionId) return;
     const f = v.files.find((x) => x.primary) || v.files[0];
-    status('Aktualisiere ' + m.title + ' ...');
-    await download(f.url, path.join(instDir(id), 'mods', f.filename), f.hashes && f.hashes.sha1);
-    if (f.filename !== m.file) fs.rmSync(path.join(instDir(id), 'mods', m.file), { force: true });
-    m.file = f.filename;
-    m.versionId = v.id;
+    const old = entryPath(id, m);
+    m.file = f.filename; m.versionId = v.id; m.version = v.version_number;
+    const neu = entryPath(id, m);
+    await download(f.url, neu, f.hashes && f.hashes.sha1);
+    if (old !== neu) fs.rmSync(old, { force: true });
     count++;
-  }
+  });
   saveInst(inst);
-  status(count + ' Mods aktualisiert');
+  status(count + ' Eintraege aktualisiert');
   return readInst(id);
 });
 
+ipcMain.handle('mr:checkConflicts', async (id) => {
+  const inst = readInst(id);
+  const mods = inst.mods.filter((m) => m.versionId && kindOf(m) === 'mod' && !m.disabled);
+  if (!mods.length) return [];
+  const vs = await getJson(`${MR}/versions?ids=${encodeURIComponent(JSON.stringify(mods.map((m) => m.versionId)))}`);
+  const byProj = new Map(inst.mods.filter((m) => m.projectId && !m.disabled).map((m) => [m.projectId, m]));
+  const out = [];
+  const missing = new Set();
+  for (const v of vs) {
+    const me = mods.find((m) => m.versionId === v.id);
+    for (const d of v.dependencies || []) {
+      if (!d.project_id) continue;
+      if (d.dependency_type === 'incompatible' && byProj.has(d.project_id)) out.push(`${me.title} ist inkompatibel mit ${byProj.get(d.project_id).title}`);
+      if (d.dependency_type === 'required' && !byProj.has(d.project_id)) missing.add(d.project_id + '|' + me.title);
+    }
+  }
+  if (missing.size) {
+    const ids = [...new Set([...missing].map((x) => x.split('|')[0]))];
+    let names = {};
+    try { for (const p of await getJson(`${MR}/projects?ids=${encodeURIComponent(JSON.stringify(ids))}`)) names[p.id] = p.title; } catch {}
+    for (const x of missing) {
+      const [pid, who] = x.split('|');
+      // Manuell/CurseForge installierte Mods koennten die Abhaengigkeit schon liefern; nur Hinweis
+      out.push(`${who} braucht ${names[pid] || pid}, das fehlt (oder ist manuell installiert)`);
+    }
+  }
+  return out;
+});
+
+// Nachtraeglich Modrinth-Infos zu Dateien finden (fuer Updates, Icons, Titel)
+async function linkModrinth(inst, entries) {
+  const withHash = entries.filter((e) => e.sha1 && !e.m.projectId);
+  if (!withHash.length) return;
+  let map = {};
+  try {
+    const r = await fetch(`${MR}/version_files`, { method: 'POST', headers: { 'User-Agent': UA, 'Content-Type': 'application/json' }, body: JSON.stringify({ hashes: withHash.map((e) => e.sha1), algorithm: 'sha1' }) });
+    if (r.ok) map = await r.json();
+  } catch { return; }
+  const pids = [...new Set(Object.values(map).map((v) => v.project_id))];
+  const projs = {};
+  for (let i = 0; i < pids.length; i += 100) {
+    try { for (const p of await getJson(`${MR}/projects?ids=${encodeURIComponent(JSON.stringify(pids.slice(i, i + 100)))}`)) projs[p.id] = p; } catch {}
+  }
+  for (const e of withHash) {
+    const v = map[e.sha1];
+    if (!v) continue;
+    e.m.projectId = v.project_id; e.m.versionId = v.id; e.m.version = v.version_number;
+    const p = projs[v.project_id];
+    if (p) { e.m.title = p.title; if (p.icon_url) e.m.icon = p.icon_url; }
+    delete e.m.manual;
+  }
+}
+
 ipcMain.handle('mods:remove', ({ id, file }) => {
   const inst = readInst(id);
-  fs.rmSync(path.join(instDir(id), 'mods', path.basename(file)), { force: true });
-  inst.mods = inst.mods.filter((m) => m.file !== file);
+  const m = inst.mods.find((x) => x.file === file);
+  if (m) fs.rmSync(entryPath(id, m), { force: true });
+  inst.mods = inst.mods.filter((x) => x.file !== file);
   saveInst(inst);
   return inst;
 });
 
-ipcMain.handle('mods:addFiles', ({ id, paths }) => {
+ipcMain.handle('mods:toggle', ({ id, file }) => {
   const inst = readInst(id);
-  for (const p of paths) {
-    if (!p.toLowerCase().endsWith('.jar')) continue;
-    const name = path.basename(p);
-    fs.copyFileSync(p, path.join(instDir(id), 'mods', name));
-    if (!inst.mods.some((m) => m.file === name)) inst.mods.push({ file: name, title: name, manual: true });
-  }
+  const m = inst.mods.find((x) => x.file === file);
+  if (!m) throw new Error('Eintrag nicht gefunden');
+  const from = entryPath(id, m);
+  m.disabled = !m.disabled;
+  const to = entryPath(id, m);
+  if (fs.existsSync(from)) fs.renameSync(from, to);
   saveInst(inst);
   return inst;
 });
+
+ipcMain.handle('mods:addFiles', async ({ id, paths }) => {
+  const inst = readInst(id);
+  const added = [];
+  for (const p of paths) {
+    if (!/\.(jar|zip)$/i.test(p)) continue;
+    const name = path.basename(p);
+    const data = fs.readFileSync(p);
+    const folder = targetFolder(name, data);
+    const kind = Object.keys(KIND_DIR).find((k) => KIND_DIR[k] === folder) || 'mod';
+    fs.mkdirSync(path.join(instDir(id), folder), { recursive: true });
+    fs.writeFileSync(path.join(instDir(id), folder, name), data);
+    if (!inst.mods.some((m) => m.file === name)) {
+      const m = { file: name, title: name.replace(/\.(jar|zip)$/i, ''), manual: true, kind };
+      inst.mods.push(m);
+      added.push({ m, sha1: crypto.createHash('sha1').update(data).digest('hex') });
+    }
+  }
+  status('Suche Infos auf Modrinth ...');
+  await linkModrinth(inst, added);
+  saveInst(inst);
+  status(added.length + ' Datei(en) hinzugefuegt');
+  return inst;
+});
+
+// ---------- Instanz-Extras ----------
+ipcMain.handle('instances:duplicate', (id) => {
+  const inst = readInst(id);
+  const name = inst.name + ' (Kopie)';
+  let nid = safeName(name), n = 1;
+  while (fs.existsSync(instDir(nid))) nid = safeName(name) + '_' + ++n;
+  fs.cpSync(instDir(id), instDir(nid), { recursive: true });
+  const copy = { ...inst, id: nid, name };
+  saveInst(copy);
+  return copy;
+});
+
+ipcMain.handle('instances:settings', ({ id, ram, javaArgs }) => {
+  const inst = readInst(id);
+  inst.ram = ram ? Math.max(1024, Math.min(65536, parseInt(ram, 10) || 0)) : undefined;
+  inst.javaArgs = String(javaArgs || '').replace(/-Xm[xs]\S*/g, '').trim() || undefined;
+  saveInst(inst);
+  return inst;
+});
+
+ipcMain.handle('sys:info', () => ({ totalMb: Math.floor(require('os').totalmem() / 1048576) }));
 
 // ---------- ZIP lesen (ohne Fremdbibliothek) ----------
 function readZip(buf) {
@@ -273,8 +394,111 @@ async function pool(items, size, fn) {
   await Promise.all(Array.from({ length: Math.min(size, items.length) }, work));
 }
 
+const sha1 = (buf) => crypto.createHash('sha1').update(buf).digest('hex');
+const folderKind = (folder) => Object.keys(KIND_DIR).find((k) => KIND_DIR[k] === folder) || null;
+
+function newInstId(name) {
+  let id = safeName(name), n = 1;
+  while (fs.existsSync(instDir(id))) id = safeName(name) + '_' + ++n;
+  return id;
+}
+
+// Kopiert Override-Ordner ins Instanzverzeichnis; gibt Mods/Packs darin fuer Modrinth-Verknuepfung zurueck
+function extractOverrides(entries, prefixes, inst) {
+  const dir = path.resolve(instDir(inst.id));
+  const found = [];
+  for (const pre of prefixes) {
+    const ov = pre.replace(/\/+$/, '') + '/';
+    for (const e of entries) {
+      if (e.dir || !e.name.startsWith(ov)) continue;
+      const rel = e.name.slice(ov.length);
+      const dest = path.resolve(dir, rel);
+      if (!rel || !dest.startsWith(dir + path.sep)) continue;
+      const data = e.data();
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, data);
+      const mm = /^(mods|resourcepacks|shaderpacks)\/([^/]+\.(jar|zip))$/i.exec(rel);
+      if (mm && !inst.mods.some((x) => x.file === mm[2])) {
+        const m = { file: mm[2], title: mm[2].replace(/\.(jar|zip)$/i, ''), manual: true, kind: folderKind(mm[1].toLowerCase()) };
+        inst.mods.push(m);
+        found.push({ m, sha1: sha1(data) });
+      }
+    }
+  }
+  return found;
+}
+
+// ---------- Modrinth-Modpacks (.mrpack) ----------
+async function importMrpack(buf, fallbackName, extra) {
+  const entries = readZip(buf);
+  const ie = entries.find((e) => e.name === 'modrinth.index.json');
+  if (!ie) throw new Error('Keine modrinth.index.json gefunden. Ist das eine .mrpack-Datei?');
+  const idx = JSON.parse(ie.data().toString('utf8'));
+  const dep = idx.dependencies || {};
+  const mc = dep.minecraft;
+  if (!mc) throw new Error('Modpack enthaelt keine Minecraft-Version');
+  let loader = null, loaderVersion;
+  for (const [k, l] of [['fabric-loader', 'fabric'], ['quilt-loader', 'quilt'], ['neoforge', 'neoforge'], ['forge', 'forge']]) {
+    if (dep[k]) { loader = l; loaderVersion = dep[k]; break; }
+  }
+  if (!loader) throw new Error('Modpack ohne unterstuetzten Loader (nur Fabric, Quilt, Forge, NeoForge)');
+  const name = idx.name || fallbackName || 'Modpack';
+  const id = newInstId(name);
+  fs.mkdirSync(path.join(instDir(id), 'mods'), { recursive: true });
+  const inst = { id, name, mc, loader, loaderVersion, mods: [], source: 'modrinth', ...(extra || {}) };
+  saveInst(inst);
+
+  const dir = path.resolve(instDir(id));
+  const files = (idx.files || []).filter((f) => !(f.env && f.env.client === 'unsupported'));
+  const failed = [], linkable = [];
+  let done = 0;
+  await pool(files, 6, async (f) => {
+    try {
+      const dest = path.resolve(dir, f.path);
+      if (!dest.startsWith(dir + path.sep)) throw new Error('ungueltiger Pfad');
+      const url = (f.downloads || [])[0];
+      if (!url) throw new Error('kein Download-Link');
+      await download(url, dest, f.hashes && f.hashes.sha1);
+      const mm = /^(mods|resourcepacks|shaderpacks)\/([^/]+)$/i.exec(f.path.replace(/\\/g, '/'));
+      if (mm) {
+        const m = { file: mm[2], title: mm[2].replace(/\.(jar|zip)$/i, ''), kind: folderKind(mm[1].toLowerCase()) };
+        inst.mods.push(m);
+        if (f.hashes && f.hashes.sha1) linkable.push({ m, sha1: f.hashes.sha1 });
+      }
+    } catch (e) { failed.push(`${f.path}: ${e.message}`); }
+    status(`Lade Modpack-Dateien ${++done}/${files.length} ...`);
+  });
+  linkable.push(...extractOverrides(entries, ['overrides', 'client-overrides'], inst));
+  status('Hole Mod-Infos von Modrinth ...');
+  await linkModrinth(inst, linkable);
+  saveInst(inst);
+  if (failed.length) {
+    fs.writeFileSync(path.join(instDir(id), 'import-fehler.txt'), failed.join('\r\n'));
+    status(`Modpack installiert, ${failed.length} Dateien fehlgeschlagen (import-fehler.txt)`);
+  } else status(`Modpack installiert: ${files.length} Dateien`);
+  return inst;
+}
+
+ipcMain.handle('mr:packVersions', async (projectId) => {
+  const vs = await getJson(`${MR}/project/${projectId}/version`);
+  return vs.map((v) => ({ id: v.id, name: v.name, number: v.version_number, mc: v.game_versions, loaders: v.loaders, type: v.version_type }));
+});
+
+ipcMain.handle('mr:installPack', async ({ projectId, versionId }) => {
+  const proj = await getJson(`${MR}/project/${projectId}`);
+  const v = versionId ? await getJson(`${MR}/version/${versionId}`) : (await getJson(`${MR}/project/${projectId}/version`))[0];
+  if (!v) throw new Error('Keine Version gefunden');
+  const f = v.files.find((x) => x.primary) || v.files[0];
+  status('Lade Modpack ' + proj.title + ' ...');
+  const r = await fetch(f.url, { headers: { 'User-Agent': UA } });
+  if (!r.ok) throw new Error('Download fehlgeschlagen (' + r.status + ')');
+  const buf = Buffer.from(await r.arrayBuffer());
+  return importMrpack(buf, proj.title, { icon: proj.icon_url || undefined, pack: { projectId, versionId: v.id, version: v.version_number } });
+});
+
 async function importProfileZip(buf, fallbackName) {
   const entries = readZip(buf);
+  if (entries.some((e) => e.name === 'modrinth.index.json')) return importMrpack(buf, fallbackName);
   const me = entries.find((e) => e.name === 'manifest.json');
   if (!me) throw new Error('Keine manifest.json im Profil. Ist das ein CurseForge-Profil-Export?');
   const man = JSON.parse(me.data().toString('utf8').replace(/^﻿/, ''));
@@ -285,25 +509,13 @@ async function importProfileZip(buf, fallbackName) {
   if (!pl) throw new Error('Unbekannter Mod-Loader im Profil: ' + (ml ? ml.id : 'keiner'));
 
   const name = man.name || fallbackName || 'CurseForge-Profil';
-  let id = safeName(name);
-  let n = 1;
-  while (fs.existsSync(instDir(id))) id = safeName(name) + '_' + ++n;
+  const id = newInstId(name);
   const dir = instDir(id);
   fs.mkdirSync(path.join(dir, 'mods'), { recursive: true });
   const inst = { id, name, mc, loader: pl.loader, loaderVersion: pl.version, mods: [], source: 'curseforge' };
   saveInst(inst);
 
-  // Overrides (Configs, manuell eingefuegte Mods usw.)
-  const ov = (man.overrides || 'overrides').replace(/\/+$/, '') + '/';
-  for (const e of entries) {
-    if (e.dir || !e.name.startsWith(ov)) continue;
-    const rel = e.name.slice(ov.length);
-    const dest = path.resolve(dir, rel);
-    if (!rel || !dest.startsWith(path.resolve(dir) + path.sep)) continue;
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, e.data());
-    if (/^mods\/[^/]+\.jar$/i.test(rel)) inst.mods.push({ file: path.basename(rel), title: path.basename(rel), manual: true });
-  }
+  const linkable = extractOverrides(entries, [(man.overrides || 'overrides')], inst);
 
   const files = man.files || [];
   const failed = [];
@@ -316,8 +528,11 @@ async function importProfileZip(buf, fallbackName) {
       const folder = targetFolder(info.fileName, data);
       fs.mkdirSync(path.join(dir, folder), { recursive: true });
       fs.writeFileSync(path.join(dir, folder, path.basename(info.fileName)), data);
-      if (folder === 'mods') {
-        inst.mods.push({ file: path.basename(info.fileName), title: cfTitle(info), cf: { projectId: f.projectID, fileId: f.fileID } });
+      const kind = folderKind(folder);
+      if (kind) {
+        const m = { file: path.basename(info.fileName), title: cfTitle(info), cf: { projectId: f.projectID, fileId: f.fileID }, kind };
+        inst.mods.push(m);
+        linkable.push({ m, sha1: sha1(data) });
       }
     } catch (e) {
       failed.push(`Projekt ${f.projectID} / Datei ${f.fileID}: ${e.message}`);
@@ -325,6 +540,8 @@ async function importProfileZip(buf, fallbackName) {
     done++;
     status(`Lade CurseForge-Dateien ${done}/${files.length} ...`);
   });
+  status('Verknuepfe mit Modrinth (fuer Updates und Icons) ...');
+  await linkModrinth(inst, linkable);
   saveInst(inst);
   if (failed.length) {
     fs.writeFileSync(path.join(dir, 'import-fehler.txt'), failed.join('\r\n'));
@@ -347,11 +564,11 @@ ipcMain.handle('cf:importCode', async (code) => {
 });
 
 ipcMain.handle('cf:importZip', async () => {
-  const res = await dialog.showOpenDialog(win, { title: 'CurseForge-Profil (.zip) waehlen', filters: [{ name: 'ZIP', extensions: ['zip'] }], properties: ['openFile'] });
+  const res = await dialog.showOpenDialog(win, { title: 'Modpack oder Profil waehlen', filters: [{ name: 'Modpack / Profil', extensions: ['zip', 'mrpack'] }], properties: ['openFile'] });
   if (res.canceled || !res.filePaths.length) return null;
   const p = res.filePaths[0];
   status('Lese ' + path.basename(p) + ' ...');
-  return importProfileZip(fs.readFileSync(p), path.basename(p, '.zip'));
+  return importProfileZip(fs.readFileSync(p), path.basename(p).replace(/\.(zip|mrpack)$/i, ''));
 });
 
 // ---------- Loader-Installation ----------
@@ -441,7 +658,8 @@ async function ensureLoader(inst) {
   }
   if (inst.loader === 'neoforge') {
     const parts = inst.mc.split('.'); // 1.21.1 -> 21.1.
-    const prefix = `${parts[1]}.${parts[2] || '0'}.`;
+    // alt: 1.21.1 -> "21.1." ; neu (ab 26.x ohne "1."): 26.3 -> "26.3."
+    const prefix = parts[0] === '1' ? `${parts[1]}.${parts[2] || '0'}.` : `${parts[0]}.${parts[1] || '0'}.`;
     const all = (await getJson('https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge')).versions || [];
     const cands = all.filter((x) => x.startsWith(prefix));
     if (!cands.length) throw new Error('Kein NeoForge fuer ' + inst.mc);
@@ -494,6 +712,9 @@ ipcMain.handle('play', async (id) => {
     type: 'custom',
     gameDir: instDir(inst.id),
   };
+  const jargs = [inst.ram ? `-Xmx${inst.ram}M` : '', inst.javaArgs || ''].join(' ').trim();
+  if (jargs) data.profiles[key].javaArgs = jargs;
+  else delete data.profiles[key].javaArgs;
   fs.writeFileSync(f, JSON.stringify(data, null, 2));
 
   const candidates = [
@@ -517,7 +738,11 @@ ipcMain.handle('instances:rename', ({ id, name }) => {
   return inst;
 });
 ipcMain.handle('app:openRoot', () => { fs.mkdirSync(instRoot(), { recursive: true }); shell.openPath(instRoot()); return true; });
-ipcMain.handle('app:showMod', ({ id, file }) => { shell.showItemInFolder(path.join(instDir(id), 'mods', path.basename(file))); return true; });
+ipcMain.handle('app:showMod', ({ id, file }) => {
+  const m = readInst(id).mods.find((x) => x.file === file);
+  shell.showItemInFolder(m ? entryPath(id, m) : path.join(instDir(id), 'mods', path.basename(file)));
+  return true;
+});
 ipcMain.handle('app:openUrl', (url) => { if (/^https:\/\//.test(url)) shell.openExternal(url); return true; });
 ipcMain.handle('app:quit', () => { app.quit(); return true; });
 ipcMain.handle('app:version', () => app.getVersion());
