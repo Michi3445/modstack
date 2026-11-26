@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain: rawIpc, shell, dialog, nativeImage, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain: rawIpc, shell, dialog, nativeImage, Notification, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -228,6 +228,10 @@ const backups = require('./instance-backups')({
   running: runningModstackInstances, settings: appSettings, status,
 });
 const history = require('./mod-history')({ instDir, entryPath, saveInst, settings: appSettings });
+const diagnostics = require('./crash-diagnostics')({
+  instDir, readInst, entryPath, readZip, settings: appSettings,
+  idle: async (id) => !(await runningModstackInstances()).some((active) => active.toLowerCase() === id.toLowerCase()),
+});
 const instanceJobs = new Map();
 function instanceWork(id, fn) {
   const key = safeName(id).toLowerCase();
@@ -260,6 +264,26 @@ ipcMain.handle('history:clearAll', async () => {
     await instanceWork(id, () => history.clear(readInst(inst.id)));
   }
 });
+ipcMain.handle('crashes:list', (id) => diagnostics.list(id));
+ipcMain.handle('crashes:open', ({ id, key }) => shell.openPath(diagnostics.report(id, key).file));
+ipcMain.handle('crashes:copy', ({ id, key }) => {
+  clipboard.writeText(diagnostics.report(id, key).text);
+});
+ipcMain.handle('crashes:installDependency', ({ id, key }) => instanceWork(id, async () => {
+  const crash = (await diagnostics.list(id)).find((item) => item.key === key && item.type === 'dependency');
+  if (!crash?.mod?.versionId || !/^[a-z0-9_.-]{2,64}$/i.test(crash.dependency || '')) return false;
+  const inst = readInst(id);
+  const version = await getJson(`${MR}/version/${encodeURIComponent(crash.mod.versionId)}`);
+  const projectIds = (version.dependencies || []).filter((d) => d.dependency_type === 'required' && /^[a-z0-9]{4,32}$/i.test(d.project_id || ''))
+    .map((d) => d.project_id).filter((projectId) => !inst.mods.some((mod) => mod.projectId === projectId));
+  if (!projectIds.length) return false;
+  const projects = await getJson(`${MR}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`);
+  const alias = crash.dependency.toLowerCase().replace(/_/g, '-');
+  const candidates = projects.filter((p) => projectIds.includes(p.id) && (p.slug === alias || (alias === 'fabric' && p.slug === 'fabric-api')));
+  if (candidates.length !== 1) return false;
+  await installProject(inst, candidates[0].id, false, 'mod');
+  return true;
+}));
 
 function keybindTarget(id) {
   if (typeof id !== 'string' || id !== safeName(id) || id === '.' || id === '..') throw new Error('Ungültige Instanz.');
@@ -304,7 +328,7 @@ async function installProject(inst, projectId, isDep, kind, warnings) {
   for (const c of clash) warnings && warnings.push(`${proj.title} ist laut Autor inkompatibel mit ${inst.mods.find((m) => m.projectId === c.project_id).title}`);
   const f = v.files.find((x) => x.primary) || v.files[0];
   status('Lade ' + proj.title + ' ...');
-  await download(f.url, path.join(instDir(inst.id), KIND_DIR[kind], f.filename), f.hashes && f.hashes.sha1);
+  await downloadModrinth(f, path.join(instDir(inst.id), KIND_DIR[kind], modFile(f.filename)));
   inst.mods.push({ file: f.filename, projectId, versionId: v.id, title: proj.title, icon: proj.icon_url || undefined, kind, version: v.version_number });
   saveInst(inst);
   if (kind === 'mod' && appSettings().autoDeps !== false) {
@@ -777,11 +801,12 @@ function readZip(buf) {
     entries.push({
       name,
       dir: name.endsWith('/'),
-      data: () => {
+      data: (maxBytes) => {
         const start = loc + 30 + buf.readUInt16LE(loc + 26) + buf.readUInt16LE(loc + 28);
         const raw = buf.slice(start, start + csize);
+        if (maxBytes && method === 0 && raw.length > maxBytes) throw new Error('ZIP-Eintrag zu groß.');
         if (method === 0) return raw;
-        if (method === 8) return zlib.inflateRawSync(raw);
+        if (method === 8) return zlib.inflateRawSync(raw, maxBytes ? { maxOutputLength: maxBytes } : undefined);
         throw new Error('ZIP-Kompression nicht unterstuetzt: ' + name);
       },
     });

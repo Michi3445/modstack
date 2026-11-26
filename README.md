@@ -17,6 +17,9 @@ A lightweight Minecraft mod manager for Windows, built with Electron.
   up worlds before an update and saves the live worlds before restoring a backup. Under
   **Optionen → Daten & Speicher**, choose automatic and daily backups, optional configuration
   files, and how many backups or old mod versions to keep. Close Minecraft before restoring.
+- **Instanz → Einstellungen → Probleme** lists crash reports and diagnosed log failures,
+  with targeted actions for missing dependencies, incompatible mods and memory issues.
+  Disable crash detection under **Optionen → Minecraft → Spielstart**.
 
 ## Build
 

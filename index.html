@@ -428,6 +428,11 @@
   .pack-backups > button, .pack-history > h3 { align-self: flex-start; margin-bottom: 9px; }
   .safety-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 9px; padding: 9px 0; border-top: 1px solid var(--line); }
   .safety-row small { display: block; margin-top: 3px; color: var(--muted); }
+  #crashNotice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 24px 0; padding: 8px 12px; border: 1px solid color-mix(in srgb, #ea7866 45%, var(--line)); border-radius: 9px; }
+  #crashNotice span { flex: 1 1 150px; color: var(--muted); }
+  #crashNotice[hidden], .pack-crashes[hidden] { display: none; }
+  .crash-card { padding: 10px 0; border-top: 1px solid var(--line); }
+  .crash-card small { display: block; color: var(--muted); margin: 3px 0 7px; }
   .folders { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
   .folders div { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); cursor: pointer; font-size: 12.5px; }
   .folders div:hover { border-color: color-mix(in srgb, var(--c1) 50%, transparent); background: rgba(255,255,255,.07); }
@@ -698,6 +703,7 @@
       <div class="tab" data-t="search-shader">Shader</div>
       <div class="tab" data-t="settings">Einstellungen</div>
     </div>
+    <div id="crashNotice" hidden><strong>Minecraft ist abgestürzt</strong><span></span><button class="ghost sm">Problem ansehen</button></div>
     <div id="content"></div>
   </div>
 </div>
@@ -710,6 +716,7 @@
 <script src="minecraft-option-definitions.js"></script>
 <script src="minecraft-options-ui.js"></script>
 <script src="instance-safety-ui.js"></script>
+<script src="crash-diagnostics-ui.js"></script>
 
 <dialog id="dlg">
   <div class="dh">Neue Instanz</div>
@@ -1035,9 +1042,13 @@ function renderList() {
 
 function renderHead() {
   const has = view === 'inst' && !!cur;
+  const crash = $('#crashNotice');
+  if (!has || crash.dataset.instance !== cur.id || S.crashDiagnostics === false) crash.hidden = true;
+  crash.dataset.instance = has ? cur.id : '';
   $('#head').style.display = has ? 'flex' : 'none';
   $('#tabs').style.display = has ? 'flex' : 'none';
   if (!has) return;
+  checkInstanceCrash(cur);
   ava($('#headAva'), cur);
   $('#title').textContent = cur.name;
   const b = $('#badges'); b.innerHTML = '';
@@ -1701,6 +1712,7 @@ async function renderSettings() {
 
     <div class="card iscard pack-backups"><h3>Welt-Backups</h3></div>
     <div class="card iscard pack-history"><h3>Mod-Verlauf</h3></div>
+    <div class="card iscard span2 pack-crashes" hidden><h3>Probleme</h3><div class="crash-list"></div></div>
 
     <div class="card iscard span2 danger-zone"><h3>Verwalten</h3><p>Erstellt am ${fmtDate(i.created)} · Ordner: ${i.id}</p>
       <div class="line"><button class="ghost" id="sRen">Umbenennen</button><button class="ghost" id="sDup">Duplizieren</button><button class="danger" id="sDel" style="margin-left:auto">Instanz löschen</button></div></div>
@@ -1776,6 +1788,7 @@ async function renderSettings() {
   $('#sDup').onclick = () => duplicateInst(i);
   $('#sDel').onclick = () => deleteInst(i);
   renderInstanceSafety(c, i);
+  renderInstanceCrashes(c, i);
   // Statistik
   const size = $('#stSize'), worlds = $('#stWorlds'), shots = $('#stShots');
   call('instances:info', i.id, true).then((inf) => {
@@ -2395,6 +2408,7 @@ const SET_BUILD = {
   play(c) {
     c.appendChild(sec('Beim Spielen', '', toggles([
       ['Modstack minimieren', 'Nach dem Klick auf Spielen', !!S.minimizeOnPlay, (v) => setS({ minimizeOnPlay: v })],
+      ['Absturzdiagnose', 'Nach dem Spielen nach Crash-Reports und auffälligen Fehlern suchen.', S.crashDiagnostics !== false, (v) => setS({ crashDiagnostics: v }).then(() => { renderHead(); if (view === 'inst' && tab === 'settings') renderSettings(); })],
     ])));
     c.appendChild(sec('So funktioniert Spielen', 'Modstack startet Minecraft über den offiziellen Launcher. Dort wählst du das Profil „[Modstack] Name“ und klickst auf Spielen. Der Mojang-Launcher muss vorher geschlossen sein.'));
   },
@@ -2613,6 +2627,7 @@ async function deleteInst(i) {
 function about() {
   call('app:version').then((v) => ask({ title: 'Über Modstack', text: `Version ${v}. Minecraft-Mods von Modrinth installieren, CurseForge-Profile importieren und über den offiziellen Launcher spielen.`, okText: 'Schließen' }));
 }
+window.addEventListener('focus', () => { if (view === 'inst' && cur) checkInstanceCrash(cur); });
 
 // ---------- Neue Instanz ----------
 async function newInstance() {
