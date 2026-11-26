@@ -140,12 +140,47 @@ async function renderFriends(showSetup = false, notice = '') {
   }
 }
 
-function friendAvatar(name) {
+const minecraftHeads = new Map();
+function friendAvatar({ name, avatar: custom }) {
   const avatar = document.createElement('span');
   avatar.className = 'message-avatar';
   avatar.textContent = Array.from(name.trim())[0]?.toUpperCase() || '?';
   avatar.setAttribute('aria-hidden', 'true');
+  function show(url, pixelated) {
+    if (!url) return;
+    const img = new Image();
+    img.alt = '';
+    img.src = url;
+    img.classList.toggle('skin-head', pixelated);
+    img.decode().then(() => avatar.replaceChildren(img)).catch(() => {});
+  }
+  if (custom) show(custom, false);
+  else if (/^[A-Za-z0-9_]{3,16}$/.test(name)) {
+    const key = name.toLowerCase();
+    if (!minecraftHeads.has(key)) {
+      const head = api.invoke('mc:skin', { name }).then(async (data) => {
+        if (!data?.skin) return null;
+        const skin = new Image();
+        skin.src = data.skin;
+        await skin.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 8;
+        const ctx = canvas.getContext('2d');
+        const scale = skin.naturalWidth / 64;
+        if (!Number.isInteger(scale) || scale < 1) return null;
+        ctx.drawImage(skin, 8 * scale, 8 * scale, 8 * scale, 8 * scale, 0, 0, 8, 8);
+        if (skin.naturalHeight >= 16 * scale) ctx.drawImage(skin, 40 * scale, 8 * scale, 8 * scale, 8 * scale, 0, 0, 8, 8);
+        return canvas.toDataURL();
+      }).catch(() => { minecraftHeads.delete(key); return null; });
+      minecraftHeads.set(key, head);
+    }
+    minecraftHeads.get(key).then((url) => show(url, true));
+  }
   return avatar;
+}
+
+function friendActivity(entry) {
+  return entry.status?.pack ? 'Spielt ' + entry.status.pack : entry.status ? 'In Modstack online' : '';
 }
 
 function mountMessenger(panel, body, account, notice, button, act) {
@@ -166,13 +201,71 @@ function mountMessenger(panel, body, account, notice, button, act) {
   const status = $('.friends-status', panel);
   const list = $('.message-contacts', body), stage = $('.message-conversation', body), search = $('.message-search', body);
   const profile = $('.message-profile', body);
-  $('summary', profile).append(friendAvatar(account.name), document.createTextNode(account.name));
+  const summary = $('summary', profile);
+  function drawOwnAvatar() { summary.replaceChildren(friendAvatar(account), document.createTextNode(account.name)); }
+  drawOwnAvatar();
   const options = $('div', profile);
+  const avatarFile = document.createElement('input');
+  avatarFile.type = 'file';
+  avatarFile.hidden = true;
+  avatarFile.accept = 'image/png,image/jpeg,image/webp,image/gif';
+  const resetAvatar = button('Minecraft-Kopf verwenden', () => saveAvatar(null));
+  resetAvatar.hidden = true;
+  async function saveAvatar(value) {
+    try {
+      account.avatar = await api.invoke('friends:avatar', value);
+      resetAvatar.hidden = !account.avatar;
+      drawOwnAvatar();
+      toast(value ? 'Profilbild gespeichert.' : 'Minecraft-Kopf ausgewählt.');
+    } catch (err) { toast(errText(err), true); }
+  }
+  avatarFile.onchange = async () => {
+    const file = avatarFile.files[0];
+    avatarFile.value = '';
+    if (!file || $('#cropDlg').open) return;
+    const url = URL.createObjectURL(file);
+    try {
+      const cropped = await cropImage(url, false, true);
+      if (cropped && panel.isConnected) await saveAvatar(cropped);
+    } catch { toast('Das Profilbild konnte nicht geöffnet werden.', true); }
+    finally { URL.revokeObjectURL(url); }
+  };
+  options.append(avatarFile, button('Profilbild ändern', () => avatarFile.click()), resetAvatar);
+  api.invoke('friends:appearance').then((data) => {
+    if (!panel.isConnected || account.avatar) return;
+    account.avatar = data?.avatar;
+    resetAvatar.hidden = !account.avatar;
+    drawOwnAvatar();
+  }).catch(() => {});
   options.append(button('Freundescode kopieren', () => act('copyCode', undefined, 'Freundescode kopiert.', false)));
-  options.append(toggles([
-    ['Ton', 'Nachrichten und Anfragen', S.friendsSound !== false, (v) => setS({ friendsSound: v })],
-    ['Pop-up', 'Nachrichten und Anfragen', S.friendsPopup !== false, (v) => setS({ friendsPopup: v })],
-  ]), button('Abmelden', () => act('logout')));
+  const changePresence = async (key, value) => {
+    try {
+      await setS({ [key]: value });
+      await api.invoke('friends:presence');
+    } catch (err) { toast(errText(err), true); }
+  };
+  const prefs = document.createElement('div');
+  prefs.className = 'message-preferences';
+  for (const [text, on, update] of [
+    ['Ton', S.friendsSound !== false, (v) => setS({ friendsSound: v })],
+    ['Pop-up', S.friendsPopup !== false, (v) => setS({ friendsPopup: v })],
+    ['Online anzeigen (nur Freunde)', S.friendsOnline === true, (v) => changePresence('friendsOnline', v)],
+    ['Modpack im Status', S.friendsPlaying === true, (v) => changePresence('friendsPlaying', v)],
+  ]) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = on;
+    input.onchange = async () => {
+      input.disabled = true;
+      try { await update(input.checked); }
+      catch { input.checked = !input.checked; }
+      finally { input.disabled = false; }
+    };
+    label.append(input, document.createTextNode(text));
+    prefs.append(label);
+  }
+  options.append(prefs, button('Abmelden', () => act('logout')));
 
   let rows = [], working = false, refreshing = false, again = false;
   function emptyConversation() {
@@ -243,7 +336,17 @@ function mountMessenger(panel, body, account, notice, button, act) {
         contact.classList.toggle('chat-unread', unreadFriendChats.has(entry.id));
         contact.setAttribute('aria-label', entry.name + (unreadFriendChats.has(entry.id) ? ' · ungelesen' : ''));
         contact.setAttribute('aria-current', String(entry.id === activeFriendChat?.entry.id));
-        contact.append(friendAvatar(entry.name), name);
+        const labels = document.createElement('span');
+        labels.className = 'message-contact-labels';
+        labels.append(name);
+        const presence = friendActivity(entry);
+        if (presence) {
+          const line = document.createElement('small');
+          line.className = 'friend-activity';
+          line.textContent = presence;
+          labels.append(line);
+        }
+        contact.append(friendAvatar(entry), labels);
         list.append(contact);
       } else {
         const row = document.createElement('article');
@@ -252,7 +355,7 @@ function mountMessenger(panel, body, account, notice, button, act) {
         const hint = document.createElement('small');
         hint.textContent = entry.incoming ? 'Möchte dich hinzufügen' : 'Anfrage gesendet';
         title.append(name, hint);
-        row.append(friendAvatar(entry.name), title);
+        row.append(friendAvatar(entry), title);
         const respond = (accept) => change('respond', { id: entry.id, accept });
         if (entry.incoming) row.append(button('Annehmen', () => respond(true), true));
         row.append(button(entry.incoming ? 'Ablehnen' : 'Zurückziehen', () => respond(false)));
@@ -273,7 +376,11 @@ function mountMessenger(panel, body, account, notice, button, act) {
       const unread = await api.invoke('friends:unread');
       if (!panel.isConnected) return;
       markUnreadFriendChats(unread);
-      if (activeFriendChat && !rows.some((row) => row.accepted && row.id === activeFriendChat.entry.id)) emptyConversation();
+      if (activeFriendChat) {
+        const current = rows.find((row) => row.accepted && row.id === activeFriendChat.entry.id);
+        if (current) activeFriendChat.updateContact(current);
+        else emptyConversation();
+      }
       draw();
     } catch (err) {
       status.textContent = errText(err);
@@ -288,6 +395,10 @@ function mountMessenger(panel, body, account, notice, button, act) {
   messenger = { panel, draw, refresh };
   draw();
   refresh();
+  const activityTimer = setInterval(() => {
+    if (!panel.isConnected) clearInterval(activityTimer);
+    else if (!document.hidden) refresh();
+  }, 15000);
 }
 
 function openFriendChat(entry, stage, back, remove) {
@@ -296,13 +407,18 @@ function openFriendChat(entry, stage, back, remove) {
   const panel = document.createElement('section');
   panel.className = 'friend-chat';
   panel.innerHTML = `
-    <header><button type="button" class="ghost chat-back" aria-label="Zur Chatliste">‹</button><h2></h2><details class="chat-menu"><summary aria-label="Chat-Optionen">⋯</summary><button type="button" class="ghost chat-remove">Freund entfernen</button></details></header>
+    <header><button type="button" class="ghost chat-back" aria-label="Zur Chatliste">‹</button><div class="chat-person"><h2></h2><small class="friend-activity" hidden></small></div><details class="chat-menu"><summary aria-label="Chat-Optionen">⋯</summary><button type="button" class="ghost chat-remove">Freund entfernen</button></details></header>
+    <nav class="message-tabs chat-history-tabs" aria-label="Unterhaltung"><button type="button" aria-pressed="true">Chat</button><button type="button" aria-pressed="false">Geteilt</button></nav>
     <p class="friends-status chat-status" role="status"></p>
     <div class="chat-scroll" aria-label="Nachrichten" tabindex="0"></div>
+    <div class="chat-scroll shared-packs" aria-label="Geteilte Modpacks" hidden></div>
     <footer>
       <form class="chat-share" hidden>
-        <select aria-label="Instanz zum Teilen" required><option value="">Instanz auswählen …</option></select>
-        <button type="submit" class="ghost">Modpack senden</button>
+        <div><select name="instance" aria-label="Instanz zum Teilen" required><option value="">Instanz auswählen …</option></select>
+        <select name="method" aria-label="Einladungsart"><option value="">Modpack teilen</option><option value="essential">Über Essential einladen</option><option value="server">Zu Server einladen</option></select></div>
+        <input name="address" placeholder="Serveradresse[:Port]" aria-label="Serveradresse" maxlength="120" hidden disabled>
+        <small hidden>Hoste die Welt in Essential und lade deinen Freund dort ein. Diese Karte teilt das passende Modpack.</small>
+        <button type="submit" class="ghost">Senden</button>
       </form>
       <form class="chat-compose">
         <button type="button" class="ghost chat-attach" title="Modpack anhängen" aria-label="Modpack anhängen" aria-expanded="false">+</button>
@@ -311,11 +427,33 @@ function openFriendChat(entry, stage, back, remove) {
       </form>
     </footer>`;
   stage.replaceChildren(panel);
-  $('h2', panel).textContent = entry.name;
-  $('h2', panel).before(friendAvatar(entry.name));
+  let shownPerson;
+  function updateContact(contact) {
+    const signature = contact.name + '\n' + (contact.avatar || '') + '\n' + friendActivity(contact);
+    if (signature === shownPerson) return;
+    shownPerson = signature;
+    $('h2', panel).textContent = contact.name;
+    const activity = $('.friend-activity', panel);
+    activity.textContent = friendActivity(contact);
+    activity.hidden = !activity.textContent;
+    const person = $('.chat-person', panel);
+    const current = $('header > .message-avatar', panel);
+    if (current) current.replaceWith(friendAvatar(contact));
+    else person.before(friendAvatar(contact));
+  }
+  updateContact(entry);
   const status = $('.friends-status', panel), messages = $('.chat-scroll', panel);
   const composer = $('.chat-compose', panel), text = $('textarea', composer);
-  const share = $('.chat-share', panel), instances = $('select', share);
+  const share = $('.chat-share', panel), instances = share.elements.instance;
+  const method = share.elements.method;
+  const address = share.elements.address;
+  method.onchange = () => {
+    address.hidden = address.disabled = method.value !== 'server';
+    address.required = !address.disabled;
+    $('small', share).hidden = method.value !== 'essential';
+    $('button[type=submit]', share).textContent = method.value ? 'Einladung senden' : 'Modpack senden';
+  };
+  method.onchange();
   const attach = $('.chat-attach', panel);
   attach.onclick = () => {
     share.hidden = !share.hidden;
@@ -333,6 +471,101 @@ function openFriendChat(entry, stage, back, remove) {
   const isOpen = () => panel.isConnected && view === 'friends';
   const time = new Intl.DateTimeFormat('de-DE', { timeStyle: 'short' });
   const date = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' });
+  const sharedView = $('.shared-packs', panel), footer = $('footer', panel);
+  const [chatTab, sharedTab] = panel.querySelectorAll('.chat-history-tabs button');
+  const shared = new Map();
+  let before, loadedShared = false, loadingShared = false;
+
+  function renderPack(bubble, row) {
+    const title = document.createElement('strong');
+    title.textContent = (row.invite?.method === 'essential' ? 'Essential-Einladung' : row.invite?.method === 'server' ? 'Server-Einladung' : 'Modpack') + ' · ' + row.title;
+    bubble.append(title);
+    if (row.invite) {
+      const instructions = document.createElement('small');
+      if (row.invite.method === 'essential') {
+        instructions.textContent = row.mine ? 'Sende die Welteinladung im Spiel über Essential.' : 'Host: ' + row.invite.host + ' · Essential → Social → Join Game';
+      } else instructions.textContent = row.invite.address;
+      bubble.append(instructions);
+      const target = row.invite.method === 'server' ? row.invite.address :
+        row.mine && /^[A-Za-z0-9_]{3,16}$/.test(entry.name) ? '/einvite ' + entry.name : row.invite.host;
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'ghost';
+      copy.textContent = row.invite.method === 'server' ? 'Serveradresse kopieren' : target.startsWith('/') ? 'Essential-Befehl kopieren' : 'Minecraft-Namen kopieren';
+      copy.onclick = () => navigator.clipboard.writeText(target).then(() => toast('Kopiert.')).catch((err) => toast(errText(err), true));
+      bubble.append(copy);
+    }
+    if (row.skipped > 0) {
+      const note = document.createElement('small');
+      note.textContent = `${row.skipped} lokale Einträge fehlen.`;
+      bubble.append(note);
+    }
+    if (!row.mine) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ghost';
+      button.textContent = 'Als Instanz importieren';
+      button.onclick = async () => {
+        if (busy || !await ask({ title: 'Modpack importieren?', text: `„${row.title}“ wird als neue Instanz angelegt.`, okText: 'Importieren' })) return;
+        await cfRun('share:importCode', row.content);
+      };
+      bubble.append(button);
+    }
+  }
+
+  function drawShared() {
+    const scrollTop = sharedView.scrollTop;
+    sharedView.replaceChildren();
+    const packs = [...shared.values()].sort((a, b) => b.at - a.at);
+    if (!packs.length && loadedShared) {
+      const hint = document.createElement('p');
+      hint.textContent = before ? 'Auf dieser Seite sind keine Modpacks.' : 'Hier wurden noch keine Modpacks geteilt.';
+      sharedView.append(hint);
+    }
+    for (const pack of packs) {
+      const card = document.createElement('article');
+      card.className = 'chat-message pack shared-pack';
+      renderPack(card, pack);
+      const sent = document.createElement('time');
+      sent.textContent = date.format(pack.at);
+      card.append(sent);
+      sharedView.append(card);
+    }
+    if (before) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'ghost';
+      more.textContent = 'Ältere Nachrichten durchsuchen';
+      more.onclick = loadShared;
+      sharedView.append(more);
+    }
+    sharedView.scrollTop = scrollTop;
+  }
+
+  async function loadShared() {
+    if (loadingShared || !isOpen()) return;
+    loadingShared = true;
+    try {
+      const page = await api.invoke('friends:shared', { id: entry.id, before });
+      if (!isOpen()) return;
+      if (before && page.before === before) return;
+      before = page.before;
+      loadedShared = true;
+      for (const pack of page.packs) shared.set(pack.messageId, pack);
+      drawShared();
+    } catch (err) { toast(errText(err), true); }
+    finally { loadingShared = false; }
+  }
+
+  function showShared(show) {
+    chatTab.setAttribute('aria-pressed', String(!show));
+    sharedTab.setAttribute('aria-pressed', String(show));
+    messages.hidden = footer.hidden = show;
+    sharedView.hidden = !show;
+    if (show && !loadedShared) loadShared();
+  }
+  chatTab.onclick = () => showShared(false);
+  sharedTab.onclick = () => showShared(true);
 
   function paint(rows) {
     const ids = rows.map((row) => row.messageId).join(',');
@@ -358,31 +591,17 @@ function openFriendChat(entry, stage, back, remove) {
       }
       const bubble = document.createElement('article');
       bubble.className = 'chat-message' + (row.mine ? ' mine' : '') + (row.kind === 'pack' ? ' pack' : '');
-      const content = document.createElement(row.kind === 'pack' ? 'strong' : 'div');
-      content.textContent = row.kind === 'pack' ? 'Modpack · ' + row.title : row.content;
-      bubble.append(content);
-      if (row.kind === 'pack' && row.skipped > 0) {
-        const note = document.createElement('small');
-        note.textContent = `${row.skipped} lokale Einträge fehlen.`;
-        bubble.append(note);
-      }
-      if (row.kind === 'pack' && !row.mine) {
-        const importButton = document.createElement('button');
-        importButton.type = 'button';
-        importButton.className = 'ghost';
-        importButton.textContent = 'Als Instanz importieren';
-        importButton.onclick = async () => {
-          if (busy || !await ask({ title: 'Modpack importieren?', text: `„${row.title}“ wird als neue Instanz angelegt.`, okText: 'Importieren' })) return;
-          await cfRun('share:importCode', row.content);
-        };
-        bubble.append(importButton);
-      }
+      if (row.kind === 'pack') {
+        renderPack(bubble, row);
+        if (loadedShared) shared.set(row.messageId, row);
+      } else bubble.textContent = row.content;
       const sent = document.createElement('time');
       sent.textContent = time.format(row.at);
       bubble.append(sent);
       messages.append(bubble);
     }
     messages.scrollTop = atBottom ? messages.scrollHeight : scrollTop;
+    if (loadedShared && !sharedView.hidden) drawShared();
   }
 
   async function refresh() {
@@ -447,13 +666,14 @@ function openFriendChat(entry, stage, back, remove) {
   share.onsubmit = async (event) => {
     event.preventDefault();
     const instanceId = instances.value;
-    const sent = await send('friends:sendPack', share, { instanceId }, async () => {
+    const inviteMethod = method.value;
+    const sent = await send('friends:sendPack', share, { instanceId, method: inviteMethod, address: address.value }, async () => {
       const { skipped, name } = await api.invoke('share:code', instanceId);
       const note = skipped.length ? ` ${skipped.length} lokale Einträge sind nur im .mrpack-Export enthalten.` : '';
-      return ask({ title: 'Modpack senden?', text: `„${name}“ an ${entry.name} senden?${note}`, okText: 'Senden' });
+      return ask({ title: inviteMethod ? 'Spieleinladung senden?' : 'Modpack senden?', text: `„${name}“ an ${entry.name} senden?${note}`, okText: 'Senden' });
     });
     if (sent) { share.hidden = true; attach.setAttribute('aria-expanded', 'false'); }
   };
-  activeFriendChat = { entry, panel, refresh };
+  activeFriendChat = { entry, panel, refresh, updateContact };
   refresh();
 }

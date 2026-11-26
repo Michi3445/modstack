@@ -16,7 +16,7 @@ let win;
 // Datenordner vom alten Namen behalten, damit vorhandene Instanzen bleiben
 app.setPath('userData', path.join(app.getPath('appData'), 'modmanager'));
 const hasAppLock = !app.isPackaged || app.requestSingleInstanceLock();
-require('./friends')(ipcMain, app.getPath('userData'), readMinecraftAccount, buildShareCode, notifyFriendChat);
+require('./friends')(ipcMain, app.getPath('userData'), readMinecraftAccount, buildShareCode, notifyFriendChat, friendPresenceOptions, runningModstackPack);
 require('./updater')(ipcMain, app, status, appSettings);
 const instRoot = () => path.join(app.getPath('userData'), 'instances');
 const mcDir = () => path.join(process.env.APPDATA || '', '.minecraft');
@@ -156,6 +156,37 @@ function loaderList(inst) {
 }
 
 function appSettings() { try { return readJson(settingsFile()); } catch { return {}; } }
+function friendPresenceOptions() {
+  const settings = appSettings();
+  return { online: settings.friendsOnline === true, pack: settings.friendsPlaying === true };
+}
+
+function runningModstackPack() {
+  if (process.platform !== 'win32') return null;
+  // Inspect Java's arguments locally. Send only the instance folder name back to Node.
+  const script = [
+    '$root = [IO.Path]::GetFullPath($env:MODSTACK_INSTANCES)',
+    `Get-CimInstance Win32_Process -Filter "Name = 'javaw.exe' OR Name = 'java.exe'" | ForEach-Object {`,
+    `  $match = [regex]::Match([string]$_.CommandLine, '--gameDir(?:=|\\s+)(?:"([^"]+)"|(\\S+))')`,
+    '  if ($match.Success) { try {',
+    '    $dir = [IO.Path]::GetFullPath(($match.Groups[1].Value + $match.Groups[2].Value))',
+    '    if ([IO.Path]::GetDirectoryName($dir) -ieq $root) { [IO.Path]::GetFileName($dir) }',
+    '  } catch {} }',
+    '}',
+  ].join('\n');
+  const exe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  return new Promise((resolve) => execFile(exe, ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
+    windowsHide: true, timeout: 4500, env: { ...process.env, MODSTACK_INSTANCES: instRoot() },
+  }, (error, output) => {
+    if (!error) {
+      for (const id of output.trim().split(/\r?\n/)) {
+        if (!id || safeName(id) !== id || id === '.' || id === '..') continue;
+        try { resolve(String(readInst(id).name || '') || null); return; } catch {}
+      }
+    }
+    resolve(null);
+  }));
+}
 const conc = () => Math.max(1, Math.min(12, appSettings().downloads || 6));
 
 async function latestVersion(inst, projectId, kind) {

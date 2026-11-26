@@ -15,6 +15,35 @@
           "$other": { ".validate": false }
         }
       },
+      "appearance": {
+        "$uid": {
+          ".read": "auth != null && (auth.uid === $uid || root.child('modstackFriends/links').child($uid + '~' + auth.uid).child('state').val() === 'friends' || root.child('modstackFriends/links').child(auth.uid + '~' + $uid).child('state').val() === 'friends')",
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['avatar'])",
+          "avatar": {
+            ".validate": "newData.isString() && newData.val().length <= 16000 && newData.val().matches(/^data:image\\/webp;base64,[A-Za-z0-9+/]+=*$/)"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "activity": {
+        "$uid": {
+          ".read": "auth != null && (auth.uid === $uid || (data.child('at').val() >= now - 70000 && (root.child('modstackFriends/links').child($uid + '~' + auth.uid).child('state').val() === 'friends' || root.child('modstackFriends/links').child(auth.uid + '~' + $uid).child('state').val() === 'friends')))",
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['at'])",
+          "at": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
+          },
+          "pack": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
       "chat": {
         "$id": {
           ".read": "auth != null && root.child('modstackFriends/links').child($id).child('state').val() === 'friends' && (root.child('modstackFriends/links').child($id).child('sender').val() === auth.uid || root.child('modstackFriends/links').child($id).child('recipient').val() === auth.uid) && query.orderByChild === 'at' && query.limitToLast > 0 && query.limitToLast <= 50",
@@ -23,7 +52,7 @@
           ],
           "$message": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('modstackFriends/links').child($id).child('state').val() === 'friends' && ((root.child('modstackFriends/links').child($id).child('sender').val() === auth.uid && root.child('modstackFriends/links').child($id).child('recipient').val() === newData.child('to').val()) || (root.child('modstackFriends/links').child($id).child('recipient').val() === auth.uid && root.child('modstackFriends/links').child($id).child('sender').val() === newData.child('to').val())) && newData.child('from').val() === auth.uid",
-            ".validate": "$message.matches(/^[a-f0-9]{32}$/) && newData.hasChildren(['from', 'to', 'at', 'kind', 'content']) && (newData.child('kind').val() === 'text' ? !newData.hasChild('title') && !newData.hasChild('skipped') : newData.hasChildren(['title', 'skipped']))",
+            ".validate": "$message.matches(/^[a-f0-9]{32}$/) && newData.hasChildren(['from', 'to', 'at', 'kind', 'content']) && (newData.child('kind').val() === 'text' ? !newData.hasChild('title') && !newData.hasChild('skipped') && !newData.hasChild('invite') : newData.hasChildren(['title', 'skipped']))",
             "from": {
               ".validate": "newData.isString()"
             },
@@ -44,6 +73,13 @@
             },
             "skipped": {
               ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000"
+            },
+            "invite": {
+              ".validate": "newData.hasChild('method') && ((newData.child('method').val() === 'essential' && newData.hasChild('host') && !newData.hasChild('address')) || (newData.child('method').val() === 'server' && newData.hasChild('address') && !newData.hasChild('host')))",
+              "method": { ".validate": "newData.val() === 'essential' || newData.val() === 'server'" },
+              "host": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_]{3,16}$/)" },
+              "address": { ".validate": "newData.isString() && newData.val().length <= 120 && newData.val().matches(/^[A-Za-z0-9.:[\\]\\-]+$/)" },
+              "$other": { ".validate": false }
             },
             "$other": {
               ".validate": false

@@ -1,6 +1,7 @@
 const { safeStorage, clipboard } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const { isIP } = require('node:net');
 const { createHash, randomBytes } = require('node:crypto');
 const project = require('./friends-project.json');
 const streamInbox = require('./friends-stream');
@@ -10,6 +11,8 @@ const ROOT = '/modstackFriends';
 const LINK_ID = /^[A-Za-z0-9_-]{1,128}~[A-Za-z0-9_-]{1,128}$/;
 const MESSAGE_ID = /^[a-f0-9]{32}$/;
 const CHAT_QUERY = { orderBy: 'at', limitToLast: 50 };
+const MINECRAFT_NAME = /^[A-Za-z0-9_]{3,16}$/;
+const AVATAR = /^data:image\/webp;base64,([A-Za-z0-9+/]+={0,2})$/;
 const AUTH_ERRORS = {
   EMAIL_EXISTS: 'Für diese E-Mail gibt es bereits ein Konto.',
   INVALID_EMAIL: 'Gib eine gültige E-Mail-Adresse ein.',
@@ -21,12 +24,13 @@ const AUTH_ERRORS = {
   USER_DISABLED: 'Dieses Konto ist deaktiviert.',
 };
 
-module.exports = function registerFriends(ipc, userData, readMinecraftAccount, buildShareCode, notifyChat) {
+module.exports = function registerFriends(ipc, userData, readMinecraftAccount, buildShareCode, notifyChat, presenceOptions, currentPack) {
   const configFile = path.join(userData, 'friends-firebase.json');
   const sessionFile = path.join(userData, 'friends-session');
   let config, session;
   let queue = Promise.resolve();
   let inbox, contactSignature, live, retry;
+  const appearances = new Map();
 
   function launcherName() {
     const name = readMinecraftAccount()?.name;
@@ -59,6 +63,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   function setSession(data) {
     const changed = data?.uid !== session?.uid;
     if (changed) {
+      appearances.clear();
       inbox = undefined;
       contactSignature = undefined;
       live?.controller.abort();
@@ -165,6 +170,58 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     }
   });
 
+  async function appearance(uid, refresh = false) {
+    const cached = appearances.get(uid);
+    if (!refresh && cached && Date.now() - cached.at < 90000) return cached.data;
+    const data = (await db('/appearance/' + uid)).value;
+    appearances.set(uid, { at: Date.now(), data });
+    return data;
+  }
+
+  handle('appearance', () => session ? appearance(session.uid, true) : null);
+  handle('avatar', async (value) => {
+    if (!session) throw new Error('Melde dich zuerst an.');
+    if (value !== null) {
+      const match = typeof value === 'string' && value.length <= 16000 && AVATAR.exec(value);
+      const bytes = match && Buffer.from(match[1], 'base64');
+      if (!bytes || bytes.length < 16 || bytes.toString('ascii', 0, 4) !== 'RIFF' || bytes.toString('ascii', 8, 12) !== 'WEBP') {
+        throw new Error('Das Bild ist zu groß oder ungültig.');
+      }
+    }
+    const uid = session.uid;
+    await db('/appearance/' + uid, value === null ? { method: 'DELETE' } : { method: 'PUT', value: { avatar: value } });
+    appearances.delete(uid);
+    return value;
+  });
+
+  async function publishPresence(uid, pack) {
+    const options = presenceOptions();
+    if (!options.online) return;
+    const value = { at: { '.sv': 'timestamp' } };
+    if (options.pack && pack) value.pack = pack.slice(0, 80);
+    await db('/activity/' + uid, { method: 'PUT', value });
+  }
+
+  let publishing = false;
+  function pulsePresence() {
+    if (!session || publishing || !presenceOptions().online) return;
+    publishing = true;
+    const uid = session.uid;
+    Promise.resolve().then(() => presenceOptions().pack ? currentPack() : null)
+      .then((pack) => enqueue(() => session?.uid === uid ? publishPresence(uid, pack) : undefined))
+      .catch(() => {}).finally(() => { publishing = false; });
+  }
+
+  handle('presence', async () => {
+    if (!session) return;
+    if (presenceOptions().online) {
+      await publishPresence(session.uid);
+      if (presenceOptions().pack) pulsePresence();
+      return;
+    }
+    await db('/activity/' + session.uid, { method: 'DELETE' });
+  });
+
   handle('login', async (input) => {
     init();
     if (!config || session) throw new Error('Die Anmeldung ist gerade nicht verfügbar.');
@@ -184,7 +241,11 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     await authRequest('sendOobCode', { requestType: 'PASSWORD_RESET', email });
   });
 
-  handle('logout', () => { init(); setSession(null); });
+  handle('logout', async () => {
+    init();
+    if (session && presenceOptions().online) await db('/activity/' + session.uid, { method: 'DELETE' }).catch(() => {});
+    setSession(null);
+  });
   handle('copyCode', () => { if (session) clipboard.writeText('MSF-' + session.uid); });
 
   handle('profile', async (value) => {
@@ -211,8 +272,14 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
       rows.push(...await Promise.all(entries.slice(i, i + 8).map(async ([id, link]) => {
         const incoming = link.recipient === uid;
         const other = incoming ? link.sender : link.recipient;
-        const profile = (await db('/profiles/' + other)).value;
-        return { id, incoming, name: profile?.name || 'Unbekanntes Profil', accepted: link.state === 'friends' };
+        const accepted = link.state === 'friends';
+        const [profile, picture, activity] = await Promise.all([
+          db('/profiles/' + other).then((result) => result.value),
+          accepted ? appearance(other).catch(() => null) : null,
+          accepted ? db('/activity/' + other).then((result) => result.value).catch(() => null) : null,
+        ]);
+        const status = activity?.at > Date.now() - 70000 ? activity : null;
+        return { id, incoming, name: profile?.name || 'Unbekanntes Profil', accepted, avatar: picture?.avatar, status };
       })));
     }
     const state = chatInbox();
@@ -286,18 +353,44 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
       .sort((a, b) => a.at - b.at || a.messageId.localeCompare(b.messageId, 'en'));
   });
 
+  // A bounded page through the existing timestamp index also finds packs shared by older clients.
+  handle('shared', async ({ id, before } = {}) => {
+    const query = Number.isSafeInteger(before) && before > 0 ? { ...CHAT_QUERY, endAt: before } : CHAT_QUERY;
+    const { value } = await db('/chat/' + chatId(id), { query });
+    const rows = Object.entries(value || {}).map(([messageId, { from, to, ...message }]) => ({
+      ...message, messageId, mine: from === session.uid,
+    })).sort((a, b) => b.at - a.at || b.messageId.localeCompare(a.messageId, 'en'));
+    const boundary = rows.at(-1)?.at;
+    return {
+      packs: rows.filter((row) => row.kind === 'pack'),
+      before: rows.length === CHAT_QUERY.limitToLast ? (boundary === before ? boundary - 1 : boundary) : null,
+    };
+  });
+
   handle('sendText', async ({ id, text } = {}) => {
     const content = typeof text === 'string' ? text.trim() : '';
     if (!content || content.length > 2000) throw new Error('Schreib eine Nachricht mit bis zu 2.000 Zeichen.');
     await sendMessage(id, { kind: 'text', content });
   });
 
-  handle('sendPack', async ({ id, instanceId } = {}) => {
+  handle('sendPack', async ({ id, instanceId, method, address } = {}) => {
     chatId(id);
     if (typeof instanceId !== 'string' || !instanceId || instanceId.length > 180) throw new Error('Wähle eine Instanz aus.');
     const { code, skipped, name } = buildShareCode(instanceId, 16000);
     if (code.length > 16000) throw new Error('Dieses Modpack ist zu groß für den Chat. Teile es als .mrpack-Datei.');
-    await sendMessage(id, { kind: 'pack', content: code, title: String(name || 'Modpack').slice(0, 80), skipped: skipped.length });
+    const fields = { kind: 'pack', content: code, title: String(name || 'Modpack').slice(0, 80), skipped: skipped.length };
+    if (method === 'essential') {
+      const host = launcherName();
+      if (!MINECRAFT_NAME.test(host)) throw new Error('Melde dich im Minecraft Launcher an, damit dein Essential-Name verfügbar ist.');
+      fields.invite = { method, host };
+    } else if (method === 'server') {
+      address = typeof address === 'string' ? address.trim() : '';
+      const match = /^(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::([0-9]{1,5}))?$/i.exec(address);
+      if (!match || address.length > 120 || (match[2] && (+match[2] < 1 || +match[2] > 65535)) ||
+          (match[1][0] === '[' && isIP(match[1].slice(1, -1)) !== 6)) throw new Error('Gib eine gültige Minecraft-Serveradresse ein.');
+      fields.invite = { method, address };
+    } else if (method != null && method !== '') throw new Error('Ungültige Einladungsart.');
+    await sendMessage(id, fields);
   });
 
   function chatInbox() {
@@ -421,5 +514,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
   if (process.env.MODSTACK_UPDATE_VERIFY_ONLY !== '1') {
     setTimeout(pollChat, 2000).unref();
     setInterval(pollChat, 15000).unref();
+    setTimeout(pulsePresence, 3800).unref();
+    setInterval(pulsePresence, 25000).unref();
   }
 };

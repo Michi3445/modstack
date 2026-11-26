@@ -505,6 +505,13 @@
   .message-contact strong { overflow: hidden; text-overflow: ellipsis; }
   .message-contact.chat-unread::after { content: ''; width: 8px; height: 8px; margin-left: auto; flex: 0 0 8px; border-radius: 50%; background: var(--accent); }
   .message-avatar { display: inline-grid; place-items: center; width: 35px; height: 35px; flex: 0 0 35px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 23%, var(--bg3)); color: var(--text); font-weight: 700; }
+  .message-avatar { overflow: hidden; }
+  .message-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .message-avatar .skin-head { image-rendering: pixelated; }
+  .message-profile button[hidden], .chat-scroll[hidden], .chat-share input[hidden] { display: none; }
+  .message-contact-labels { display: grid; min-width: 0; }
+  .friend-activity { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .message-contact-labels .friend-activity::before, .chat-person .friend-activity::before { content: '●'; color: var(--accent); padding-right: 5px; }
   .message-request { display: flex; flex-wrap: wrap; gap: 7px; padding: 9px 5px; align-items: center; border-bottom: 1px solid var(--line); }
   .message-request > div { flex: 1; min-width: 90px; overflow-wrap: anywhere; }
   .message-request small { display: block; color: var(--muted); margin-top: 2px; }
@@ -512,12 +519,18 @@
   .message-list-empty { padding: 12px 8px; }
   .message-profile { border-top: 1px solid var(--line); padding: 9px; }
   .message-profile > div { display: grid; gap: 5px; padding-top: 9px; }
+  .message-preferences { display: grid; gap: 6px; padding: 5px 0; }
+  .message-preferences label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
   .message-profile summary, .chat-menu summary { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .message-conversation { min-height: 0; min-width: 0; display: grid; }
   .messenger-page .message-empty { margin: auto; padding: 16px; }
   .friend-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
   .friend-chat header { display: flex; align-items: center; gap: 9px; padding: 10px 13px; border-bottom: 1px solid var(--line); background: var(--bg2); }
   .friend-chat header h2 { margin: 0 auto 0 0; overflow-wrap: anywhere; }
+  .chat-person { flex: 1; min-width: 0; }
+  .chat-history-tabs { padding: 5px 11px; border-bottom: 1px solid var(--line); }
+  .chat-history-tabs button { flex: 0 0 76px; }
+  .shared-pack { width: 100%; max-width: 100% !important; }
   .chat-menu { position: relative; }
   .chat-menu summary { padding: 0 8px; font-size: 21px; }
   .chat-menu button { position: absolute; z-index: 1; right: 0; top: 26px; background: var(--bg3); }
@@ -533,7 +546,10 @@
   .chat-message time { justify-self: end; }
   .friend-chat footer { border-top: 1px solid var(--line); padding: 10px; background: var(--bg2); }
   .chat-compose, .chat-share { display: flex; gap: 7px; align-items: stretch; }
-  .chat-share { margin-bottom: 8px; }
+  .chat-share { display: grid; margin-bottom: 8px; }
+  .chat-share > div { display: flex; gap: 7px; }
+  .chat-share small { color: var(--muted); }
+  .chat-share > button, .shared-packs > button { justify-self: start; align-self: start; }
   .chat-share[hidden] { display: none; }
   .chat-compose textarea, .chat-share select { flex: 1; min-width: 0; }
   .chat-compose textarea { resize: vertical; max-height: 100px; border-radius: 12px; }
@@ -1320,7 +1336,7 @@ function drawIconPicker() {
     p.appendChild(s);
   }
 }
-async function cropImage(url, background = false) {
+async function cropImage(url, background = false, avatar = false) {
   const img = new Image();
   img.src = url;
   await img.decode();
@@ -1387,11 +1403,11 @@ async function cropImage(url, background = false) {
         try {
           const output = document.createElement('canvas');
           const { width, height } = cropSize();
-          const scale = background ? Math.min(1, 1920 / Math.max(width, height)) : 128 / width;
+          const scale = background ? Math.min(1, 1920 / Math.max(width, height)) : (avatar ? 96 : 128) / width;
           output.width = Math.max(1, Math.round(width * scale));
           output.height = Math.max(1, Math.round(height * scale));
           paint(output);
-          result = background ? output.toDataURL('image/webp', 0.92) : output.toDataURL('image/png');
+          result = background || avatar ? output.toDataURL('image/webp', avatar ? 0.78 : 0.92) : output.toDataURL('image/png');
           dlg.close();
         } catch (err) { dlg.close(); reject(err); }
       }, options);
