@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>Modstack</title>
+<style>
+  :root {
+    --bg0: #101216; --bg1: #14161b; --bg2: #1a1d23; --bg3: #21252d; --bg4: #2a2f39;
+    --line: #2a2e37; --text: #e6e8ec; --muted: #8d94a1; --dim: #646b78;
+    --accent: #3fb950; --accent2: #2ea043; --danger: #f0605a; --warn: #d9a440;
+    --fabric: #c9a46b; --forge: #6e8fd8; --neoforge: #e08a3c; --quilt: #b07ad9;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 13px/1.4 "Segoe UI", Arial, sans-serif; background: var(--bg1); color: var(--text); display: flex; flex-direction: column; overflow: hidden; user-select: none; }
+  input, select, textarea { user-select: text; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #2f3440; border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background-color: #3b4150; }
+
+  /* Titelleiste + Menue */
+  #titlebar { height: 36px; background: var(--bg0); display: flex; align-items: center; -webkit-app-region: drag; border-bottom: 1px solid var(--line); flex-shrink: 0; padding-right: 140px; }
+  #logo { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 14px; font-weight: 600; color: #cfd3db; }
+  #logo i { width: 16px; height: 16px; border-radius: 4px; background: linear-gradient(135deg, #3fb950, #2b7a3a); display: inline-block; }
+  #menubar { display: flex; -webkit-app-region: no-drag; height: 100%; }
+  .mtop { position: relative; }
+  .mtop > span { display: flex; align-items: center; height: 36px; padding: 0 11px; color: #c4c9d2; cursor: default; }
+  .mtop > span:hover, .mtop.open > span { background: var(--bg3); color: #fff; }
+  .menu { position: fixed; min-width: 230px; background: #1d2027; border: 1px solid #343a46; border-radius: 8px; padding: 5px; box-shadow: 0 12px 32px rgba(0,0,0,.5); z-index: 1000; display: none; }
+  .menu.show { display: block; animation: pop .09s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+  .mi { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 5px; cursor: default; color: #dfe2e8; }
+  .mi:hover:not(.dis) { background: #2e6b3a; color: #fff; }
+  .mi.danger:hover:not(.dis) { background: #8b2f2b; }
+  .mi .k { margin-left: auto; color: var(--dim); font-size: 12px; }
+  .mi:hover:not(.dis) .k { color: #d8e6db; }
+  .mi.dis { color: #5c626e; }
+  .msep { height: 1px; background: #30353f; margin: 5px 4px; }
+
+  /* Layout */
+  #app { flex: 1; display: flex; min-height: 0; }
+  #side { width: 260px; background: var(--bg2); border-right: 1px solid var(--line); display: flex; flex-direction: column; flex-shrink: 0; }
+  #sideHead { padding: 14px 14px 8px; }
+  #sideHead .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin-bottom: 8px; display: flex; justify-content: space-between; }
+  #instFilter { width: 100%; }
+  #list { flex: 1; overflow-y: auto; padding: 4px 8px; }
+  .inst { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 2px; }
+  .inst:hover { background: var(--bg3); }
+  .inst.sel { background: #23302a; box-shadow: inset 3px 0 0 var(--accent); }
+  .ava { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: #fff; flex-shrink: 0; }
+  .inst .meta { min-width: 0; flex: 1; }
+  .inst .meta b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .inst .meta small { color: var(--muted); font-size: 12px; }
+  #sideFoot { padding: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+
+  button { font: inherit; background: var(--bg4); color: var(--text); border: 1px solid transparent; padding: 7px 14px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+  button:hover { background: #343a46; }
+  button:focus-visible { outline: 2px solid #4c8dff; outline-offset: 1px; }
+  button.primary { background: var(--accent2); color: #fff; }
+  button.primary:hover { background: var(--accent); }
+  button.ghost { background: transparent; border-color: #363c48; }
+  button.ghost:hover { background: var(--bg3); }
+  button.danger { background: transparent; border-color: #5a2a2a; color: #ff8f88; }
+  button.danger:hover { background: #3a1f1f; }
+  button.big { padding: 9px 22px; font-weight: 600; font-size: 14px; }
+  button:disabled { opacity: .45; cursor: default; pointer-events: none; }
+  input, select { font: inherit; background: var(--bg1); color: var(--text); border: 1px solid #343a46; border-radius: 6px; padding: 7px 10px; outline: none; }
+  input:focus, select:focus { border-color: #3f8f50; box-shadow: 0 0 0 3px rgba(63,185,80,.15); }
+
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #head { padding: 18px 24px 0; display: flex; align-items: center; gap: 16px; }
+  #head .ava { width: 52px; height: 52px; font-size: 22px; border-radius: 12px; }
+  #head .ttl { flex: 1; min-width: 0; }
+  #head h1 { margin: 0 0 6px; font-size: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--bg3); color: #c3c8d1; border: 1px solid #323743; }
+  #headBtns { display: flex; gap: 8px; }
+  #tabs { display: flex; gap: 2px; padding: 14px 24px 0; border-bottom: 1px solid var(--line); }
+  .tab { padding: 9px 14px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab:hover { color: var(--text); }
+  .tab.on { color: #fff; border-bottom-color: var(--accent); }
+  .tab .cnt { background: var(--bg3); border-radius: 10px; padding: 0 7px; margin-left: 6px; font-size: 11px; color: var(--muted); }
+  #content { flex: 1; overflow-y: auto; padding: 16px 24px 24px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .toolbar input { flex: 1; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--bg2); border: 1px solid transparent; border-radius: 10px; margin-bottom: 6px; }
+  .row:hover { border-color: #30353f; background: #1c1f26; }
+  .row img, .row .ph { width: 42px; height: 42px; border-radius: 8px; background: var(--bg3); object-fit: cover; flex-shrink: 0; }
+  .row .ph { display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 18px; }
+  .row .t { flex: 1; min-width: 0; }
+  .row .t b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .t span { color: var(--muted); font-size: 12px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .t b .tag { display: inline; overflow: visible; }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: 1px; font-weight: 600; }
+  .tag.upd { background: #3b3218; color: #f0c45a; }
+  .tag.cf { background: #3a2417; color: #f39a5d; }
+  .tag.mr { background: #173a22; color: #5fd47a; }
+  .tag.man { background: #262b36; color: #aab1be; }
+  .iconbtn { background: transparent; padding: 6px 8px; color: var(--muted); }
+  .iconbtn:hover { background: var(--bg3); color: #fff; }
+  #drop { border: 1.5px dashed #3a404d; border-radius: 10px; padding: 14px; text-align: center; color: var(--muted); margin-bottom: 12px; transition: .12s; }
+  #drop.over { border-color: var(--accent); color: var(--accent); background: rgba(63,185,80,.06); }
+  .empty { color: var(--muted); text-align: center; padding: 60px 20px; }
+  .empty h2 { color: var(--text); font-weight: 600; font-size: 18px; margin: 0 0 6px; }
+  .empty .acts { margin-top: 16px; display: flex; gap: 8px; justify-content: center; }
+  .more { display: flex; justify-content: center; margin-top: 10px; }
+
+  #bar { height: 28px; padding: 0 14px; background: var(--bg0); border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  #bar.err #barMsg { color: #ff8f88; }
+  #barMsg { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #prog { width: 160px; height: 4px; background: var(--bg3); border-radius: 4px; overflow: hidden; display: none; }
+  #prog i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+  #prog.ind i { width: 35%; animation: ind 1.1s infinite ease-in-out; }
+  @keyframes ind { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+
+  .spin { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: sp .7s linear infinite; display: inline-block; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+
+  dialog { background: #1b1e25; color: var(--text); border: 1px solid #353b47; border-radius: 12px; padding: 0; width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+  dialog::backdrop { background: rgba(5,6,8,.65); }
+  dialog .dh { padding: 16px 20px 4px; font-size: 16px; font-weight: 600; }
+  dialog .db { padding: 6px 20px 4px; color: #c6cad2; }
+  dialog .db p { margin: 6px 0; }
+  dialog label { display: block; margin: 12px 0 5px; font-size: 12px; color: var(--muted); }
+  dialog input, dialog select { width: 100%; }
+  dialog .df { padding: 16px 20px; display: flex; gap: 8px; justify-content: flex-end; }
+  dialog .df .left { margin-right: auto; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .seg div { text-align: center; padding: 8px 0; border: 1px solid #343a46; border-radius: 6px; cursor: pointer; color: var(--muted); }
+  .seg div:hover { color: var(--text); }
+  .seg div.on { border-color: var(--accent); color: #fff; background: rgba(63,185,80,.1); }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .check input { width: auto; }
+
+  #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
+  .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
+  .toast.err { border-left-color: var(--danger); }
+</style>
+</head>
+<body>
+<div id="titlebar">
+  <div id="logo"><i></i>Modstack</div>
+  <div id="menubar"></div>
+</div>
+
+<div id="app">
+  <div id="side">
+    <div id="sideHead">
+      <div class="lbl"><span>Instanzen</span><span id="instCount"></span></div>
+      <input id="instFilter" placeholder="Instanzen filtern ...">
+    </div>
+    <div id="list"></div>
+    <div id="sideFoot">
+      <button class="primary" id="newBtn">+ Neue Instanz</button>
+      <button class="ghost" id="cfBtn">CurseForge-Profil importieren</button>
+    </div>
+  </div>
+  <div id="main">
+    <div id="head" style="display:none">
+      <div class="ava" id="headAva"></div>
+      <div class="ttl"><h1 id="title"></h1><div class="badges" id="badges"></div></div>
+      <div id="headBtns">
+        <button class="ghost" id="folderBtn" title="Instanzordner öffnen">Ordner</button>
+        <button class="primary big" id="playBtn">▶ Spielen</button>
+      </div>
+    </div>
+    <div id="tabs" style="display:none">
+      <div class="tab on" data-t="mods">Installierte Mods <span class="cnt" id="modCnt">0</span></div>
+      <div class="tab" data-t="search">Mods suchen</div>
+    </div>
+    <div id="content"></div>
+  </div>
+</div>
+<div id="bar"><span id="barMsg">Bereit</span><div id="prog"><i></i></div></div>
+<div id="toasts"></div>
+<div class="menu" id="ctx"></div>
+
+<dialog id="dlg">
+  <div class="dh">Neue Instanz</div>
+  <div class="db">
+    <label>Name</label><input id="nName" placeholder="z.B. Survival" maxlength="80">
+    <label>Minecraft-Version</label><select id="nMc"></select>
+    <label>Loader</label>
+    <div class="seg" id="nLoader">
+      <div data-v="fabric" class="on">Fabric</div><div data-v="forge">Forge</div><div data-v="neoforge">NeoForge</div><div data-v="quilt">Quilt</div>
+    </div>
+  </div>
+  <div class="df"><button class="ghost" id="nCancel">Abbrechen</button><button class="primary" id="nOk">Erstellen</button></div>
+</dialog>
+
+<dialog id="cfDlg">
+  <div class="dh">CurseForge-Profil importieren</div>
+  <div class="db">
+    <p>In der CurseForge-App beim Profil auf „Teilen“ klicken und den Code hier einfügen. Codes gelten 7 Tage.</p>
+    <label>Profil-Code</label>
+    <input id="cfCode" placeholder="z.B. AbCd1234" spellcheck="false">
+  </div>
+  <div class="df">
+    <button class="ghost left" id="cfZip">ZIP-Datei wählen ...</button>
+    <button class="ghost" id="cfCancel">Abbrechen</button><button class="primary" id="cfOk">Importieren</button>
+  </div>
+</dialog>
+
+<dialog id="askDlg">
+  <div class="dh" id="askTitle"></div>
+  <div class="db"><p id="askText"></p><input id="askInput" style="display:none"></div>
+  <div class="df"><button class="ghost" id="askNo">Abbrechen</button><button class="primary" id="askYes">OK</button></div>
+</dialog>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+// window.api kommt aus preload.js und ist schon als globales "api" da
+let insts = [], cur = null, tab = 'mods', updatable = [], busy = 0, allVersions = null, modFilter = '';
+const LCOL = { fabric: 'var(--fabric)', forge: 'var(--forge)', neoforge: 'var(--neoforge)', quilt: 'var(--quilt)' };
+const LNAME = { fabric: 'Fabric', forge: 'Forge', neoforge: 'NeoForge', quilt: 'Quilt' };
+
+// ---------- Status / Toasts ----------
+function setBar(msg, err) {
+  $('#barMsg').textContent = msg; $('#bar').className = err ? 'err' : '';
+  const m = /(\d+)\/(\d+)/.exec(msg || '');
+  const p = $('#prog');
+  if (m && +m[2] > 0) { p.style.display = 'block'; p.className = ''; p.firstElementChild.style.width = (100 * m[1] / m[2]) + '%'; }
+  else if (busy) { p.style.display = 'block'; p.className = 'ind'; p.firstElementChild.style.width = ''; }
+  else p.style.display = 'none';
+}
+function toast(msg, err) {
+  const t = document.createElement('div'); t.className = 'toast' + (err ? ' err' : ''); t.textContent = msg;
+  $('#toasts').appendChild(t); setTimeout(() => t.remove(), err ? 7000 : 3500);
+}
+api.onStatus((m) => setBar(m));
+
+function errText(e) { return String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
+async function call(ch, data, quiet) {
+  try { return await api.invoke(ch, data); }
+  catch (e) { const m = errText(e); setBar(m, true); if (!quiet) toast(m, true); throw e; }
+}
+async function work(label, fn) {
+  busy++; setBar(label);
+  try { return await fn(); } finally { busy--; if (!busy) $('#prog').style.display = 'none'; refreshMenus(); }
+}
+
+// ---------- Dialoge ----------
+function ask({ title, text, input, okText = 'OK', danger }) {
+  return new Promise((res) => {
+    const d = $('#askDlg');
+    $('#askTitle').textContent = title; $('#askText').textContent = text || '';
+    const inp = $('#askInput'); inp.style.display = input !== undefined ? '' : 'none'; inp.value = input || '';
+    const yes = $('#askYes'); yes.textContent = okText; yes.className = danger ? 'danger' : 'primary';
+    const done = (v) => { d.close(); res(v); };
+    yes.onclick = () => done(input !== undefined ? inp.value : true);
+    $('#askNo').onclick = () => done(null);
+    inp.onkeydown = (e) => { if (e.key === 'Enter') yes.click(); };
+    d.oncancel = () => res(null);
+    d.showModal(); if (input !== undefined) { inp.focus(); inp.select(); } else yes.focus();
+  });
+}
+
+// ---------- Menues ----------
+const MENUS = [
+  ['Datei', () => [
+    { l: 'Neue Instanz ...', k: 'Strg+N', a: newInstance },
+    { l: 'CurseForge-Profil importieren ...', k: 'Strg+I', a: () => openCf() },
+    { l: 'CurseForge-ZIP importieren ...', a: () => cfRun('cf:importZip') },
+    '-',
+    { l: 'Instanzen-Ordner öffnen', a: () => call('app:openRoot') },
+    '-',
+    { l: 'Beenden', k: 'Alt+F4', a: () => call('app:quit') },
+  ]],
+  ['Instanz', () => instItems(cur)],
+  ['Mods', () => [
+    { l: 'Installierte Mods', k: 'Strg+1', d: !cur, a: () => setTab('mods') },
+    { l: 'Mods suchen', k: 'Strg+2', d: !cur, a: () => setTab('search') },
+    '-',
+    { l: 'Updates prüfen', k: 'Strg+U', d: !cur || busy, a: checkUpdates },
+    { l: 'Alle aktualisieren', d: !cur || busy, a: updateAll },
+    '-',
+    { l: 'Jar-Dateien hinzufügen: per Drag & Drop', d: true },
+  ]],
+  ['Ansicht', () => [
+    { l: 'Neu laden', k: 'F5', a: () => load() },
+    '-',
+    { l: 'Vergrößern', k: 'Strg++', a: () => call('win:zoom', 0.5) },
+    { l: 'Verkleinern', k: 'Strg+-', a: () => call('win:zoom', -0.5) },
+    { l: 'Originalgröße', k: 'Strg+0', a: () => call('win:zoom', 0) },
+    '-',
+    { l: 'Vollbild', k: 'F11', a: () => call('win:fullscreen') },
+    { l: 'Entwicklertools', k: 'Strg+Umschalt+I', a: () => call('win:devtools') },
+  ]],
+  ['Hilfe', () => [
+    { l: 'Modrinth öffnen', a: () => call('app:openUrl', 'https://modrinth.com/mods') },
+    { l: 'CurseForge öffnen', a: () => call('app:openUrl', 'https://www.curseforge.com/minecraft') },
+    '-',
+    { l: 'Über Modstack', a: about },
+  ]],
+];
+
+function instItems(i) {
+  const n = !i;
+  return [
+    { l: 'Spielen', k: 'Strg+Enter', d: n || busy, a: () => play(i) },
+    '-',
+    { l: 'Umbenennen ...', k: 'F2', d: n, a: () => renameInst(i) },
+    { l: 'Ordner öffnen', k: 'Strg+O', d: n, a: () => call('instances:openFolder', i.id) },
+    '-',
+    { l: 'Löschen ...', k: 'Entf', d: n || busy, danger: true, a: () => deleteInst(i) },
+  ];
+}
+
+const ctx = $('#ctx');
+let openTop = null;
+function fillMenu(el, items) {
+  el.innerHTML = '';
+  for (const it of items) {
+    if (it === '-') { el.insertAdjacentHTML('beforeend', '<div class="msep"></div>'); continue; }
+    const d = document.createElement('div');
+    d.className = 'mi' + (it.d ? ' dis' : '') + (it.danger ? ' danger' : '');
+    d.innerHTML = '<span></span><span class="k"></span>';
+    d.firstChild.textContent = it.l; d.lastChild.textContent = it.k || '';
+    d.onclick = (e) => { e.stopPropagation(); if (it.d) return; closeMenus(); it.a && it.a(); };
+    el.appendChild(d);
+  }
+}
+function showAt(items, x, y) {
+  fillMenu(ctx, items); ctx.classList.add('show');
+  const r = ctx.getBoundingClientRect();
+  ctx.style.left = Math.min(x, innerWidth - r.width - 6) + 'px';
+  ctx.style.top = Math.min(y, innerHeight - r.height - 6) + 'px';
+}
+function closeMenus() { ctx.classList.remove('show'); document.querySelectorAll('.mtop').forEach((m) => m.classList.remove('open')); openTop = null; }
+function openTopMenu(el, idx) {
+  closeMenus(); openTop = el; el.classList.add('open');
+  const r = el.getBoundingClientRect(); showAt(MENUS[idx][1](), r.left, r.bottom + 2);
+}
+MENUS.forEach(([name], idx) => {
+  const m = document.createElement('div'); m.className = 'mtop'; m.innerHTML = '<span></span>'; m.firstChild.textContent = name;
+  m.onmousedown = (e) => { e.stopPropagation(); openTop === m ? closeMenus() : openTopMenu(m, idx); };
+  m.onmouseenter = () => { if (openTop && openTop !== m) openTopMenu(m, idx); };
+  $('#menubar').appendChild(m);
+});
+document.addEventListener('mousedown', (e) => { if (!ctx.contains(e.target)) closeMenus(); });
+window.addEventListener('blur', closeMenus);
+function refreshMenus() { /* Menues werden beim Oeffnen frisch gebaut */ }
+
+// ---------- Tastenkuerzel ----------
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { closeMenus(); return; }
+  if (document.querySelector('dialog[open]')) return;
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  const c = e.ctrlKey;
+  const k = e.key.toLowerCase();
+  let h = null;
+  if (c && k === 'n') h = newInstance;
+  else if (c && k === 'i' && !e.shiftKey) h = () => openCf();
+  else if (c && e.shiftKey && k === 'i') h = () => call('win:devtools');
+  else if (c && k === 'u' && cur) h = checkUpdates;
+  else if (c && k === 'o' && cur) h = () => call('instances:openFolder', cur.id);
+  else if (c && e.key === 'Enter' && cur) h = () => play(cur);
+  else if (c && k === '1' && cur) h = () => setTab('mods');
+  else if (c && k === '2' && cur) h = () => setTab('search');
+  else if (c && (e.key === '+' || e.key === '=')) h = () => call('win:zoom', 0.5);
+  else if (c && e.key === '-') h = () => call('win:zoom', -0.5);
+  else if (c && k === '0') h = () => call('win:zoom', 0);
+  else if (e.key === 'F5') h = () => load();
+  else if (e.key === 'F11') h = () => call('win:fullscreen');
+  else if (e.key === 'F2' && cur && !typing) h = () => renameInst(cur);
+  else if (e.key === 'Delete' && cur && !typing && !busy) h = () => deleteInst(cur);
+  else if (!typing && cur && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const vis = filteredInsts(); const i = vis.findIndex((x) => x.id === cur.id);
+    const n = vis[i + (e.key === 'ArrowDown' ? 1 : -1)]; if (n) h = () => select(n);
+  }
+  if (h) { e.preventDefault(); h(); }
+});
+
+// ---------- Daten ----------
+async function load(selId) {
+  insts = await call('instances:list');
+  insts.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  if (selId) cur = insts.find((i) => i.id === selId) || null;
+  else if (cur) cur = insts.find((i) => i.id === cur.id) || null;
+  renderList(); renderHead(); render();
+}
+function select(i) { cur = i; updatable = []; modFilter = ''; renderList(); renderHead(); render(); }
+function setTab(t) { tab = t; renderHead(); render(); }
+
+function ava(el, i) { el.textContent = (i.name.trim()[0] || '?').toUpperCase(); el.style.background = `linear-gradient(135deg, ${LCOL[i.loader] || '#555'}, #20242c 140%)`; }
+
+function filteredInsts() {
+  const f = $('#instFilter').value.trim().toLowerCase();
+  return f ? insts.filter((i) => (i.name + ' ' + i.mc + ' ' + i.loader).toLowerCase().includes(f)) : insts;
+}
+$('#instFilter').oninput = renderList;
+
+function renderList() {
+  const l = $('#list'); l.innerHTML = '';
+  $('#instCount').textContent = insts.length || '';
+  const vis = filteredInsts();
+  if (!insts.length) l.innerHTML = '<div class="empty" style="padding:30px 10px">Noch keine Instanzen.</div>';
+  else if (!vis.length) l.innerHTML = '<div class="empty" style="padding:30px 10px">Kein Treffer.</div>';
+  for (const i of vis) {
+    const d = document.createElement('div');
+    d.className = 'inst' + (cur && cur.id === i.id ? ' sel' : '');
+    d.innerHTML = '<div class="ava"></div><div class="meta"><b></b><small></small></div>';
+    ava(d.firstChild, i);
+    d.querySelector('b').textContent = i.name;
+    d.querySelector('small').textContent = `${i.mc} · ${LNAME[i.loader] || i.loader} · ${i.mods.length} Mods`;
+    d.onclick = () => select(i);
+    d.ondblclick = () => play(i);
+    d.oncontextmenu = (e) => { e.preventDefault(); select(i); showAt(instItems(i), e.clientX, e.clientY); };
+    l.appendChild(d);
+  }
+}
+
+function renderHead() {
+  const has = !!cur;
+  $('#head').style.display = has ? 'flex' : 'none';
+  $('#tabs').style.display = has ? 'flex' : 'none';
+  if (!has) return;
+  ava($('#headAva'), cur);
+  $('#title').textContent = cur.name;
+  const b = $('#badges'); b.innerHTML = '';
+  const add = (t) => { const s = document.createElement('span'); s.className = 'badge'; s.textContent = t; b.appendChild(s); };
+  add('Minecraft ' + cur.mc);
+  add((LNAME[cur.loader] || cur.loader) + (cur.loaderVersion ? ' ' + cur.loaderVersion : ''));
+  add(cur.mods.length + ' Mods');
+  if (cur.source === 'curseforge') add('aus CurseForge');
+  $('#modCnt').textContent = cur.mods.length;
+  $('#playBtn').disabled = !!busy;
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.t === tab));
+}
+document.querySelectorAll('.tab').forEach((t) => t.onclick = () => setTab(t.dataset.t));
+
+function render() {
+  const c = $('#content');
+  if (!cur) {
+    c.innerHTML = `<div class="empty"><h2>${insts.length ? 'Keine Instanz gewählt' : 'Willkommen'}</h2>
+      ${insts.length ? 'Wähle links eine Instanz aus.' : 'Lege eine Instanz an oder importiere ein CurseForge-Profil.'}
+      <div class="acts"><button class="primary" id="eNew">Neue Instanz</button><button class="ghost" id="eCf">CurseForge importieren</button></div></div>`;
+    $('#eNew').onclick = newInstance; $('#eCf').onclick = () => openCf();
+    return;
+  }
+  tab === 'mods' ? renderMods() : renderSearch();
+}
+
+function modTag(m) {
+  if (m.projectId) return ['mr', 'Modrinth'];
+  if (m.cf) return ['cf', 'CurseForge'];
+  return ['man', 'Manuell'];
+}
+
+function renderMods() {
+  const c = $('#content');
+  c.innerHTML = `<div class="toolbar"><input id="mf" placeholder="Installierte Mods filtern ..."><button class="ghost" id="chk">Updates prüfen</button><button id="updAll">Alle aktualisieren${updatable.length ? ' (' + updatable.length + ')' : ''}</button></div>
+    <div id="drop">Jar-Dateien hierher ziehen, um sie zu installieren</div><div id="mods"></div>`;
+  const mf = $('#mf'); mf.value = modFilter;
+  mf.oninput = () => { modFilter = mf.value; drawMods(); };
+  const drop = $('#drop');
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = async (e) => {
+    e.preventDefault(); drop.classList.remove('over');
+    const paths = [...e.dataTransfer.files].map((f) => api.pathForFile(f)).filter((p) => /\.jar$/i.test(p));
+    if (!paths.length) { toast('Nur .jar-Dateien werden unterstützt', true); return; }
+    cur = await call('mods:addFiles', { id: cur.id, paths }); await load(); toast(paths.length + ' Datei(en) hinzugefügt');
+  };
+  $('#chk').disabled = $('#updAll').disabled = !!busy;
+  $('#chk').onclick = checkUpdates;
+  $('#updAll').onclick = updateAll;
+  drawMods();
+}
+
+function drawMods() {
+  const box = $('#mods'); if (!box) return; box.innerHTML = '';
+  const f = modFilter.trim().toLowerCase();
+  const list = [...cur.mods].sort((a, b) => a.title.localeCompare(b.title, 'de')).filter((m) => !f || (m.title + ' ' + m.file).toLowerCase().includes(f));
+  if (!cur.mods.length) { box.innerHTML = '<div class="empty"><h2>Noch keine Mods</h2>Unter „Mods suchen“ findest du Mods von Modrinth.</div>'; return; }
+  if (!list.length) { box.innerHTML = '<div class="empty">Kein Treffer.</div>'; return; }
+  for (const m of list) {
+    const r = document.createElement('div'); r.className = 'row';
+    r.innerHTML = '<div class="ph">▣</div><div class="t"><b></b><span></span></div><button class="iconbtn" title="Mehr">⋯</button>';
+    const [cls, lbl] = modTag(m);
+    const b = r.querySelector('b'); b.textContent = m.title;
+    b.insertAdjacentHTML('beforeend', `<span class="tag ${cls}">${lbl}</span>`);
+    if (updatable.includes(m.projectId)) b.insertAdjacentHTML('beforeend', '<span class="tag upd">Update</span>');
+    r.querySelector('.t > span').textContent = m.file;
+    const items = () => [
+      { l: 'Im Ordner zeigen', a: () => call('app:showMod', { id: cur.id, file: m.file }) },
+      { l: 'Auf Modrinth öffnen', d: !m.projectId, a: () => call('app:openUrl', 'https://modrinth.com/mod/' + m.projectId) },
+      { l: 'Auf CurseForge öffnen', d: !m.cf, a: () => call('app:openUrl', 'https://www.curseforge.com/projects/' + (m.cf && m.cf.projectId)) },
+      '-',
+      { l: 'Entfernen', danger: true, a: () => removeMod(m) },
+    ];
+    r.oncontextmenu = (e) => { e.preventDefault(); showAt(items(), e.clientX, e.clientY); };
+    r.querySelector('button').onclick = (e) => { e.stopPropagation(); const rc = e.currentTarget.getBoundingClientRect(); showAt(items(), rc.right - 230, rc.bottom + 4); };
+    box.appendChild(r);
+  }
+}
+
+async function removeMod(m) {
+  if (!(await ask({ title: 'Mod entfernen', text: `„${m.title}“ aus „${cur.name}“ entfernen?`, okText: 'Entfernen', danger: true }))) return;
+  cur = await call('mods:remove', { id: cur.id, file: m.file }); await load(); toast(m.title + ' entfernt');
+}
+
+let searchState = { q: '', offset: 0 };
+function renderSearch() {
+  const c = $('#content');
+  c.innerHTML = `<div class="toolbar"><input id="q" placeholder="Mods auf Modrinth suchen (leer = beliebteste) ..."><button class="primary" id="go">Suchen</button></div><div id="res"></div><div class="more" id="more"></div>`;
+  $('#q').value = searchState.q;
+  const run = async (append) => {
+    if (!append) { searchState = { q: $('#q').value, offset: 0 }; $('#res').innerHTML = '<div class="empty"><span class="spin"></span></div>'; }
+    setBar('Suche ...');
+    let hits;
+    try { hits = await call('mr:search', { query: searchState.q, mc: cur.mc, loader: cur.loader, offset: searchState.offset }); }
+    catch { $('#res').innerHTML = '<div class="empty">Suche fehlgeschlagen.</div>'; return; }
+    if (!$('#res')) return;
+    setBar('Bereit');
+    const res = $('#res'); if (!append) res.innerHTML = '';
+    if (!hits.length && !append) res.innerHTML = '<div class="empty">Nichts gefunden für diese Version und diesen Loader.</div>';
+    for (const h of hits) res.appendChild(hitRow(h));
+    searchState.offset += hits.length;
+    $('#more').innerHTML = hits.length === 20 ? '<button class="ghost" id="mb">Mehr laden</button>' : '';
+    if ($('#mb')) $('#mb').onclick = () => run(true);
+  };
+  $('#go').onclick = () => run(false);
+  $('#q').onkeydown = (e) => { if (e.key === 'Enter') run(false); };
+  $('#q').focus();
+  run(false);
+}
+
+function hitRow(h) {
+  const r = document.createElement('div'); r.className = 'row';
+  r.innerHTML = '<img alt=""><div class="t"><b></b><span class="d"></span><span class="a"></span></div><button class="primary"></button>';
+  const img = r.querySelector('img');
+  if (h.icon) img.src = h.icon; else img.replaceWith(Object.assign(document.createElement('div'), { className: 'ph', textContent: '▣' }));
+  r.querySelector('b').textContent = h.title;
+  r.querySelector('.d').textContent = h.description;
+  r.querySelector('.a').textContent = `von ${h.author} · ${h.downloads.toLocaleString('de-DE')} Downloads`;
+  const btn = r.querySelector('button');
+  const setBtn = () => { const has = cur.mods.some((m) => m.projectId === h.id); btn.textContent = has ? '✓ Installiert' : 'Installieren'; btn.disabled = has; btn.className = has ? 'ghost' : 'primary'; };
+  setBtn();
+  btn.onclick = async () => {
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Lädt';
+    try { await work('Installiere ' + h.title + ' ...', async () => { cur = await call('mr:install', { id: cur.id, projectId: h.id }); }); toast(h.title + ' installiert'); renderList(); renderHead(); }
+    catch {}
+    setBtn();
+  };
+  r.oncontextmenu = (e) => { e.preventDefault(); showAt([
+    { l: 'Installieren', d: cur.mods.some((m) => m.projectId === h.id), a: () => btn.click() },
+    { l: 'Auf Modrinth öffnen', a: () => call('app:openUrl', 'https://modrinth.com/mod/' + (h.slug || h.id)) },
+  ], e.clientX, e.clientY); };
+  return r;
+}
+
+// ---------- Aktionen ----------
+async function checkUpdates() {
+  if (!cur || busy) return;
+  await work('Prüfe Updates ...', async () => { updatable = await call('mr:checkUpdates', cur.id); });
+  setBar(updatable.length + ' Update(s) verfügbar'); toast(updatable.length ? updatable.length + ' Update(s) verfügbar' : 'Alles aktuell');
+  if (tab === 'mods') renderMods();
+}
+async function updateAll() {
+  if (!cur || busy) return;
+  try { await work('Aktualisiere ...', async () => { cur = await call('mr:updateAll', cur.id); }); updatable = []; await load(); toast('Mods aktualisiert'); } catch {}
+}
+async function play(i) {
+  if (!i || busy) return;
+  const b = $('#playBtn'); b.innerHTML = '<span class="spin"></span> Bereite vor ...';
+  try { await work('Bereite ' + i.name + ' vor ...', () => call('play', i.id)); toast('Launcher gestartet. Profil „[Modstack] ' + i.name + '“ wählen.'); }
+  catch {} finally { b.textContent = '▶ Spielen'; b.disabled = false; }
+}
+async function renameInst(i) {
+  const n = await ask({ title: 'Instanz umbenennen', input: i.name, okText: 'Umbenennen' });
+  if (!n || !n.trim() || n.trim() === i.name) return;
+  await call('instances:rename', { id: i.id, name: n }); await load(i.id);
+}
+async function deleteInst(i) {
+  if (!(await ask({ title: 'Instanz löschen', text: `„${i.name}“ mit allen Mods, Welten und Einstellungen endgültig löschen?`, okText: 'Löschen', danger: true }))) return;
+  await call('instances:delete', i.id); if (cur && cur.id === i.id) cur = null; await load(); toast('Instanz gelöscht');
+}
+function about() {
+  call('app:version').then((v) => ask({ title: 'Über Modstack', text: `Version ${v}. Minecraft-Mods von Modrinth installieren, CurseForge-Profile importieren und über den offiziellen Launcher spielen.`, okText: 'Schließen' }));
+}
+
+// ---------- Neue Instanz ----------
+async function newInstance() {
+  if (document.querySelector('dialog[open]')) return;
+  if (!allVersions) {
+    try { allVersions = await work('Lade Versionen ...', () => call('mc:versions')); setBar('Bereit'); } catch { return; }
+  }
+  fillVersions(); $('#dlg').showModal(); $('#nName').focus();
+}
+function fillVersions() { $('#nMc').innerHTML = allVersions.map((v) => `<option>${v}</option>`).join(''); }
+document.querySelectorAll('#nLoader div').forEach((d) => d.onclick = () => { document.querySelectorAll('#nLoader div').forEach((x) => x.classList.toggle('on', x === d)); });
+$('#nCancel').onclick = () => $('#dlg').close();
+$('#nName').onkeydown = (e) => { if (e.key === 'Enter') $('#nOk').click(); };
+$('#nOk').onclick = async () => {
+  const name = $('#nName').value.trim();
+  if (!name) { $('#nName').focus(); return; }
+  const loader = $('#nLoader .on').dataset.v;
+  const inst = await call('instances:create', { name, mc: $('#nMc').value, loader });
+  $('#dlg').close(); $('#nName').value = '';
+  tab = 'search'; await load(inst.id); toast('Instanz „' + name + '“ erstellt');
+};
+$('#newBtn').onclick = newInstance;
+
+// ---------- CurseForge ----------
+function openCf() { if (busy || document.querySelector('dialog[open]')) return; $('#cfDlg').showModal(); $('#cfCode').focus(); }
+$('#cfBtn').onclick = () => openCf();
+$('#cfCancel').onclick = () => $('#cfDlg').close();
+async function cfRun(ch, data) {
+  $('#cfDlg').close();
+  const b = $('#cfBtn'); b.disabled = true; b.innerHTML = '<span class="spin"></span> Importiere ...';
+  try {
+    const inst = await work('Importiere Profil ...', () => call(ch, data));
+    if (inst) { tab = 'mods'; await load(inst.id); toast('„' + inst.name + '“ importiert'); }
+  } catch {} finally { b.disabled = false; b.textContent = 'CurseForge-Profil importieren'; }
+}
+$('#cfOk').onclick = () => { const c = $('#cfCode').value.trim(); if (!c) { $('#cfCode').focus(); return; } $('#cfCode').value = ''; cfRun('cf:importCode', c); };
+$('#cfCode').onkeydown = (e) => { if (e.key === 'Enter') $('#cfOk').click(); };
+$('#cfZip').onclick = () => cfRun('cf:importZip');
+
+$('#folderBtn').onclick = () => call('instances:openFolder', cur.id);
+$('#playBtn').onclick = () => play(cur);
+document.addEventListener('contextmenu', (e) => { if (!/INPUT|TEXTAREA/.test(e.target.tagName)) e.preventDefault(); });
+document.addEventListener('dragover', (e) => e.preventDefault());
+document.addEventListener('drop', (e) => e.preventDefault());
+
+load();
+</script>
+</body>
+</html>
