@@ -375,6 +375,43 @@ ipcMain.handle('instances:openSub', ({ id, sub }) => {
   return true;
 });
 
+// Spielzeit aus Minecrafts eigenen Statistiken (saves/<Welt>/stats/<uuid>.json), in Ticks (20 pro Sekunde)
+function worldStats(dir) {
+  const saves = path.join(dir, 'saves');
+  const out = [];
+  let names = []; try { names = fs.readdirSync(saves, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name); } catch {}
+  for (const w of names) {
+    const wd = path.join(saves, w);
+    let ticks = 0;
+    try {
+      for (const f of fs.readdirSync(path.join(wd, 'stats'))) {
+        if (!f.endsWith('.json')) continue;
+        try {
+          const j = readJson(path.join(wd, 'stats', f));
+          const cst = (j.stats && j.stats['minecraft:custom']) || {};
+          ticks += cst['minecraft:play_time'] || cst['minecraft:play_one_minute'] || j['stat.playOneMinute'] || 0;
+        } catch {}
+      }
+    } catch {}
+    let last = null; try { last = fs.statSync(path.join(wd, 'level.dat')).mtime; } catch {}
+    out.push({ name: w, ticks, lastPlayed: last });
+  }
+  return out.sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
+}
+
+ipcMain.handle('instances:details', (id) => {
+  const dir = instDir(id);
+  const worlds = worldStats(dir);
+  const count = (sub, re) => { try { return fs.readdirSync(path.join(dir, sub)).filter((f) => !re || re.test(f)).length; } catch { return 0; } };
+  return { ticks: worlds.reduce((s, w) => s + w.ticks, 0), worlds, screenshots: count('screenshots', /\.png$/i), bytes: dirSize(dir) };
+});
+
+ipcMain.handle('instances:playtimes', () => {
+  const out = {};
+  try { for (const d of fs.readdirSync(instRoot())) out[d] = worldStats(path.join(instRoot(), d)).reduce((s, w) => s + w.ticks, 0); } catch {}
+  return out;
+});
+
 ipcMain.handle('instances:info', (id) => {
   const dir = instDir(id);
   const count = (sub, re) => { try { return fs.readdirSync(path.join(dir, sub)).filter((f) => !re || re.test(f)).length; } catch { return 0; } };

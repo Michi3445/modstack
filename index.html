@@ -387,6 +387,49 @@
   textarea { font: inherit; width: 100%; background: color-mix(in srgb, var(--bg0) 55%, transparent); color: var(--text); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 9px 11px; resize: vertical; outline: none; }
   textarea:focus { border-color: color-mix(in srgb, var(--c1) 60%, transparent); }
   .danger-zone { border-color: rgba(240,96,90,.18) !important; }
+  /* Startseite: Held, Instanz-Karten, Detailspalte */
+  .home { grid-template-columns: 1fr 380px; gap: 0; }
+  .home-l { justify-content: flex-start !important; overflow-y: auto; overflow-x: hidden; padding: 20px 28px 28px !important; }
+  .hero { display: flex; flex-direction: column; align-items: center; flex: 1 0 auto; justify-content: center; min-height: 520px; }
+  .icards-wrap { width: 100%; max-width: 1100px; margin-top: 18px; }
+  .icards-h { display: flex; align-items: baseline; gap: 12px; margin: 0 2px 10px; }
+  .icards-h b { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .icards-h span { color: var(--dim); font-size: 11.5px; }
+  .icards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+  .icard { position: relative; display: flex; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 14px; cursor: pointer; background: color-mix(in srgb, var(--bg2) 55%, transparent); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.06); transition: transform .15s, border-color .15s, background .15s; }
+  .icard:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.14); background: color-mix(in srgb, var(--bg3) 65%, transparent); }
+  .icard.sel { border-color: transparent; background: linear-gradient(color-mix(in srgb, var(--bg2) 85%, #000), color-mix(in srgb, var(--bg2) 85%, #000)) padding-box, var(--grad) border-box; border: 1.5px solid transparent; }
+  .icard .ava { width: 42px; height: 42px; border-radius: 10px; font-size: 17px; }
+  .ic-t { flex: 1; min-width: 0; } .ic-t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ic-t span { display: block; color: var(--muted); font-size: 11.5px; } .ic-t .ic-m { color: var(--dim); }
+  .icard .upill { position: absolute; top: 8px; right: 10px; font-style: normal; font-size: 10px; padding: 1px 6px; }
+  .ic-play { position: absolute; right: 10px; bottom: 10px; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: var(--grad) !important; color: #fff; font-size: 11px; opacity: 0; transform: scale(.8); transition: .15s; border: 0 !important; }
+  .icard:hover .ic-play { opacity: 1; transform: none; }
+  .home-r { padding: 18px 18px 22px; }
+  .det { display: flex; flex-direction: column; gap: 14px; }
+  .det-h { display: flex; gap: 14px; align-items: center; }
+  .det-name { font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; }
+  .det-play { padding: 16px 18px; border-radius: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--c1) 22%, transparent), color-mix(in srgb, var(--c2) 14%, transparent)); border: 1px solid color-mix(in srgb, var(--c1) 30%, transparent); }
+  .det-play span { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .1em; }
+  .det-play b { display: block; font-size: 26px; font-weight: 700; margin: 2px 0; }
+  .det-play small { color: var(--muted); font-size: 12px; }
+  .det-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .det-grid div { padding: 9px 10px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
+  .det-grid b { display: block; font-size: 15px; } .det-grid span { color: var(--muted); font-size: 11px; }
+  .det-upd { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 10px; cursor: pointer; background: color-mix(in srgb, var(--c1) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c1) 35%, transparent); font-size: 12.5px; }
+  .det-upd span { color: var(--c1); font-weight: 600; }
+  .det-sec h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .det-empty { color: var(--dim); font-size: 12px; padding: 4px 2px; }
+  .wrow { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 9px; cursor: pointer; }
+  .wrow:hover { background: rgba(255,255,255,.05); }
+  .wrow i { font-style: normal; width: 28px; height: 28px; border-radius: 8px; background: rgba(255,255,255,.06); display: flex; align-items: center; justify-content: center; color: var(--c1); }
+  .wrow div { flex: 1; min-width: 0; } .wrow b { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .wrow span { color: var(--dim); font-size: 11px; }
+  .wrow em { font-style: normal; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .det-mods { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mic { width: 34px; height: 34px; border-radius: 8px; background: rgba(255,255,255,.06); overflow: hidden; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--muted); font-size: 13px; }
+  .mic img { width: 100%; height: 100%; object-fit: cover; } .mic.more { font-size: 11px; }
+  .det-notes { white-space: pre-wrap; color: #c9ced8; font-size: 12.5px; background: rgba(255,255,255,.04); border-radius: 10px; padding: 9px 11px; user-select: text; }
+  .det-btns { display: flex; gap: 6px; flex-wrap: wrap; } .det-btns button { flex: 1; }
   #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
   .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
   .toast.err { border-left-color: var(--danger); }
@@ -1170,30 +1213,39 @@ async function renderSettings() {
 }
 
 // ---------- Startseite ----------
-let account, news;
+let account, news, playtimes = {};
 function playerName() { return (S.playerName || '').trim() || (account && account.name) || ''; }
+const fmtPlay = (ticks) => {
+  const s = Math.floor((ticks || 0) / 20);
+  if (s < 60) return s ? '< 1 Min.' : '–';
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h ? `${h} Std. ${m} Min.` : `${m} Min.`;
+};
+
 async function renderHome() {
   const c = $('#content');
   const last = insts.find((i) => i.id === S.last) || insts[0] || null;
   const name = playerName();
   const hour = new Date().getHours();
   const hi = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend';
-  const recent = (S.recent || []).map((id) => insts.find((i) => i.id === id)).filter(Boolean).slice(0, 4);
-  c.innerHTML = `<div class="home"${S.showNews === false ? ' style="grid-template-columns:1fr"' : ''}>
+  const showDet = S.showDetails !== false && !!last;
+  c.innerHTML = `<div class="home"${showDet ? '' : ' style="grid-template-columns:1fr"'}>
     <div class="home-l">
       ${S.room === false ? '' : '<div class="room"><i class="ceil"></i><i class="floor"></i></div>'}
-      <div class="home-hi">${hi}${name ? ',' : ''}</div>
-      <div class="home-name" id="hName"></div>
-      <div class="skin" id="hSkin"></div>
-      <div class="skinhint" id="hHint"></div>
-      <div class="launch">
-        <button class="go" id="hGo"><b>▶ SPIELEN</b><small id="hInst"></small></button>
-        <button class="pick" id="hPick" title="Instanz wählen">▾</button>
+      <div class="hero">
+        <div class="home-hi">${hi}${name ? ',' : ''}</div>
+        <div class="home-name" id="hName"></div>
+        <div class="skin" id="hSkin"></div>
+        <div class="skinhint" id="hHint"></div>
+        <div class="launch">
+          <button class="go" id="hGo"><b>▶ SPIELEN</b><small id="hInst"></small></button>
+          <button class="pick" id="hPick" title="Instanz wählen">▾</button>
+        </div>
+        <div id="hUpd"></div>
       </div>
-      <div id="hUpd"></div>
-      <div class="recent" id="hRecent"></div>
+      ${S.showCards === false || !insts.length ? '' : '<div class="icards-wrap"><div class="icards-h"><b>Deine Instanzen</b><span>Klicken zum Auswählen, Doppelklick zum Spielen</span></div><div class="icards" id="hCards"></div></div>'}
     </div>
-    <div class="home-r"${S.showNews === false ? ' style="display:none"' : ''}><h3>Minecraft-News</h3><div id="hNews"><div class="empty" style="padding:30px 0"><span class="spin"></span></div></div></div>
+    ${showDet ? '<div class="home-r" id="hDet"></div>' : ''}
   </div>`;
   $('#hName').textContent = name || 'Willkommen';
   if (name && S.nameTag !== false && S.showSkin !== false) { $('#hName').style.display = 'none'; document.querySelector('.home-hi').textContent = hi + ', ' + name; }
@@ -1203,29 +1255,96 @@ async function renderHome() {
   else sk.innerHTML = '<div class="noskin">Kein Minecraft-Konto gefunden.<br><br>Trag deinen Spielernamen unter Optionen ein, dann erscheint hier dein Skin.</div>';
   $('#hInst').textContent = last ? `${last.name} · ${last.mc} ${LNAME[last.loader] || ''}` : 'Noch keine Instanz';
   $('#hGo').onclick = () => last ? play(last) : newInstance();
-  const pickItems = () => insts.length ? insts.map((i) => ({ l: `${i.name}  (${i.mc})`, a: async () => { S = await call('settings:set', { last: i.id }); renderHome(); } })) : [{ l: 'Neue Instanz ...', a: newInstance }];
+  const pickItems = () => insts.length ? insts.map((i) => ({ l: `${i.name}  (${i.mc})`, a: () => pickHome(i) })) : [{ l: 'Neue Instanz ...', a: newInstance }];
   $('#hPick').onclick = (e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); showAt(pickItems(), r.right - 230, r.bottom + 4); };
   $('#hPick').onmousedown = (e) => e.stopPropagation();
   fillHomeUpd($('#hUpd'));
-  const rb = $('#hRecent');
-  for (const i of (S.showRecent === false ? [] : recent)) {
-    const d = document.createElement('div'); d.title = 'Spielen: ' + i.name;
-    d.innerHTML = '<div class="ava"></div><span></span>'; ava(d.firstChild, i); d.lastChild.textContent = i.name;
-    d.onclick = () => play(i); d.oncontextmenu = (e) => { e.preventDefault(); showAt(instItems(i), e.clientX, e.clientY); };
-    rb.appendChild(d);
+  try { playtimes = await call('instances:playtimes', undefined, true); } catch {}
+  if (view !== 'home') return;
+  drawCards(last);
+  if (showDet) drawDetails(last);
+}
+
+async function pickHome(i) {
+  S = await call('settings:set', { last: i.id });
+  $('#hInst').textContent = `${i.name} · ${i.mc} ${LNAME[i.loader] || ''}`;
+  $('#hGo').onclick = () => play(i);
+  drawCards(i);
+  if (S.showDetails !== false) { if (!$('#hDet')) renderHome(); else drawDetails(i); }
+}
+
+function drawCards(sel) {
+  const box = $('#hCards'); if (!box) return; box.innerHTML = '';
+  const order = [...insts].sort((a, b) => new Date(b.lastPlayed || 0) - new Date(a.lastPlayed || 0) || a.name.localeCompare(b.name, 'de'));
+  for (const i of order) {
+    const d = document.createElement('div'); d.className = 'icard' + (sel && sel.id === i.id ? ' sel' : '');
+    const nm = i.mods.filter((m) => kindOf(m) === 'mod').length, nu = updOf(i.id).length;
+    d.innerHTML = `<div class="ava"></div><div class="ic-t"><b></b><span>${i.mc} · ${LNAME[i.loader] || i.loader}</span><span class="ic-m">${nm} Mods · ${fmtPlay(playtimes[i.id])}</span></div>${nu ? `<i class="upill">↑ ${nu}</i>` : ''}<button class="ic-play" title="Spielen">▶</button>`;
+    ava(d.firstChild, i); d.querySelector('b').textContent = i.name;
+    d.onclick = () => pickHome(i);
+    d.ondblclick = () => play(i);
+    d.querySelector('.ic-play').onclick = (e) => { e.stopPropagation(); play(i); };
+    d.oncontextmenu = (e) => { e.preventDefault(); showAt(instItems(i), e.clientX, e.clientY); };
+    box.appendChild(d);
   }
-  try { if (!news) news = await call('mc:news', undefined, true); } catch { news = []; }
-  const nb = $('#hNews'); if (!nb || view !== 'home') return;
-  nb.innerHTML = news.length ? '' : '<div class="empty" style="padding:30px 0">News nicht erreichbar.</div>';
-  for (const n of news) {
-    const d = document.createElement('div'); d.className = 'news';
-    d.innerHTML = (n.image ? '<img alt="">' : '') + '<div><b></b><span></span></div>';
-    if (n.image) d.querySelector('img').src = n.image;
-    d.querySelector('b').textContent = n.title;
-    d.querySelector('span').textContent = (n.date ? new Date(n.date).toLocaleDateString('de-DE') + ' · ' : '') + (n.text || '');
-    if (n.link) d.onclick = () => call('app:openUrl', n.link);
-    nb.appendChild(d);
+}
+
+async function drawDetails(i) {
+  const el = $('#hDet'); if (!el || !i) return;
+  const nm = i.mods.filter((m) => kindOf(m) === 'mod').length;
+  const ups = updOf(i.id);
+  el.innerHTML = `<div class="det">
+    <div class="det-h"><div class="ava big"></div><div style="min-width:0"><div class="det-name"></div>
+      <div class="badges"><span class="badge">${i.mc}</span><span class="badge">${LNAME[i.loader] || i.loader}${i.loaderVersion ? ' ' + i.loaderVersion : ''}</span>${i.pack ? '<span class="badge">Modpack</span>' : ''}</div></div></div>
+    <div class="det-play"><span>Spielzeit</span><b id="dPlay"><span class="spin"></span></b><small id="dPlaySub"></small></div>
+    <div class="det-grid">
+      <div><b>${nm}</b><span>Mods</span></div>
+      <div><b>${i.mods.length - nm}</b><span>Pakete</span></div>
+      <div><b id="dWorlds">…</b><span>Welten</span></div>
+      <div><b id="dSize">…</b><span>Größe</span></div>
+      <div><b id="dShots">…</b><span>Screenshots</span></div>
+      <div><b>${i.ram ? (i.ram / 1024).toFixed(i.ram % 1024 ? 1 : 0) + ' GB' : 'Standard'}</b><span>RAM</span></div>
+    </div>
+    ${ups.length ? `<div class="det-upd" id="dUpd"><b>${ups.length} Update${ups.length > 1 ? 's' : ''} verfügbar</b><span>Anzeigen ›</span></div>` : ''}
+    <div class="det-sec"><h4>Welten</h4><div id="dWorldList"><div class="det-empty"><span class="spin"></span></div></div></div>
+    <div class="det-sec"><h4>Mods</h4><div class="det-mods" id="dMods"></div></div>
+    ${i.notes ? '<div class="det-sec"><h4>Notizen</h4><div class="det-notes" id="dNotes"></div></div>' : ''}
+    <div class="det-btns"><button class="ghost" id="dMan">Mods verwalten</button><button class="ghost" id="dSet">Einstellungen</button><button class="ghost" id="dDir">Ordner</button></div>
+  </div>`;
+  ava(el.querySelector('.ava'), i);
+  el.querySelector('.det-name').textContent = i.name;
+  if (i.notes) $('#dNotes').textContent = i.notes;
+  if ($('#dUpd')) $('#dUpd').onclick = () => { kindFilter = 'upd'; tab = 'mods'; select(i); };
+  $('#dMan').onclick = () => { tab = 'mods'; select(i); };
+  $('#dSet').onclick = () => { tab = 'settings'; select(i); };
+  $('#dDir').onclick = () => call('instances:openFolder', i.id);
+  // Mod-Icons
+  const mb = $('#dMods'); const withIcon = i.mods.filter((m) => kindOf(m) === 'mod');
+  if (!withIcon.length) mb.innerHTML = '<div class="det-empty">Noch keine Mods</div>';
+  for (const m of withIcon.slice(0, 14)) {
+    const t = document.createElement('div'); t.className = 'mic'; t.title = m.title + (m.version ? ' ' + m.version : '');
+    if (m.icon) { const im = document.createElement('img'); im.src = m.icon; im.alt = ''; im.onerror = () => { im.remove(); t.textContent = m.title[0]; }; t.appendChild(im); } else t.textContent = (m.title[0] || '?').toUpperCase();
+    mb.appendChild(t);
   }
+  if (withIcon.length > 14) mb.insertAdjacentHTML('beforeend', `<div class="mic more">+${withIcon.length - 14}</div>`);
+  // Details (Spielzeit, Welten)
+  let d; try { d = await call('instances:details', i.id, true); } catch { return; }
+  if (!$('#dPlay')) return;
+  $('#dPlay').textContent = d.ticks ? fmtPlay(d.ticks) : 'Noch nicht gespielt';
+  $('#dPlaySub').textContent = i.lastPlayed ? 'Zuletzt ' + fmtAgo(i.lastPlayed) : (d.ticks ? '' : 'Starte die Instanz über „Spielen“');
+  $('#dWorlds').textContent = d.worlds.length; $('#dSize').textContent = fmtBytes(d.bytes); $('#dShots').textContent = d.screenshots;
+  const wl = $('#dWorldList'); wl.innerHTML = '';
+  if (!d.worlds.length) wl.innerHTML = '<div class="det-empty">Noch keine Welten</div>';
+  for (const w of d.worlds.slice(0, 5)) {
+    const r = document.createElement('div'); r.className = 'wrow';
+    r.innerHTML = '<i>◍</i><div><b></b><span></span></div><em></em>';
+    r.querySelector('b').textContent = w.name;
+    r.querySelector('span').textContent = w.lastPlayed ? fmtAgo(w.lastPlayed) : '';
+    r.querySelector('em').textContent = fmtPlay(w.ticks);
+    r.onclick = () => call('instances:openSub', { id: i.id, sub: 'saves' });
+    wl.appendChild(r);
+  }
+  if (d.worlds.length > 5) wl.insertAdjacentHTML('beforeend', `<div class="det-empty">und ${d.worlds.length - 5} weitere</div>`);
 }
 
 // ---------- 3D-Skin ----------
@@ -1419,7 +1538,7 @@ function applySettings() {
   $('#bg').style.opacity = Math.max(0.1, (S.fxStrength ?? 100) / 100);
   call('win:overlay', { color: b.bg0 }, true).catch(() => {});
 }
-async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'showCape' in patch || 'animations' in patch || 'room' in patch || 'showNews' in patch || 'showRecent' in patch || 'skinActions' in patch)) renderHome(); }
+async function setS(patch) { S = await call('settings:set', patch); applySettings(); renderSettingsBody(); if (view === 'home' && ('playerName' in patch || 'showSkin' in patch || 'nameTag' in patch || 'showCape' in patch || 'animations' in patch || 'room' in patch || 'showDetails' in patch || 'showCards' in patch || 'skinActions' in patch)) renderHome(); }
 
 let setSec = 'look', setQuery = '';
 const SECS = [['look', 'Darstellung'], ['ui', 'Oberfläche'], ['home', 'Startseite'], ['general', 'Allgemein'], ['updates', 'Updates'], ['downloads', 'Downloads'], ['play', 'Spielen'], ['data', 'Daten & Speicher'], ['about', 'Über']];
@@ -1533,8 +1652,8 @@ const SET_BUILD = {
       ['3D-Raum', 'Bodenraster hinter der Figur', S.room !== false, (v) => setS({ room: v })],
     ])));
     c.appendChild(sec('Inhalte', '', toggles([
-      ['Minecraft-News', 'Spalte rechts auf der Startseite', S.showNews !== false, (v) => setS({ showNews: v })],
-      ['Zuletzt gespielt', 'Schnellstart-Knöpfe unter dem Spielen-Knopf', S.showRecent !== false, (v) => setS({ showRecent: v })],
+      ['Instanz-Details', 'Spalte rechts mit Spielzeit, Welten und Mods', S.showDetails !== false, (v) => setS({ showDetails: v })],
+      ['Instanz-Karten', 'Alle Instanzen als Karten unter dem Spielen-Knopf', S.showCards !== false, (v) => setS({ showCards: v })],
     ])));
   },
   general(c) {
