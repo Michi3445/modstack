@@ -127,7 +127,7 @@ module.exports = function registerSync({ handle, db, uid, chatId, readLinks, sen
     const ref = localSync(id, account);
     const { value: previous, etag } = await read(ref.packId, { 'X-Firebase-ETag': 'true' });
     if (previous.owner !== account) throw new Error('Nur der Pack-Besitzer kann Änderungen veröffentlichen.');
-    if (!etag) throw new Error('Die Revision konnte nicht geprüft werden.');
+    if (!etag) throw new Error('Die Pack-Version konnte nicht geprüft werden.');
     if (transfer && (!UID.test(transfer) || transfer === account ||
         (GROUP_ID.test(previous.chat)
           ? (await db('/groupMembers/' + previous.chat + '/' + transfer)).value !== 'member'
@@ -153,7 +153,7 @@ module.exports = function registerSync({ handle, db, uid, chatId, readLinks, sen
     const account = auth();
     const ref = localSync(id, account);
     const { value } = await read(ref.packId);
-    if (value.revision !== revision) throw new Error('Es gibt eine neuere Revision. Prüfe die Änderungen erneut.');
+    if (value.revision !== revision) throw new Error('Es gibt eine neuere Pack-Version. Prüfe die Änderungen erneut.');
     return local.apply(id, ref.packId, value, account, optional ?? ref.optional);
   });
 

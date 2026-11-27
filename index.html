@@ -858,7 +858,14 @@ async function call(ch, data, quiet) {
 }
 async function work(label, fn) {
   busy++; setBar(label);
-  try { return await fn(); } finally { busy--; if (!busy) $('#prog').style.display = 'none'; refreshMenus(); }
+  try { return await fn(); } finally {
+    busy--;
+    if (!busy) {
+      $('#prog').style.display = 'none';
+      queueMicrotask(sendPendingSync);
+    }
+    refreshMenus();
+  }
 }
 
 // ---------- Dialoge ----------
@@ -1067,7 +1074,7 @@ function renderList() {
     const sync = packSyncState.get(i.id);
     if (i.sync && sync && !sync.owner && sync.revision > sync.current && S.packSync !== false) {
       const badge = document.createElement('span');
-      badge.className = 'upill'; badge.textContent = '↻'; badge.title = 'Gemeinsames Pack · Revision ' + sync.revision;
+      badge.className = 'upill'; badge.textContent = '↻'; badge.title = 'Gemeinsames Pack · Version ' + sync.revision;
       d.append(badge);
     }
     d.oncontextmenu = (e) => { e.preventDefault(); select(i); showAt(instItems(i), e.clientX, e.clientY); };
@@ -2457,7 +2464,7 @@ const SET_BUILD = {
       ['Modstack minimieren', 'Nach dem Klick auf Spielen', !!S.minimizeOnPlay, (v) => setS({ minimizeOnPlay: v })],
       ['Absturzdiagnose', 'Nach dem Spielen nach Crash-Reports und auffälligen Fehlern suchen.', S.crashDiagnostics !== false, (v) => setS({ crashDiagnostics: v }).then(() => { renderHead(); if (view === 'inst' && tab === 'settings') renderSettings(); })],
       ['Pack-Synchronisierung', 'Gemeinsame Packs mit Freunden und Gruppen verwalten.', S.packSync !== false, (v) => setS({ packSync: v }).then(() => { renderHead(); if (tab === 'settings') renderSettings(); if (v) updatePackSyncStatus(); })],
-      ['Pack-Revisionen automatisch senden', 'Änderungen an einem eigenen gemeinsamen Pack ohne Rückfrage veröffentlichen.', !!S.packSyncAuto, (v) => setS({ packSyncAuto: v })],
+      ['Pack-Änderungen automatisch teilen', 'Neue Pack-Versionen erscheinen nach Änderungen direkt im verknüpften Chat.', autoSharePackChanges(), (v) => setS({ packSyncAuto: v }).then(sendPendingSync)],
       ['Screenshot-Galerie und Chatbilder', 'Screenshots pro Instanz ansehen und mit Freunden teilen.', S.screenshotsEnabled !== false, (v) => setS({ screenshotsEnabled: v }).then(() => {
         if (view !== 'friends') { renderHead(); render(); }
       })],

@@ -60,7 +60,7 @@ function renderInstanceSafety(container, instance) {
   call('history:list', instance.id, true).then((items) => {
     historyList.replaceChildren(...items.slice().reverse().map((item) => row(
       item.config ? 'Pack-Synchronisierung' : item.old?.title || item.next?.title || item.old?.file || item.next?.file,
-      new Date(item.at).toLocaleString('de-DE') + ' · ' + (item.config ? 'Revision ' + item.config.sync.revision :
+      new Date(item.at).toLocaleString('de-DE') + ' · ' + (item.config ? 'Pack-Version ' + item.config.sync.revision :
         !item.old ? 'Hinzugefügt' : item.next ? (item.old.version || item.old.file) + ' → ' + (item.next.version || item.next.file) : 'Entfernt'),
       [action('Rückgängig machen', () => undoModChange(instance, item.id)),
         action('Alles bis hier rückgängig', () => undoModChange(instance, item.id, true))],

@@ -3,6 +3,10 @@ const pendingSyncChanges = new Set();
 let syncingStatus = false;
 let publishingSync = false;
 
+function autoSharePackChanges() {
+  return S.packSyncAuto !== false;
+}
+
 function syncButton(label, action, primary = false) {
   const button = document.createElement('button');
   Object.assign(button, { type: 'button', className: primary ? 'primary sm' : 'ghost sm', textContent: label });
@@ -83,17 +87,17 @@ async function checkPackBeforeJoin(instance, optional = instance.sync.optional, 
   const different = data.platform || data.added.length || data.updated.length || data.removed.length;
   const text = packDiffText(data);
   if (!apply && !different && !data.manualMissing.length && !data.extra.length) {
-    toast('Alles gleich · Revision ' + data.revision);
+    toast('Alles gleich · Pack-Version ' + data.revision);
     return;
   }
   if (!await ask({
-    title: apply ? 'Pack-Update übernehmen?' : 'Pack vergleichen · Revision ' + data.revision,
+    title: apply ? 'Pack-Update übernehmen?' : 'Pack vergleichen · Version ' + data.revision,
     text: text || 'Die Mod-Versionen stimmen überein.',
     okText: apply ? 'Übernehmen' : 'Schließen', danger: apply && !!data.removed.length,
   }) || !apply) return;
   await work('Übernehme gemeinsames Pack …', () => api.invoke('friends:sync:apply', { id: instance.id, revision: data.revision, optional }));
   await load(instance.id);
-  toast('Pack auf Revision ' + data.revision + ' gebracht');
+  toast('Pack auf Version ' + data.revision + ' gebracht');
 }
 
 async function updatePackSyncStatus() {
@@ -122,7 +126,7 @@ function drawPackSyncBanner() {
   banner.hidden = !show;
   if (!show) return;
   const instance = cur;
-  banner.querySelector('span').textContent = 'Revision ' + data.revision + ' verfügbar';
+  banner.querySelector('span').textContent = 'Pack-Version ' + data.revision + ' verfügbar';
   banner.querySelectorAll('button')[0].onclick = () => checkPackBeforeJoin(instance).catch((error) => toast(errText(error), true));
   banner.querySelectorAll('button')[1].onclick = () => checkPackBeforeJoin(instance, instance.sync.optional, true).catch((error) => toast(errText(error), true));
 }
@@ -148,13 +152,13 @@ function renderPackSync(container, instance) {
     if (!panel.isConnected) return;
     if (data.detached) { load(instance.id); return; }
     const status = document.createElement('p');
-    status.textContent = data.name + ' · Revision ' + data.current + ' von ' + data.revision;
+    status.textContent = data.name + ' · Pack-Version ' + data.current + ' von ' + data.revision;
     actions.before(status);
     if (data.owner) {
-      actions.append(syncButton('Revision veröffentlichen', async () => {
+      actions.append(syncButton('Pack im Chat teilen', async () => {
         const options = instance.mods.filter((m) => m.projectId && m.versionId && !m.disabled)
           .map((m) => ({ id: m.projectId, title: m.title || m.file }));
-        const choice = await syncDialog('Pack veröffentlichen', [], options, instance.sync.optional, 'Senden');
+        const choice = await syncDialog('Pack im Chat teilen', [], options, instance.sync.optional, 'Teilen');
         if (choice) await publishSync(instance.id, { optional: choice.optional, announce: true });
       }));
       actions.append(syncButton('Besitz übertragen', async () => {
@@ -184,24 +188,29 @@ async function publishSync(id, options = {}) {
 }
 
 async function sendPendingSync() {
-  if (publishingSync || busy || document.querySelector('dialog[open]') || S.packSync === false) return;
+  if (publishingSync || busy || S.packSync === false) return;
   const [id] = pendingSyncChanges;
   if (!id) return;
+  const automatic = autoSharePackChanges();
+  if (!automatic && document.querySelector('dialog[open]')) return;
   publishingSync = true;
   pendingSyncChanges.delete(id);
   try {
     const instance = insts.find((item) => item.id === id);
-    if (instance?.sync && (S.packSyncAuto || await ask({
-      title: 'Änderung an die Gruppe senden?', text: 'Veröffentliche den aktuellen Stand von „' + instance.name + '“ im verknüpften Chat.',
-      okText: 'Senden',
+    if (instance?.sync && (automatic || await ask({
+      title: 'Pack-Änderungen im Chat teilen?', text: 'Teile die aktuelle Version von „' + instance.name + '“ im verknüpften Chat.',
+      okText: 'Teilen',
     }))) await publishSync(id);
   } catch (error) { toast(errText(error), true); }
-  finally { publishingSync = false; }
+  finally {
+    publishingSync = false;
+    if (pendingSyncChanges.size) queueMicrotask(sendPendingSync);
+  }
 }
 
 function renderSharedSyncCard(bubble, row, chat) {
   const title = document.createElement('strong');
-  title.textContent = 'Gemeinsames Pack: ' + row.title + ' · Revision ' + row.revision;
+  title.textContent = 'Gemeinsames Pack: ' + row.title + ' · Version ' + row.revision;
   const summary = document.createElement('small'); summary.textContent = row.summary;
   bubble.append(title, summary);
   if (S.packSync === false) return;
