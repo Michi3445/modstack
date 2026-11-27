@@ -1,11 +1,12 @@
 const { randomBytes } = require('node:crypto');
+const { validScreenshot } = require('./screenshot-codec');
 
 const GROUP_ID = /^g-[a-f0-9]{32}$/;
 const UID = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_MEMBERS = 12;
 const HISTORY = { orderBy: 'at', limitToLast: 50 };
 
-function registerGroups({ handle, db, signedIn, readLinks, buildShareCode, clearUnread }) {
+function registerGroups({ handle, db, signedIn, readLinks, buildShareCode, clearUnread, screenshots }) {
   const data = async (location, options) => (await db(location, options)).value;
   const patch = (value) => db('', { method: 'PATCH', value });
   const login = () => {
@@ -115,7 +116,8 @@ function registerGroups({ handle, db, signedIn, readLinks, buildShareCode, clear
     const uid = login();
     const query = Number.isSafeInteger(before) && before > 0 ? { ...HISTORY, endAt: before } : HISTORY;
     const result = await data('/groupChats/' + groupId(id), { query });
-    return Object.entries(result || {}).map(([messageId, message]) => ({ ...message, messageId, mine: message.from === uid }))
+    return Object.entries(result || {}).filter(([, row]) => row.kind !== 'screenshot' || validScreenshot(row.content))
+      .map(([messageId, message]) => ({ ...message, messageId, mine: message.from === uid }))
       .sort((a, b) => a.at - b.at || a.messageId.localeCompare(b.messageId, 'en'));
   }
 
@@ -152,6 +154,11 @@ function registerGroups({ handle, db, signedIn, readLinks, buildShareCode, clear
     const { code, name, skipped } = buildShareCode(instanceId, 16000);
     if (code.length > 16000) throw new Error('Dieses Modpack ist zu groß für den Chat. Teile es als .mrpack-Datei.');
     await send(id, { kind: 'pack', content: code, title: String(name || 'Modpack').slice(0, 80), skipped: skipped.length });
+  });
+  handle('groups:sendScreenshot', async ({ id, content } = {}) => {
+    if (!screenshots?.()) throw new Error('Die Screenshot-Galerie ist ausgeschaltet.');
+    if (!validScreenshot(content)) throw new Error('Der Screenshot ist kein gültiges WebP-Bild bis 800 Pixel.');
+    await send(id, { kind: 'screenshot', content });
   });
   return send;
 }

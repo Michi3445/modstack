@@ -33,7 +33,8 @@ function notifyFriendChat({ arrived, unread, contactsChanged, requested = 0, req
   const message = newGroupInvites ? newGroupInvites === 1 ? 'Du hast eine neue Gruppeneinladung.' : `Du hast ${newGroupInvites} neue Gruppeneinladungen.`
     : requested > 0 ? requested === 1 ? 'Du hast eine neue Freundschaftsanfrage.' : `Du hast ${requested} neue Freundschaftsanfragen.`
     : arrived.length > 1 ? `Neue Nachrichten in ${arrived.length} Chats`
-      : arrived[0]?.kind === 'pack' ? 'Ein Freund hat ein Modpack geteilt.' : arrived.length ? 'Du hast eine neue Chatnachricht.' : '';
+      : arrived[0]?.kind === 'screenshot' ? 'Ein Screenshot wurde im Chat geteilt.'
+        : arrived[0]?.kind === 'pack' ? 'Ein Freund hat ein Modpack geteilt.' : arrived.length ? 'Du hast eine neue Chatnachricht.' : '';
   const popup = settings.friendsPopup !== false;
   win.webContents.send('friendChat', {
     arrived, unread, contactsChanged, requests, requested, groupsChanged, newGroupInvites, groupInvites, sound: !!message && settings.friendsSound !== false,
@@ -244,7 +245,11 @@ const syncLocal = require('./sync-local')({
   download: downloadModrinth, history, backups,
 });
 require('./friends')(ipcMain, app.getPath('userData'), readMinecraftAccount, buildShareCode, notifyFriendChat,
-  friendPresenceOptions, runningModstackPack, { local: syncLocal, enabled: () => appSettings().packSync !== false });
+  friendPresenceOptions, runningModstackPack, { local: syncLocal, enabled: () => appSettings().packSync !== false, screenshots: () => appSettings().screenshotsEnabled !== false });
+require('./instance-screenshots')({
+  ipc: ipcMain, instDir, readInst, cache: path.join(app.getPath('userData'), 'screenshot-cache'),
+  settings: appSettings, nativeImage, clipboard, shell,
+});
 
 function packChanged(id) {
   if (appSettings().packSync !== false && readInst(id).sync?.role === 'owner' && win && !win.isDestroyed()) {

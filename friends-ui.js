@@ -784,6 +784,10 @@ function openFriendChat(entry, stage, back, remove, membersDialog) {
         renderPack(bubble, row);
         if (loadedShared) shared.set(row.messageId, row);
       } else if (row.kind === 'sync') renderSharedSyncCard(bubble, row, entry.id);
+      else if (row.kind === 'screenshot') {
+        if (S.screenshotsEnabled !== false) renderChatScreenshot(bubble, row);
+        else bubble.append(document.createTextNode('Ein Screenshot wurde geteilt.'));
+      }
       else bubble.append(document.createTextNode(row.content));
       const sent = document.createElement('time');
       sent.textContent = time.format(row.at);

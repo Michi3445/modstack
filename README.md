@@ -50,6 +50,11 @@ worlds before applying a revision and records the changes in **Mod-Verlauf**.
 Pack synchronisation and automatic publishing can be configured under
 **Optionen → Minecraft → Spielstart**. Publish the updated Firebase rules before
 using shared packs.
+The **Screenshots** tab displays locally cached thumbnails. Open an image to copy
+it, reveal the original, delete it with confirmation, or send an 800-pixel WebP
+preview to an accepted friend or a group. Home shows the latest four previews.
+The gallery and in-chat screenshot rendering are optional under
+**Optionen → Minecraft → Spielstart**.
 Online and active-pack visibility are optional and limited to accepted friends.
 An Essential card shares the pack and host name. Send and accept the actual world
 invitation in Essential. Server cards share the unmodified Minecraft server address.

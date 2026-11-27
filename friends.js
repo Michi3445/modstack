@@ -6,6 +6,7 @@ const { createHash, randomBytes } = require('node:crypto');
 const project = require('./friends-project.json');
 const streamInbox = require('./friends-stream');
 const { GROUP_ID, registerGroups } = require('./friends-groups');
+const { validScreenshot } = require('./screenshot-codec');
 
 const UID = /^[A-Za-z0-9_-]{1,128}$/;
 const ROOT = '/modstackFriends';
@@ -350,7 +351,8 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
 
   handle('chat', async (id) => {
     const { value } = await db('/chat/' + chatId(id), { query: CHAT_QUERY });
-    return Object.entries(value || {}).map(([messageId, { from, to, ...message }]) =>
+    return Object.entries(value || {}).filter(([, row]) => row.kind !== 'screenshot' || validScreenshot(row.content))
+      .map(([messageId, { from, to, ...message }]) =>
       ({ ...message, messageId, mine: from === session.uid }))
       .sort((a, b) => a.at - b.at || a.messageId.localeCompare(b.messageId, 'en'));
   });
@@ -373,6 +375,12 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     const content = typeof text === 'string' ? text.trim() : '';
     if (!content || content.length > 2000) throw new Error('Schreib eine Nachricht mit bis zu 2.000 Zeichen.');
     await sendMessage(id, { kind: 'text', content });
+  });
+
+  handle('sendScreenshot', async ({ id, content } = {}) => {
+    if (!sync?.screenshots?.()) throw new Error('Die Screenshot-Galerie ist ausgeschaltet.');
+    if (!validScreenshot(content)) throw new Error('Der Screenshot ist kein gültiges WebP-Bild bis 800 Pixel.');
+    await sendMessage(id, { kind: 'screenshot', content });
   });
 
   handle('sendPack', async ({ id, instanceId, method, address } = {}) => {
@@ -418,7 +426,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     }));
   }
 
-  const groupSend = registerGroups({ handle, db, signedIn: () => session?.uid, readLinks, buildShareCode,
+  const groupSend = registerGroups({ handle, db, signedIn: () => session?.uid, readLinks, buildShareCode, screenshots: sync?.screenshots,
     clearUnread(keep) {
       const state = chatInbox();
       const stale = unreadChats(state).filter((id) => GROUP_ID.test(id) && !keep(id));
@@ -460,7 +468,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     const arrived = [];
     for (const [id, mark] of entries) {
       if ((!LINK_ID.test(id) && !GROUP_ID.test(id)) || !mark || !MESSAGE_ID.test(mark.messageId) ||
-          !Number.isSafeInteger(mark.at) || !['text', 'pack', 'sync'].includes(mark.kind)) continue;
+          !Number.isSafeInteger(mark.at) || !['text', 'pack', 'sync', 'screenshot'].includes(mark.kind)) continue;
       const previous = state.entries[id];
       state.cursor = Math.max(state.cursor, mark.at);
       if (previous && (previous.messageId === mark.messageId || previous.at > mark.at)) continue;

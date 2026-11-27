@@ -63,10 +63,10 @@
               ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
             },
             "kind": {
-              ".validate": "newData.val() === 'text' || newData.val() === 'pack' || newData.val() === 'sync'"
+              ".validate": "newData.val() === 'text' || newData.val() === 'pack' || newData.val() === 'sync' || newData.val() === 'screenshot'"
             },
             "content": {
-              ".validate": "newData.isString() && (newData.parent().child('kind').val() === 'text' ? newData.val().length > 0 && newData.val().length <= 2000 : (newData.parent().child('kind').val() === 'sync' ? newData.val().matches(/^s-[a-f0-9]{32}$/) && root.child('modstackFriends/syncPacks').child(newData.val()).child('chat').val() === $id && root.child('modstackFriends/syncPacks').child(newData.val()).child('revision').val() === newData.parent().child('revision').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('name').val() === newData.parent().child('title').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('summary').val() === newData.parent().child('summary').val() : newData.val().length <= 16000 && newData.val().matches(/^MS1-[A-Za-z0-9_-]+$/)))"
+              ".validate": "newData.isString() && (newData.parent().child('kind').val() === 'text' ? newData.val().length > 0 && newData.val().length <= 2000 : (newData.parent().child('kind').val() === 'sync' ? newData.val().matches(/^s-[a-f0-9]{32}$/) && root.child('modstackFriends/syncPacks').child(newData.val()).child('chat').val() === $id && root.child('modstackFriends/syncPacks').child(newData.val()).child('revision').val() === newData.parent().child('revision').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('name').val() === newData.parent().child('title').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('summary').val() === newData.parent().child('summary').val() : (newData.parent().child('kind').val() === 'screenshot' ? newData.val().length >= 59 && newData.val().length <= 64000 && newData.val().matches(/^data:image\\/webp;base64,[A-Za-z0-9+/]+={0,2}$/) : newData.val().length <= 16000 && newData.val().matches(/^MS1-[A-Za-z0-9_-]+$/))))"
             },
             "title": {
               ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
@@ -140,10 +140,10 @@
               ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
             },
             "kind": {
-              ".validate": "newData.val() === 'text' || newData.val() === 'pack' || newData.val() === 'sync'"
+              ".validate": "newData.val() === 'text' || newData.val() === 'pack' || newData.val() === 'sync' || newData.val() === 'screenshot'"
             },
             "content": {
-              ".validate": "newData.isString() && (newData.parent().child('kind').val() === 'text' ? newData.val().length > 0 && newData.val().length <= 2000 : (newData.parent().child('kind').val() === 'sync' ? newData.val().matches(/^s-[a-f0-9]{32}$/) && root.child('modstackFriends/syncPacks').child(newData.val()).child('chat').val() === $gid && root.child('modstackFriends/syncPacks').child(newData.val()).child('revision').val() === newData.parent().child('revision').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('name').val() === newData.parent().child('title').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('summary').val() === newData.parent().child('summary').val() : newData.val().length <= 16000 && newData.val().matches(/^MS1-[A-Za-z0-9_-]+$/)))"
+              ".validate": "newData.isString() && (newData.parent().child('kind').val() === 'text' ? newData.val().length > 0 && newData.val().length <= 2000 : (newData.parent().child('kind').val() === 'sync' ? newData.val().matches(/^s-[a-f0-9]{32}$/) && root.child('modstackFriends/syncPacks').child(newData.val()).child('chat').val() === $gid && root.child('modstackFriends/syncPacks').child(newData.val()).child('revision').val() === newData.parent().child('revision').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('name').val() === newData.parent().child('title').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('summary').val() === newData.parent().child('summary').val() : (newData.parent().child('kind').val() === 'screenshot' ? newData.val().length >= 59 && newData.val().length <= 64000 && newData.val().matches(/^data:image\\/webp;base64,[A-Za-z0-9+/]+={0,2}$/) : newData.val().length <= 16000 && newData.val().matches(/^MS1-[A-Za-z0-9_-]+$/))))"
             },
             "title": {
               ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
@@ -243,7 +243,7 @@
               ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
             },
             "kind": {
-              ".validate": "newData.val() === 'text' || newData.val() === 'pack' || newData.val() === 'sync'"
+              ".validate": "newData.val() === 'text' || newData.val() === 'pack' || newData.val() === 'sync' || newData.val() === 'screenshot'"
             },
             "$other": {
               ".validate": false
