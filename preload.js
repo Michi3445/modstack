@@ -4,5 +4,6 @@ contextBridge.exposeInMainWorld('api', {
   invoke: (channel, data) => ipcRenderer.invoke(channel, data),
   onStatus: (cb) => ipcRenderer.on('status', (_e, msg) => cb(msg)),
   onFriendChat: (cb) => ipcRenderer.on('friendChat', (_e, msg) => cb(msg)),
+  onPackSyncChanged: (cb) => ipcRenderer.on('packSyncChanged', (_e, id) => cb(id)),
   pathForFile: (file) => webUtils.getPathForFile(file),
 });

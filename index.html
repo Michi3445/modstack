@@ -433,6 +433,13 @@
   #crashNotice[hidden], .pack-crashes[hidden] { display: none; }
   .crash-card { padding: 10px 0; border-top: 1px solid var(--line); }
   .crash-card small { display: block; color: var(--muted); margin: 3px 0 7px; }
+  #packSyncBanner { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 24px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg2); }
+  #packSyncBanner span { flex: 1; color: var(--muted); }
+  #packSyncBanner[hidden], .pack-sync[hidden] { display: none; }
+  .sync-dialog { width: min(460px, 94vw); }
+  .sync-dialog .db select { width: 100%; margin: 5px 0; }
+  .sync-choices { max-height: 220px; overflow: auto; }
+  .sync-choices label { display: flex; align-items: center; gap: 8px; }
   .folders { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
   .folders div { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); cursor: pointer; font-size: 12.5px; }
   .folders div:hover { border-color: color-mix(in srgb, var(--c1) 50%, transparent); background: rgba(255,255,255,.07); }
@@ -704,6 +711,7 @@
       <div class="tab" data-t="settings">Einstellungen</div>
     </div>
     <div id="crashNotice" hidden><strong>Minecraft ist abgestürzt</strong><span></span><button class="ghost sm">Problem ansehen</button></div>
+    <div id="packSyncBanner" hidden><strong>Pack-Update vom Besitzer</strong><span></span><button class="ghost sm">Änderungen ansehen</button><button class="primary sm">Übernehmen</button></div>
     <div id="content"></div>
   </div>
 </div>
@@ -717,6 +725,7 @@
 <script src="minecraft-options-ui.js"></script>
 <script src="instance-safety-ui.js"></script>
 <script src="crash-diagnostics-ui.js"></script>
+<script src="pack-sync-ui.js"></script>
 
 <dialog id="dlg">
   <div class="dh">Neue Instanz</div>
@@ -996,6 +1005,7 @@ async function load(selId) {
   if (selId) { cur = insts.find((i) => i.id === selId) || null; if (cur && view !== 'inst') markView('inst'); }
   else if (cur) cur = insts.find((i) => i.id === cur.id) || null;
   renderList(); renderHead(); render();
+  updatePackSyncStatus();
 }
 function select(i) { if (view !== 'inst') markView('inst'); cur = i; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); }
 function setTab(t) { if (view !== 'inst') setView('inst'); tab = t; renderHead(); render(); }
@@ -1035,6 +1045,12 @@ function renderList() {
     d.onclick = () => select(i);
     d.ondblclick = () => play(i);
     { const nu = updOf(i.id).length; if (nu && S.showBadges !== false) d.insertAdjacentHTML('beforeend', `<span class="upill" title="${nu} Update(s) verfügbar">↑ ${nu}</span>`); }
+    const sync = packSyncState.get(i.id);
+    if (i.sync && sync && !sync.owner && sync.revision > sync.current && S.packSync !== false) {
+      const badge = document.createElement('span');
+      badge.className = 'upill'; badge.textContent = '↻'; badge.title = 'Gemeinsames Pack · Revision ' + sync.revision;
+      d.append(badge);
+    }
     d.oncontextmenu = (e) => { e.preventDefault(); select(i); showAt(instItems(i), e.clientX, e.clientY); };
     l.appendChild(d);
   }
@@ -1042,6 +1058,7 @@ function renderList() {
 
 function renderHead() {
   const has = view === 'inst' && !!cur;
+  drawPackSyncBanner();
   const crash = $('#crashNotice');
   if (!has || crash.dataset.instance !== cur.id || S.crashDiagnostics === false) crash.hidden = true;
   crash.dataset.instance = has ? cur.id : '';
@@ -1149,6 +1166,9 @@ function drawMods() {
     const b = r.querySelector('b'); b.textContent = m.title;
     b.insertAdjacentHTML('beforeend', `<span class="tag ${cls}">${lbl}</span>`);
     if (kindOf(m) !== 'mod') b.insertAdjacentHTML('beforeend', `<span class="tag man">${KIND[kindOf(m)]}</span>`);
+    if (S.packSync !== false && cur.sync && packSyncState.get(cur.id)?.extraFiles.includes(m.file)) {
+      b.insertAdjacentHTML('beforeend', '<span class="tag man">Nicht im Gruppen-Pack</span>');
+    }
     const sp = r.querySelector('.t > span');
     if (u) {
       b.insertAdjacentHTML('beforeend', '<span class="tag upd">Update</span>');
@@ -1713,6 +1733,7 @@ async function renderSettings() {
     <div class="card iscard pack-backups"><h3>Welt-Backups</h3></div>
     <div class="card iscard pack-history"><h3>Mod-Verlauf</h3></div>
     <div class="card iscard span2 pack-crashes" hidden><h3>Probleme</h3><div class="crash-list"></div></div>
+    <div class="card iscard span2 pack-sync" hidden><h3>Gemeinsames Pack</h3></div>
 
     <div class="card iscard span2 danger-zone"><h3>Verwalten</h3><p>Erstellt am ${fmtDate(i.created)} · Ordner: ${i.id}</p>
       <div class="line"><button class="ghost" id="sRen">Umbenennen</button><button class="ghost" id="sDup">Duplizieren</button><button class="danger" id="sDel" style="margin-left:auto">Instanz löschen</button></div></div>
@@ -1789,6 +1810,7 @@ async function renderSettings() {
   $('#sDel').onclick = () => deleteInst(i);
   renderInstanceSafety(c, i);
   renderInstanceCrashes(c, i);
+  renderPackSync(c, i);
   // Statistik
   const size = $('#stSize'), worlds = $('#stWorlds'), shots = $('#stShots');
   call('instances:info', i.id, true).then((inf) => {
@@ -2409,6 +2431,8 @@ const SET_BUILD = {
     c.appendChild(sec('Beim Spielen', '', toggles([
       ['Modstack minimieren', 'Nach dem Klick auf Spielen', !!S.minimizeOnPlay, (v) => setS({ minimizeOnPlay: v })],
       ['Absturzdiagnose', 'Nach dem Spielen nach Crash-Reports und auffälligen Fehlern suchen.', S.crashDiagnostics !== false, (v) => setS({ crashDiagnostics: v }).then(() => { renderHead(); if (view === 'inst' && tab === 'settings') renderSettings(); })],
+      ['Pack-Synchronisierung', 'Gemeinsame Packs mit Freunden und Gruppen verwalten.', S.packSync !== false, (v) => setS({ packSync: v }).then(() => { renderHead(); if (tab === 'settings') renderSettings(); if (v) updatePackSyncStatus(); })],
+      ['Pack-Revisionen automatisch senden', 'Änderungen an einem eigenen gemeinsamen Pack ohne Rückfrage veröffentlichen.', !!S.packSyncAuto, (v) => setS({ packSyncAuto: v })],
     ])));
     c.appendChild(sec('So funktioniert Spielen', 'Modstack startet Minecraft über den offiziellen Launcher. Dort wählst du das Profil „[Modstack] Name“ und klickst auf Spielen. Der Mojang-Launcher muss vorher geschlossen sein.'));
   },

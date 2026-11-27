@@ -21,7 +21,8 @@ module.exports = function modHistory({ instDir, entryPath, saveInst, settings })
 
   function records(inst) {
     return (Array.isArray(inst.history) ? inst.history : [])
-      .filter((record) => record && HISTORY_ID.test(record.id) && record.old && regular(path.join(folder(inst.id), record.id)));
+      .filter((record) => record && HISTORY_ID.test(record.id) &&
+        (record.old ? regular(path.join(folder(inst.id), record.id)) : record.next || record.config));
   }
 
   function move(source, dest, done) {
@@ -41,63 +42,84 @@ module.exports = function modHistory({ instDir, entryPath, saveInst, settings })
     }
   }
 
-  function replace(inst, old, next, staged) {
+  function replaceMany(inst, changes, patch) {
     const dir = folder(inst.id);
-    const source = entryPath(inst.id, old);
-    const key = randomUUID();
-    const archived = path.join(dir, key);
-    const oldPresent = regular(source);
-    const keep = settings().historyEnabled !== false && oldPresent;
     const recordsBefore = records(inst);
+    const force = !!patch;
+    const keep = force || settings().historyEnabled !== false;
     const required = Number.isInteger(settings().historyLimit) ? Math.max(1, Math.min(30, settings().historyLimit)) : 5;
     const removed = [];
     const steps = [];
-    if (keep) recordsBefore.push({ id: key, at: new Date().toISOString(), old, next });
+    const at = new Date().toISOString();
+    const batch = force ? randomUUID() : undefined;
+    if (batch) recordsBefore.push({ id: batch, at, config: { mc: inst.mc, loader: inst.loader, loaderVersion: inst.loaderVersion, sync: inst.sync } });
+    let mods = [...inst.mods];
+    const plan = changes.map(({ old, next, staged }) => {
+      const id = randomUUID();
+      const source = old && entryPath(inst.id, old);
+      const present = source && regular(source);
+      if (keep && (present || next)) recordsBefore.push({ id, at, old: present ? old : null, next, batch });
+      if (!keep && present) removed.push(id);
+      mods = old ? mods.filter((item) => item !== old) : mods;
+      if (next) mods.push(next);
+      return { id, source: present ? source : null, next, staged };
+    });
     const counts = new Map();
+    const incompleteBatches = new Set();
     const history = recordsBefore.reverse().filter((item) => {
-      const id = identity(item.old);
+      if (item.config) return true;
+      const id = identity(item.old || item.next);
       const count = (counts.get(id) || 0) + 1;
       counts.set(id, count);
-      if (count > required) removed.push(item.id);
+      if (count > required) {
+        removed.push(item.id);
+        if (item.batch) incompleteBatches.add(item.batch);
+      }
       return count <= required;
     }).reverse();
-    const mods = next ? inst.mods.map((item) => item === old ? next : item) : inst.mods.filter((item) => item !== old);
     try {
-      if (oldPresent) move(source, archived, steps);
-      if (staged) move(staged, entryPath(inst.id, next), steps);
-      saveInst({ ...inst, mods, history });
+      for (const item of plan) if (item.source) move(item.source, path.join(dir, item.id), steps);
+      for (const item of plan) if (item.staged) move(item.staged, entryPath(inst.id, item.next), steps);
+      saveInst({ ...inst, ...patch, mods, history: history.filter((item) => !incompleteBatches.has(item.id)) });
     } catch (error) {
       rollback(steps);
       throw error;
     }
-    discard(dir, keep ? removed : [...removed, key]);
+    discard(dir, removed);
+  }
+
+  function replace(inst, old, next, staged) {
+    replaceMany(inst, [{ old, next, staged }]);
   }
 
   function undo(inst, key, through) {
     const history = records(inst);
     const index = history.findIndex((record) => record.id === key);
     if (index < 0) throw new Error('Die frühere Version ist nicht mehr verfügbar.');
-    const selected = (through ? history.slice(index) : [history[index]]).reverse();
+    const selected = (through || history[index].config ? history.slice(index) : [history[index]]).reverse();
     const removed = new Set(selected.map((record) => record.id));
     const dir = folder(inst.id);
     let mods = [...inst.mods];
+    let patch;
     const steps = [], temporary = [];
     try {
       for (const record of selected) {
-        const current = mods.find((mod) => identity(mod) === identity(record.old));
+        if (record.config) { patch = { ...record.config }; continue; }
+        const current = mods.find((mod) => identity(mod) === identity(record.old || record.next));
         if (record.next ? !versionMatches(current, record.next) : current) {
           throw new Error('Der Mod wurde seitdem geändert. Mache zuerst die neueren Änderungen rückgängig.');
         }
-        const original = current ? { ...record.old, disabled: current.disabled } : record.old;
+        const original = record.old && (current ? { ...record.old, disabled: current.disabled } : record.old);
         if (current && regular(entryPath(inst.id, current))) {
           const key = randomUUID();
           move(entryPath(inst.id, current), path.join(dir, key), steps);
           temporary.push(key);
         }
-        move(path.join(dir, record.id), entryPath(inst.id, original), steps);
-        mods = current ? mods.map((mod) => mod === current ? original : mod) : [...mods, original];
+        if (original) move(path.join(dir, record.id), entryPath(inst.id, original), steps);
+        mods = current ? mods.filter((mod) => mod !== current) : mods;
+        if (original) mods.push(original);
       }
-      saveInst({ ...inst, mods, history: history.filter((record) => !removed.has(record.id)) });
+      saveInst({ ...inst, ...patch, mods, history: history.filter((record) => !removed.has(record.id)) });
     } catch (error) {
       rollback(steps);
       throw error;
@@ -107,7 +129,7 @@ module.exports = function modHistory({ instDir, entryPath, saveInst, settings })
 
   function bytes(inst) {
     const dir = folder(inst.id);
-    return records(inst).reduce((total, record) => total + fs.statSync(path.join(dir, record.id)).size, 0);
+    return records(inst).reduce((total, record) => total + (record.old ? fs.statSync(path.join(dir, record.id)).size : 0), 0);
   }
 
   function clear(inst) {
@@ -122,5 +144,5 @@ module.exports = function modHistory({ instDir, entryPath, saveInst, settings })
     return records(inst).findLast((record) => versionMatches(current, record.next))?.id || null;
   }
 
-  return { replace, list: records, undo, previous, bytes, clear };
+  return { replace, replaceMany, list: records, undo, previous, bytes, clear };
 };

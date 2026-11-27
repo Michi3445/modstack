@@ -773,7 +773,7 @@ function openFriendChat(entry, stage, back, remove, membersDialog) {
         lastDay = day;
       }
       const bubble = document.createElement('article');
-      bubble.className = 'chat-message' + (row.mine ? ' mine' : '') + (row.kind === 'pack' ? ' pack' : '');
+      bubble.className = 'chat-message' + (row.mine ? ' mine' : '') + (['pack', 'sync'].includes(row.kind) ? ' pack' : '');
       if (entry.group && !row.mine) {
         const author = document.createElement('small');
         author.className = 'chat-author';
@@ -783,7 +783,8 @@ function openFriendChat(entry, stage, back, remove, membersDialog) {
       if (row.kind === 'pack') {
         renderPack(bubble, row);
         if (loadedShared) shared.set(row.messageId, row);
-      } else bubble.append(document.createTextNode(row.content));
+      } else if (row.kind === 'sync') renderSharedSyncCard(bubble, row, entry.id);
+      else bubble.append(document.createTextNode(row.content));
       const sent = document.createElement('time');
       sent.textContent = time.format(row.at);
       bubble.append(sent);

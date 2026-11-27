@@ -42,6 +42,14 @@ Accepted friends can message each other, set a profile picture, and share import
 Modrinth-based instances in the chat. The **Geteilt** tab can browse older shared packs.
 Group chats support up to 12 people, including open invitations. The owner can invite
 confirmed friends and manage membership. Only members can read or send group messages.
+Use **Instanz → Einstellungen → Gemeinsames Pack** to link an installed pack to a
+private or group chat. Members join from the chat card, choose optional files and
+review updates before installing them. The owner publishes each revision. Files
+without a Modrinth version are listed for manual installation. The app backs up
+worlds before applying a revision and records the changes in **Mod-Verlauf**.
+Pack synchronisation and automatic publishing can be configured under
+**Optionen → Minecraft → Spielstart**. Publish the updated Firebase rules before
+using shared packs.
 Online and active-pack visibility are optional and limited to accepted friends.
 An Essential card shares the pack and host name. Send and accept the actual world
 invitation in Essential. Server cards share the unmodified Minecraft server address.

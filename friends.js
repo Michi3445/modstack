@@ -25,7 +25,7 @@ const AUTH_ERRORS = {
   USER_DISABLED: 'Dieses Konto ist deaktiviert.',
 };
 
-module.exports = function registerFriends(ipc, userData, readMinecraftAccount, buildShareCode, notifyChat, presenceOptions, currentPack) {
+module.exports = function registerFriends(ipc, userData, readMinecraftAccount, buildShareCode, notifyChat, presenceOptions, currentPack, sync) {
   const configFile = path.join(userData, 'friends-firebase.json');
   const sessionFile = path.join(userData, 'friends-session');
   let config, session;
@@ -418,7 +418,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     }));
   }
 
-  registerGroups({ handle, db, signedIn: () => session?.uid, readLinks, buildShareCode,
+  const groupSend = registerGroups({ handle, db, signedIn: () => session?.uid, readLinks, buildShareCode,
     clearUnread(keep) {
       const state = chatInbox();
       const stale = unreadChats(state).filter((id) => GROUP_ID.test(id) && !keep(id));
@@ -427,6 +427,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
       saveInbox(state);
     },
   });
+  require('./friends-sync')({ handle, db, uid: () => session?.uid, chatId, readLinks, send: sendMessage, groupSend, ...sync });
 
   handle('unread', () => {
     init();
@@ -459,7 +460,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     const arrived = [];
     for (const [id, mark] of entries) {
       if ((!LINK_ID.test(id) && !GROUP_ID.test(id)) || !mark || !MESSAGE_ID.test(mark.messageId) ||
-          !Number.isSafeInteger(mark.at) || !['text', 'pack'].includes(mark.kind)) continue;
+          !Number.isSafeInteger(mark.at) || !['text', 'pack', 'sync'].includes(mark.kind)) continue;
       const previous = state.entries[id];
       state.cursor = Math.max(state.cursor, mark.at);
       if (previous && (previous.messageId === mark.messageId || previous.at > mark.at)) continue;

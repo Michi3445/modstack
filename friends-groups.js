@@ -153,6 +153,7 @@ function registerGroups({ handle, db, signedIn, readLinks, buildShareCode, clear
     if (code.length > 16000) throw new Error('Dieses Modpack ist zu groß für den Chat. Teile es als .mrpack-Datei.');
     await send(id, { kind: 'pack', content: code, title: String(name || 'Modpack').slice(0, 80), skipped: skipped.length });
   });
+  return send;
 }
 
 module.exports = { GROUP_ID, registerGroups };

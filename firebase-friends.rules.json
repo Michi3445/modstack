@@ -52,7 +52,7 @@
           ],
           "$message": {
             ".write": "auth != null && !data.exists() && newData.exists() && root.child('modstackFriends/links').child($id).child('state').val() === 'friends' && ((root.child('modstackFriends/links').child($id).child('sender').val() === auth.uid && root.child('modstackFriends/links').child($id).child('recipient').val() === newData.child('to').val()) || (root.child('modstackFriends/links').child($id).child('recipient').val() === auth.uid && root.child('modstackFriends/links').child($id).child('sender').val() === newData.child('to').val())) && newData.child('from').val() === auth.uid",
-            ".validate": "$message.matches(/^[a-f0-9]{32}$/) && newData.hasChildren(['from', 'to', 'at', 'kind', 'content']) && (newData.child('kind').val() === 'text' ? !newData.hasChild('title') && !newData.hasChild('skipped') && !newData.hasChild('invite') : newData.hasChildren(['title', 'skipped']))",
+            ".validate": "$message.matches(/^[a-f0-9]{32}$/) && newData.hasChildren(['from', 'to', 'at', 'kind', 'content']) && (newData.child('kind').val() === 'pack' ? newData.hasChildren(['title','skipped']) && !newData.hasChild('revision') && !newData.hasChild('summary') : (newData.child('kind').val() === 'sync' ? newData.hasChildren(['title','revision','summary']) && !newData.hasChild('skipped') && !newData.hasChild('invite') : !newData.hasChild('title') && !newData.hasChild('revision') && !newData.hasChild('summary') && !newData.hasChild('skipped') && !newData.hasChild('invite'))) ",
             "from": {
               ".validate": "newData.isString()"
             },
@@ -63,14 +63,16 @@
               ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
             },
             "kind": {
-              ".validate": "newData.val() === 'text' || newData.val() === 'pack'"
+              ".validate": "newData.val() === 'text' || newData.val() === 'pack' || newData.val() === 'sync'"
             },
             "content": {
-              ".validate": "newData.isString() && (newData.parent().child('kind').val() === 'text' ? newData.val().length > 0 && newData.val().length <= 2000 : newData.val().length <= 16000 && newData.val().matches(/^MS1-[A-Za-z0-9_-]+$/))"
+              ".validate": "newData.isString() && (newData.parent().child('kind').val() === 'text' ? newData.val().length > 0 && newData.val().length <= 2000 : (newData.parent().child('kind').val() === 'sync' ? newData.val().matches(/^s-[a-f0-9]{32}$/) && root.child('modstackFriends/syncPacks').child(newData.val()).child('chat').val() === $id && root.child('modstackFriends/syncPacks').child(newData.val()).child('revision').val() === newData.parent().child('revision').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('name').val() === newData.parent().child('title').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('summary').val() === newData.parent().child('summary').val() : newData.val().length <= 16000 && newData.val().matches(/^MS1-[A-Za-z0-9_-]+$/)))"
             },
             "title": {
               ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
             },
+            "revision": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000000" },
+            "summary": { ".validate": "newData.isString() && newData.val().length <= 120" },
             "skipped": {
               ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000"
             },
@@ -130,7 +132,7 @@
           ],
           "$message": {
             ".write": "auth != null && root.child('modstackFriends/groupMembers').child($gid).child(auth.uid).val() === 'member' && !data.exists() && newData.exists() && newData.child('from').val() === auth.uid",
-            ".validate": "$message.matches(/^[a-f0-9]{32}$/) && newData.hasChildren(['from','at','kind','content']) && (newData.child('kind').val() === 'text' ? !newData.hasChild('title') && !newData.hasChild('skipped') : newData.hasChildren(['title','skipped']))",
+            ".validate": "$message.matches(/^[a-f0-9]{32}$/) && newData.hasChildren(['from','at','kind','content']) && (newData.child('kind').val() === 'pack' ? newData.hasChildren(['title','skipped']) && !newData.hasChild('revision') && !newData.hasChild('summary') : (newData.child('kind').val() === 'sync' ? newData.hasChildren(['title','revision','summary']) && !newData.hasChild('skipped') && !newData.hasChild('invite') : !newData.hasChild('title') && !newData.hasChild('revision') && !newData.hasChild('summary') && !newData.hasChild('skipped') && !newData.hasChild('invite'))) ",
             "from": {
               ".validate": "newData.isString()"
             },
@@ -138,20 +140,90 @@
               ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
             },
             "kind": {
-              ".validate": "newData.val() === 'text' || newData.val() === 'pack'"
+              ".validate": "newData.val() === 'text' || newData.val() === 'pack' || newData.val() === 'sync'"
             },
             "content": {
-              ".validate": "newData.isString() && (newData.parent().child('kind').val() === 'text' ? newData.val().length > 0 && newData.val().length <= 2000 : newData.val().length <= 16000 && newData.val().matches(/^MS1-[A-Za-z0-9_-]+$/))"
+              ".validate": "newData.isString() && (newData.parent().child('kind').val() === 'text' ? newData.val().length > 0 && newData.val().length <= 2000 : (newData.parent().child('kind').val() === 'sync' ? newData.val().matches(/^s-[a-f0-9]{32}$/) && root.child('modstackFriends/syncPacks').child(newData.val()).child('chat').val() === $gid && root.child('modstackFriends/syncPacks').child(newData.val()).child('revision').val() === newData.parent().child('revision').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('name').val() === newData.parent().child('title').val() && root.child('modstackFriends/syncPacks').child(newData.val()).child('summary').val() === newData.parent().child('summary').val() : newData.val().length <= 16000 && newData.val().matches(/^MS1-[A-Za-z0-9_-]+$/)))"
             },
             "title": {
               ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
             },
+            "revision": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000000" },
+            "summary": { ".validate": "newData.isString() && newData.val().length <= 120" },
             "skipped": {
               ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000"
             },
             "$other": {
               ".validate": false
             }
+          }
+        }
+      },
+      "syncPacks": {
+        "$pack": {
+          ".read": "auth != null && (root.child('modstackFriends').child('groupMembers').child(data.child('chat').val()).child(auth.uid).val() === 'member' || (root.child('modstackFriends').child('links').child(data.child('chat').val()).child('state').val() === 'friends' && (root.child('modstackFriends').child('links').child(data.child('chat').val()).child('sender').val() === auth.uid || root.child('modstackFriends').child('links').child(data.child('chat').val()).child('recipient').val() === auth.uid)))",
+          ".write": "auth != null && newData.exists() && (root.child('modstackFriends').child('groupMembers').child(newData.child('chat').val()).child(auth.uid).val() === 'member' || (root.child('modstackFriends').child('links').child(newData.child('chat').val()).child('state').val() === 'friends' && (root.child('modstackFriends').child('links').child(newData.child('chat').val()).child('sender').val() === auth.uid || root.child('modstackFriends').child('links').child(newData.child('chat').val()).child('recipient').val() === auth.uid))) && (root.child('modstackFriends').child('groupMembers').child(newData.child('chat').val()).child(newData.child('owner').val()).val() === 'member' || (root.child('modstackFriends').child('links').child(newData.child('chat').val()).child('state').val() === 'friends' && (root.child('modstackFriends').child('links').child(newData.child('chat').val()).child('sender').val() === newData.child('owner').val() || root.child('modstackFriends').child('links').child(newData.child('chat').val()).child('recipient').val() === newData.child('owner').val()))) && (data.exists() ? data.child('owner').val() === auth.uid && newData.child('chat').val() === data.child('chat').val() && newData.child('revision').val() === data.child('revision').val() + 1 : newData.child('owner').val() === auth.uid && newData.child('revision').val() === 1)",
+          ".validate": "$pack.matches(/^s-[a-f0-9]{32}$/) && newData.hasChildren(['owner','chat','revision','at','name','mc','loader','loaderVersion','summary'])",
+          "owner": {
+            ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,128}$/)"
+          },
+          "chat": {
+            ".validate": "newData.isString() && newData.val().matches(/^(g-[a-f0-9]{32}|[A-Za-z0-9_-]{1,128}~[A-Za-z0-9_-]{1,128})$/)"
+          },
+          "revision": {
+            ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= 1000000"
+          },
+          "at": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
+          },
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+          },
+          "mc": {
+            ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9][A-Za-z0-9_.+\\-]{0,47}$/)"
+          },
+          "loader": {
+            ".validate": "newData.val() === 'fabric' || newData.val() === 'quilt' || newData.val() === 'forge' || newData.val() === 'neoforge'"
+          },
+          "loaderVersion": {
+            ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9][A-Za-z0-9_.+\\-]{0,47}$/)"
+          },
+          "summary": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120"
+          },
+          "entries": {
+            "$n": {
+              ".validate": "$n.matches(/^e([0-9]|[1-9][0-9]|[1-4][0-9]{2})$/) && newData.hasChildren(['projectId','versionId','kind','optional','title','version'])",
+              "projectId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9]{4,32}$/)"
+              },
+              "versionId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9]{4,32}$/)"
+              },
+              "kind": {
+                ".validate": "newData.val() === 'mod' || newData.val() === 'resourcepack' || newData.val() === 'shader'"
+              },
+              "optional": {
+                ".validate": "newData.isBoolean()"
+              },
+              "title": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+              },
+              "version": {
+                ".validate": "newData.isString() && newData.val().length <= 80"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "manual": {
+            "$n": {
+              ".validate": "$n.matches(/^([0-9]|[1-9][0-9])$/) && newData.isString() && newData.val().length > 0 && newData.val().length <= 200 && newData.val().matches(/^[^:\\\\/]+$/)"
+            }
+          },
+          "$other": {
+            ".validate": false
           }
         }
       },
@@ -171,7 +243,7 @@
               ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
             },
             "kind": {
-              ".validate": "newData.val() === 'text' || newData.val() === 'pack'"
+              ".validate": "newData.val() === 'text' || newData.val() === 'pack' || newData.val() === 'sync'"
             },
             "$other": {
               ".validate": false

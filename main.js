@@ -18,7 +18,6 @@ let win;
 // Datenordner vom alten Namen behalten, damit vorhandene Instanzen bleiben
 app.setPath('userData', path.join(app.getPath('appData'), 'modmanager'));
 const hasAppLock = !app.isPackaged || app.requestSingleInstanceLock();
-require('./friends')(ipcMain, app.getPath('userData'), readMinecraftAccount, buildShareCode, notifyFriendChat, friendPresenceOptions, runningModstackPack);
 require('./updater')(ipcMain, app, status, appSettings);
 const instRoot = () => path.join(app.getPath('userData'), 'instances');
 const mcDir = () => path.join(process.env.APPDATA || '', '.minecraft');
@@ -239,6 +238,19 @@ function instanceWork(id, fn) {
   instanceJobs.set(key, task);
   return task.finally(() => { if (instanceJobs.get(key) === task) instanceJobs.delete(key); });
 }
+const syncLocal = require('./sync-local')({
+  readInst, saveInst, instDir, instRoot, newInstId, saveNewInst, instanceWork, kindOf, entryPath,
+  resolveLoaderVersion, fetchVersion: (id) => getJson(`${MR}/version/${encodeURIComponent(id)}`),
+  download: downloadModrinth, history, backups,
+});
+require('./friends')(ipcMain, app.getPath('userData'), readMinecraftAccount, buildShareCode, notifyFriendChat,
+  friendPresenceOptions, runningModstackPack, { local: syncLocal, enabled: () => appSettings().packSync !== false });
+
+function packChanged(id) {
+  if (appSettings().packSync !== false && readInst(id).sync?.role === 'owner' && win && !win.isDestroyed()) {
+    win.webContents.send('packSyncChanged', id);
+  }
+}
 
 ipcMain.handle('backups:list', (id) => backups.list(id));
 ipcMain.handle('backups:create', (id) => instanceWork(id, () => backups.snapshot(id, 'Manuell', { required: true })));
@@ -248,6 +260,7 @@ ipcMain.handle('history:list', (id) => history.list(readInst(id)));
 ipcMain.handle('history:undo', ({ id, key, through }) => instanceWork(id, async () => {
   await backups.ensureIdle(id);
   history.undo(readInst(id), key, through === true);
+  packChanged(id);
   return readInst(id);
 }));
 ipcMain.handle('history:disk', () => {
@@ -282,6 +295,7 @@ ipcMain.handle('crashes:installDependency', ({ id, key }) => instanceWork(id, as
   const candidates = projects.filter((p) => projectIds.includes(p.id) && (p.slug === alias || (alias === 'fabric' && p.slug === 'fabric-api')));
   if (candidates.length !== 1) return false;
   await installProject(inst, candidates[0].id, false, 'mod');
+  packChanged(id);
   return true;
 }));
 
@@ -342,13 +356,15 @@ ipcMain.handle('mr:install', async ({ id, projectId, kind }) => {
   const inst = readInst(id);
   const warnings = [];
   await installProject(inst, projectId, false, kind, warnings);
+  packChanged(id);
   status(warnings.length ? 'Installiert, aber: ' + warnings.join('; ') : 'Fertig');
   return { inst: readInst(id), warnings };
 });
 
 // Prueft alle Modrinth-Eintraege einer Instanz; meldet nur echte Updates (neuer als die installierte Version)
 async function checkInst(inst, quiet) {
-  const list = inst.mods.filter((m) => m.projectId && m.versionId);
+  const managed = inst.sync?.role === 'member' && appSettings().packSync !== false ? new Set(inst.sync.managed || []) : new Set();
+  const list = inst.mods.filter((m) => m.projectId && m.versionId && !managed.has(m.projectId));
   if (!list.length) return [];
   const dates = {};
   for (let i = 0; i < list.length; i += 100) {
@@ -417,6 +433,7 @@ ipcMain.handle('mr:updateOne', ({ id, projectId }) => instanceWork(id, async () 
   await backups.beforeUpdate(id);
   status('Aktualisiere ' + m.title + ' ...');
   await applyUpdate(id, m, v);
+  packChanged(id);
   status(m.title + ' aktualisiert auf ' + v.version_number);
   return readInst(id);
 }));
@@ -435,6 +452,7 @@ ipcMain.handle('mr:updateAll', (id) => instanceWork(id, async () => {
     catch (error) { failed.push(m.title + ': ' + error.message); }
   }
   status(count + ' Einträge aktualisiert' + (failed.length ? ' · ' + failed.join(' · ') : ''));
+  if (count) packChanged(id);
   return readInst(id);
 }));
 
@@ -494,7 +512,7 @@ async function linkModrinth(inst, entries) {
 ipcMain.handle('mods:remove', ({ id, file }) => instanceWork(id, () => {
   const inst = readInst(id);
   const m = inst.mods.find((x) => x.file === file);
-  if (m) history.replace(inst, m, null, null);
+  if (m) { history.replace(inst, m, null, null); packChanged(id); }
   return readInst(id);
 }));
 
@@ -507,6 +525,7 @@ ipcMain.handle('mods:toggle', ({ id, file }) => {
   const to = entryPath(id, m);
   if (fs.existsSync(from)) fs.renameSync(from, to);
   saveInst(inst);
+  packChanged(id);
   return inst;
 });
 
@@ -530,6 +549,7 @@ ipcMain.handle('mods:addFiles', async ({ id, paths }) => {
   status('Suche Infos auf Modrinth ...');
   await linkModrinth(inst, added);
   saveInst(inst);
+  packChanged(id);
   status(added.length + ' Datei(en) hinzugefuegt');
   return inst;
 });
@@ -541,7 +561,8 @@ ipcMain.handle('instances:duplicate', (id) => {
   let nid = safeName(name), n = 1;
   while (fs.existsSync(instDir(nid))) nid = safeName(name) + '_' + ++n;
   fs.cpSync(instDir(id), instDir(nid), { recursive: true });
-  const copy = { ...inst, id: nid, name };
+  const copy = { ...inst, id: nid, name, sync: undefined };
+  if (Array.isArray(copy.history)) copy.history = copy.history.filter((item) => !item.config);
   saveInst(copy);
   return copy;
 });
