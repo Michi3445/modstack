@@ -480,6 +480,9 @@
   .mod-title-button { padding: 1px 0; border: 0; background: transparent; color: var(--accent); font-weight: inherit; text-align: left; display: inline; white-space: normal; }
   #content .mod-title-button { background: transparent; }
   .mod-title-button:hover { text-decoration: underline; }
+  #mcPreparation { margin-top: 7px; font-size: 11px; padding: 3px 8px; }
+  #mcPreparation[hidden] { display: none; }
+  #mcPreparation:disabled { opacity: 1; }
   .row.mod-page-row { cursor: pointer; }
   .row.mod-page-row button:disabled { pointer-events: auto; }
   .home-skins { position: relative; width: min(560px, 100%); }
@@ -749,7 +752,7 @@
   <div id="main">
     <div id="head" style="display:none">
       <div class="ava" id="headAva"></div>
-      <div class="ttl"><h1 id="title"></h1><div class="badges" id="badges"></div></div>
+      <div class="ttl"><h1 id="title"></h1><div class="badges" id="badges"></div><button type="button" class="ghost" id="mcPreparation" hidden></button></div>
       <div id="headBtns">
         <button class="ghost" id="packSettingsBtn" title="Arbeitsspeicher und Tastenbelegung" aria-label="Arbeitsspeicher und Tastenbelegung">⚙</button>
         <button class="ghost" id="shareBtn" title="Instanz teilen">Teilen</button><button class="ghost" id="folderBtn" title="Instanzordner öffnen">Ordner</button>
@@ -784,6 +787,7 @@
 <script src="pack-sync-ui.js"></script>
 <script src="screenshots-ui.js"></script>
 <script src="library-ui.js"></script>
+<script src="minecraft-preparation-ui.js"></script>
 <script src="home-friends-ui.js"></script>
 
 <dialog id="dlg">
@@ -1124,6 +1128,7 @@ function renderList() {
 
 function renderHead() {
   const has = view === 'inst' && !!cur;
+  watchMinecraftPreparation(has ? cur : null);
   const screenshots = S.screenshotsEnabled !== false;
   document.querySelector('.tab[data-t="screenshots"]').hidden = !screenshots;
   if (!screenshots && tab === 'screenshots') tab = 'mods';
@@ -1153,6 +1158,7 @@ function renderHead() {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.t === tab));
 }
 document.querySelectorAll('.tab').forEach((t) => t.onclick = () => setTab(t.dataset.t));
+$('#mcPreparation').onclick = () => watchMinecraftPreparation(cur, true);
 
 function render() {
   const c = $('#content');
@@ -2519,6 +2525,9 @@ const SET_BUILD = {
     const g = document.createElement('div');
     g.appendChild(slider('Gleichzeitig', 1, 12, 1, S.downloads ?? 6, (v) => v + (v === 1 ? ' Datei' : ' Dateien'), null, (v) => saveQuiet({ downloads: v })));
     c.appendChild(sec('Parallele Downloads', 'Mehr ist schneller, braucht aber mehr Bandbreite. Bei Fehlern niedriger stellen.', g));
+    c.appendChild(sec('Minecraft', '', toggles([
+      ['Minecraft im Hintergrund vorbereiten', 'Lädt Spieldateien, Bibliotheken und Ressourcen beim Erstellen oder Öffnen eines Modpacks vorab.', S.prepareMinecraft !== false, (v) => setS({ prepareMinecraft: v }).then(renderHead)],
+    ])));
     c.appendChild(sec('Abhängigkeiten', '', toggles([
       ['Benötigte Mods automatisch mitinstallieren', 'Zum Beispiel Fabric API, wenn ein Mod sie braucht', S.autoDeps !== false, (v) => setS({ autoDeps: v })],
     ])));

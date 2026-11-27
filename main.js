@@ -109,6 +109,7 @@ function saveNewInst(inst) {
   inst.javaArgs = instanceJavaArgs(defaults.defaultJavaArgs);
   applyOptionDefaults(path.join(instDir(inst.id), 'options.txt'), inst.mc, defaults);
   saveInst(inst);
+  gamePreparation.schedule(inst);
 }
 
 // ---------- Instanzen ----------
@@ -1308,18 +1309,18 @@ ipcMain.handle('share:exportMrpack', async ({ id, includeConfig }) => {
   return { path: res.filePath, linked: files.length, embedded: zipFiles.length - 1 };
 });
 
-// ---------- Loader-Installation ----------
-async function ensureVanilla(mc) {
-  const dir = path.join(mcDir(), 'versions', mc);
-  const jf = path.join(dir, mc + '.json');
-  if (fs.existsSync(jf)) return;
-  status('Lade Vanilla-Versionsdaten ...');
-  const man = await getJson('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json');
-  const e = man.versions.find((v) => v.id === mc);
-  if (!e) throw new Error('Minecraft-Version unbekannt: ' + mc);
-  fs.mkdirSync(dir, { recursive: true });
-  await download(e.url, jf);
-}
+// ---------- Minecraft-Vorbereitung ----------
+const gamePreparation = require('./minecraft-preparation')({
+  directory: mcDir,
+  enabled: () => appSettings().prepareMinecraft !== false && process.env.MODSTACK_UPDATE_VERIFY_ONLY !== '1',
+  loader: (inst) => ensureLoader(inst, () => {}, AbortSignal.timeout(12000)),
+  notify: (info) => {
+    if (win && !win.isDestroyed()) win.webContents.send('minecraftPreparation', info);
+  },
+  concurrency: conc,
+  userAgent: UA,
+});
+ipcMain.handle('mc:prepare', ({ id, retry }) => gamePreparation.schedule(readInst(id), retry === true));
 
 // ---------- Java ----------
 // Welche Java-Hauptversion braucht eine Minecraft-Version?
@@ -1440,21 +1441,27 @@ function ensureLauncherProfilesFile() {
   return f;
 }
 
-async function ensureLoader(inst) {
+async function ensureLoader(inst, report = status, signal) {
   const vdir = (id) => path.join(mcDir(), 'versions', id);
   if (inst.loader === 'fabric' || inst.loader === 'quilt') {
     const base = inst.loader === 'fabric' ? 'https://meta.fabricmc.net/v2/versions/loader' : 'https://meta.quiltmc.org/v3/versions/loader';
-    const list = await getJson(`${base}/${inst.mc}`);
+    const list = await getJson(`${base}/${inst.mc}`, signal);
     if (!list.length) throw new Error('Kein ' + inst.loader + '-Loader fuer ' + inst.mc);
     const pick = (inst.loaderVersion && list.find((x) => x.loader && x.loader.version === inst.loaderVersion))
       || list.find((x) => x.loader && x.loader.stable !== false && !/beta|pre|rc/i.test(x.loader.version)) || list[0];
     const lv = pick.loader.version;
-    const prof = await getJson(`${base}/${inst.mc}/${lv}/profile/json`);
+    const prof = await getJson(`${base}/${inst.mc}/${lv}/profile/json`, signal);
+    if (typeof prof.id !== 'string' || !/^[A-Za-z0-9][\w.+-]*$/.test(prof.id)) throw new Error('Ungültiges Loader-Profil.');
     const dir = vdir(prof.id);
-    if (!fs.existsSync(path.join(dir, prof.id + '.json'))) {
-      status('Installiere ' + inst.loader + ' ' + lv + ' ...');
+    const profileFile = path.join(dir, prof.id + '.json');
+    if (!fs.existsSync(profileFile)) {
+      report('Installiere ' + inst.loader + ' ' + lv + ' ...');
       fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, prof.id + '.json'), JSON.stringify(prof, null, 2));
+      const temp = profileFile + '.' + crypto.randomUUID() + '.part';
+      try {
+        fs.writeFileSync(temp, JSON.stringify(prof, null, 2), { flag: 'wx' });
+        fs.renameSync(temp, profileFile);
+      } finally { fs.rmSync(temp, { force: true }); }
     }
     return prof.id;
   }
@@ -1512,8 +1519,12 @@ ipcMain.handle('play', (id) => instanceWork(id, async () => {
     throw new Error('Der Mojang-Launcher laeuft noch. Bitte schliessen, sonst ueberschreibt er das Profil.');
   }
   await backups.daily(id);
-  await ensureVanilla(initial.mc);
-  const versionId = await ensureLoader(initial);
+  const preparedLoader = await gamePreparation.beforePlay(initial);
+  await gamePreparation.vanilla(initial.mc);
+  const versionId = preparedLoader || await ensureLoader(initial);
+  if (await launcherRunning()) {
+    throw new Error('Der Mojang-Launcher wurde während der Vorbereitung geöffnet. Bitte schließe ihn und klicke erneut auf Spielen.');
+  }
   const inst = readInst(id);
 
   const f = ensureLauncherProfilesFile();

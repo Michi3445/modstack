@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('api', {
   onFriendChat: (cb) => ipcRenderer.on('friendChat', (_e, msg) => cb(msg)),
   onPackSyncChanged: (cb) => ipcRenderer.on('packSyncChanged', (_e, id) => cb(id)),
   onPlaytimeClose: (cb) => ipcRenderer.on('playtimeClose', () => cb()),
+  onMinecraftPreparation: (cb) => ipcRenderer.on('minecraftPreparation', (_e, info) => cb(info)),
   pathForFile: (file) => webUtils.getPathForFile(file),
 });
