@@ -366,7 +366,7 @@ module.exports = function registerFriends(ipc, userData, readMinecraftAccount, b
     })).sort((a, b) => b.at - a.at || b.messageId.localeCompare(a.messageId, 'en'));
     const boundary = rows.at(-1)?.at;
     return {
-      packs: rows.filter((row) => row.kind === 'pack'),
+      packs: rows.filter((row) => row.kind === 'pack' || row.kind === 'sync'),
       before: rows.length === CHAT_QUERY.limitToLast ? (boundary === before ? boundary - 1 : boundary) : null,
     };
   });

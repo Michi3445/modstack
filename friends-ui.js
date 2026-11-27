@@ -609,6 +609,12 @@ function openFriendChat(entry, stage, back, remove, membersDialog) {
     else person.before(friendAvatar(contact));
   }
   updateContact(entry);
+  if (!entry.group) {
+    const profile = document.createElement('button');
+    profile.type = 'button'; profile.className = 'ghost sm'; profile.textContent = 'Profil';
+    profile.onclick = () => showFriendLibrary(entry);
+    $('.chat-menu', panel).before(profile);
+  }
   const status = $('.friends-status', panel), messages = $('.chat-scroll', panel);
   const composer = $('.chat-compose', panel), text = $('textarea', composer);
   const share = $('.chat-share', panel), instances = share.elements.instance;
@@ -708,7 +714,8 @@ function openFriendChat(entry, stage, back, remove, membersDialog) {
     for (const pack of packs) {
       const card = document.createElement('article');
       card.className = 'chat-message pack shared-pack';
-      renderPack(card, pack);
+      if (pack.kind === 'sync') renderSharedSyncCard(card, pack, entry.id);
+      else renderPack(card, pack);
       const sent = document.createElement('time');
       sent.textContent = date.format(pack.at);
       card.append(sent);
@@ -783,7 +790,10 @@ function openFriendChat(entry, stage, back, remove, membersDialog) {
       if (row.kind === 'pack') {
         renderPack(bubble, row);
         if (loadedShared) shared.set(row.messageId, row);
-      } else if (row.kind === 'sync') renderSharedSyncCard(bubble, row, entry.id);
+      } else if (row.kind === 'sync') {
+        renderSharedSyncCard(bubble, row, entry.id);
+        if (loadedShared) shared.set(row.messageId, row);
+      }
       else if (row.kind === 'screenshot') {
         if (S.screenshotsEnabled !== false) renderChatScreenshot(bubble, row);
         else bubble.append(document.createTextNode('Ein Screenshot wurde geteilt.'));

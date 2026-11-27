@@ -6,6 +6,9 @@ A lightweight Minecraft mod manager for Windows, built with Electron.
 
 - Create instances with a Minecraft version and loader (Fabric, Forge, NeoForge, Quilt)
 - Search and install mods, resource packs and shaders from Modrinth (mods include required dependencies)
+- Open a mod's title to view its Modrinth details, screenshots and compatible versions.
+  Installed entries are reconciled with the instance folders. Use **Ordner abgleichen**
+  to refresh the list manually.
 - Browse and install Modrinth modpacks, or import `.mrpack` files
 - Enable/disable mods without deleting them
 - Check for and install updates; check for known incompatibilities and missing dependencies
@@ -13,6 +16,8 @@ A lightweight Minecraft mod manager for Windows, built with Electron.
 - Add your own `.jar`/`.zip` files by drag and drop (matched to Modrinth automatically when possible)
 - Import CurseForge profiles via share code or exported `.zip`
 - Play through the official Minecraft Launcher (Modstack writes a launcher profile per instance)
+- Modstack tracks time with Minecraft running. Closing the window can keep Modstack
+  in the Windows notification area until the game exits.
 - ZIP world backups and local mod rollback under **Instanz → Einstellungen**. Modstack backs
   up worlds before an update and saves the live worlds before restoring a backup. Under
   **Optionen → Daten & Speicher**, choose automatic and daily backups, optional configuration
@@ -56,6 +61,8 @@ it, reveal the original, delete it with confirmation, or send an 800-pixel WebP
 preview to an accepted friend or a group. Home shows the latest four previews.
 The gallery and in-chat screenshot rendering are optional under
 **Optionen → Minecraft → Spielstart**.
+Online friends can appear as 3D skins on Home. Open a friend's profile in the
+chat header to install packs they have shared with you.
 Online and active-pack visibility are optional and limited to accepted friends.
 An Essential card shares the pack and host name. Send and accept the actual world
 invitation in Essential. Server cards share the unmodified Minecraft server address.
@@ -69,8 +76,10 @@ The portable Windows x64 app checks for signed GitHub releases at startup and un
 as a string such as `"1.11.0"`. Only an administrator can change the announcement.
 If the announcement is missing or inaccessible, Modstack checks the latest GitHub release.
 Windows runtime updates keep the previous program folder beside the updated app.
-App updates download in the background and install when closing Modstack. This can
-be disabled under **Optionen → Updates**.
+App updates are checked immediately during startup. If the app is still idle and no
+Minecraft instance is running, Modstack can install and restart right away. Updates
+downloaded during use are installed when Modstack exits. This can be disabled under
+**Optionen → Updates**.
 
 For a release, bump the app version, package the Windows build, and ZIP the
 `Modstack-win32-x64` directory including its directory name. Run

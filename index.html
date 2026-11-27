@@ -457,6 +457,29 @@
   .screenshot-large button { padding: 8px 0; font-size: 22px; }
   .screenshot-viewer .df { flex-wrap: wrap; }
   .chat-screenshot { display: block; width: min(360px, 100%); max-height: 320px; object-fit: contain; border-radius: 8px; }
+  .mod-detail-dialog { width: min(720px, 94vw); }
+  .friend-library-dialog { width: min(560px, 94vw); }
+  .library-dialog-body { max-height: 65vh; overflow: auto; }
+  .library-icon { width: 54px; height: 54px; border-radius: 10px; float: left; margin: 0 12px 8px 0; }
+  .library-gallery { clear: both; display: grid; grid-template-columns: repeat(auto-fit,minmax(145px,1fr)); gap: 8px; margin: 12px 0; }
+  .library-gallery img { width: 100%; object-fit: cover; aspect-ratio: 16/9; border-radius: 8px; }
+  .library-description { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); user-select: text; }
+  .friend-library-head { display: flex; align-items: center; gap: 10px; }
+  .friend-library-pack { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .mod-title-button { padding: 0; border: 0; background: transparent; color: inherit; font-weight: inherit; text-align: left; display: inline; white-space: normal; }
+  #content .mod-title-button { background: transparent; }
+  .mod-title-button:hover { text-decoration: underline; }
+  .home-skins { position: relative; width: min(560px, 100%); }
+  .friends-skins { position: absolute; inset: 0; pointer-events: none; }
+  .home-friend-skin { position: absolute; top: 77px; padding: 0; display: grid; gap: 1px; background: transparent !important; border-color: transparent !important; opacity: .78; pointer-events: auto; }
+  .home-friend-skin:hover { opacity: 1; }
+  .home-friend-skin span { font-size: 11px; color: var(--muted); }
+  .home-friend-skin[data-position="0"] { left: max(0px, calc(50% - 186px)); }
+  .home-friend-skin[data-position="1"] { right: max(0px, calc(50% - 186px)); }
+  .home-friend-skin[data-position="2"] { top: 54px; left: 0; }
+  .home-friend-skin[data-position="3"] { top: 54px; right: 0; }
+  .home-skins #hSkin { width: fit-content; margin-left: auto; margin-right: auto; }
+  @media(max-width: 1090px) { .home-friend-skin[data-position="2"], .home-friend-skin[data-position="3"] { display: none; } }
   .folders { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
   .folders div { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); cursor: pointer; font-size: 12.5px; }
   .folders div:hover { border-color: color-mix(in srgb, var(--c1) 50%, transparent); background: rgba(255,255,255,.07); }
@@ -745,6 +768,8 @@
 <script src="crash-diagnostics-ui.js"></script>
 <script src="pack-sync-ui.js"></script>
 <script src="screenshots-ui.js"></script>
+<script src="library-ui.js"></script>
+<script src="home-friends-ui.js"></script>
 
 <dialog id="dlg">
   <div class="dh">Neue Instanz</div>
@@ -1033,12 +1058,12 @@ async function load(selId) {
   renderList(); renderHead(); render();
   updatePackSyncStatus();
 }
-function select(i) { if (view !== 'inst') markView('inst'); cur = i; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); }
+function select(i) { if (view !== 'inst') markView('inst'); cur = i; modFilter = ''; if (tab === 'settings' && !i) tab = 'mods'; renderList(); renderHead(); render(); refreshFolderMods(i); }
 function setTab(t) { if (view !== 'inst') setView('inst'); tab = t; renderHead(); render(); }
 function openPackSettings(i) { tab = 'settings'; select(i); $('#content').scrollTop = 0; }
 $('#packSettingsBtn').onclick = () => openPackSettings(cur);
 function showPacks() { setView('packs'); }
-function markView(v) { if (v !== 'home' && skinViewer) { try { skinViewer.dispose(); } catch {} skinViewer = null; } if (v !== 'friends') { activeFriendChat = undefined; friendShareInstance = undefined; } view = v; document.querySelectorAll('.ri[data-v]').forEach((r) => r.classList.toggle('on', r.dataset.v === v)); $('#side').style.display = v === 'home' || v === 'friends' ? 'none' : ''; }
+function markView(v) { if (v !== 'home') { disposeHomeFriendSkins(); if (skinViewer) { try { skinViewer.dispose(); } catch {} skinViewer = null; } } if (v !== 'friends') { activeFriendChat = undefined; friendShareInstance = undefined; } view = v; document.querySelectorAll('.ri[data-v]').forEach((r) => r.classList.toggle('on', r.dataset.v === v)); $('#side').style.display = v === 'home' || v === 'friends' ? 'none' : ''; }
 function setView(v) { markView(v); renderList(); renderHead(); render(); }
 document.querySelectorAll('.ri[data-v]').forEach((r) => r.onclick = () => setView(r.dataset.v));
 
@@ -1172,6 +1197,8 @@ function renderMods() {
   $('#chk').disabled = $('#cfl').disabled = !!busy;
   $('#chk').onclick = checkUpdates;
   $('#cfl').onclick = checkConflicts;
+  const scan = syncButton('Ordner abgleichen', () => refreshFolderMods(cur, true));
+  $('#chk').before(scan);
   if ($('#updAll')) { $('#updAll').disabled = !!busy; $('#updAll').onclick = updateAll; }
   if ($('#ubAll')) { $('#ubAll').disabled = !!busy; $('#ubAll').onclick = updateAll; }
   drawMods();
@@ -1193,7 +1220,9 @@ function drawMods() {
     r.innerHTML = '<div class="ph">▣</div><div class="t"><b></b><span></span></div>' + (u ? '<button class="primary sm upbtn">Aktualisieren</button>' : '') + '<div class="sw" title="Ein/Aus"></div><button class="iconbtn more" title="Mehr">⋯</button>';
     if (m.icon) { const im = document.createElement('img'); im.src = m.icon; im.alt = ''; im.onerror = () => im.replaceWith(Object.assign(document.createElement('div'), { className: 'ph', textContent: '▣' })); r.firstChild.replaceWith(im); }
     const [cls, lbl] = modTag(m);
-    const b = r.querySelector('b'); b.textContent = m.title;
+    const b = r.querySelector('b');
+    const details = syncButton(m.title, () => openModPage(cur, m));
+    details.className = 'mod-title-button'; b.append(details);
     b.insertAdjacentHTML('beforeend', `<span class="tag ${cls}">${lbl}</span>`);
     if (kindOf(m) !== 'mod') b.insertAdjacentHTML('beforeend', `<span class="tag man">${KIND[kindOf(m)]}</span>`);
     if (S.packSync !== false && cur.sync && packSyncState.get(cur.id)?.extraFiles.includes(m.file)) {
@@ -1209,6 +1238,7 @@ function drawMods() {
     sw.onclick = () => toggleMod(m);
     if (u) r.querySelector('.upbtn').onclick = (e) => updateOne(m, e.currentTarget);
     const items = () => [
+      { l: 'Mod-Seite öffnen', a: () => openModPage(cur, m) },
       { l: 'Aktualisieren auf ' + (u ? u.to : ''), d: !u || busy, a: () => updateOne(m) },
       { l: 'Vorherige Version wiederherstellen', d: busy || !cur.history?.some((item) => item.next?.file === m.file && item.next?.versionId === m.versionId),
         a: async () => {
@@ -1295,6 +1325,9 @@ function hitRow(h, type) {
   const btn = r.querySelector('button');
   const setBtn = () => { const has = cur.mods.some((m) => m.projectId === h.id); btn.textContent = has ? '✓ Installiert' : 'Installieren'; btn.disabled = has; btn.className = has ? 'ghost' : 'primary'; };
   setBtn();
+  const info = syncButton(h.title, () => openModPage(cur, { ...h, projectId: h.id, kind: type }));
+  info.className = 'mod-title-button';
+  r.querySelector('.t b').replaceChildren(info);
   btn.onclick = async () => {
     btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Lädt';
     try {
@@ -1871,7 +1904,7 @@ async function renderHome() {
       <div class="hero">
         <div class="home-hi">${hi}${name ? ',' : ''}</div>
         <div class="home-name" id="hName"></div>
-        <div class="skin" id="hSkin"></div>
+        <div class="home-skins"><div class="friends-skins"></div><div class="skin" id="hSkin"></div></div>
         <div class="skinhint" id="hHint"></div>
         <div class="launch">
           <button class="go" id="hGo"><b>▶ SPIELEN</b><small id="hInst"></small></button>
@@ -1890,6 +1923,7 @@ async function renderHome() {
   if (S.showSkin === false) { sk.style.display = 'none'; $('#hHint').style.display = 'none'; }
   else if (name) mountSkin(sk, name);
   else sk.innerHTML = '<div class="noskin">Kein Minecraft-Konto gefunden.<br><br>Trag deinen Spielernamen unter Optionen ein, dann erscheint hier dein Skin.</div>';
+  mountHomeFriendSkins(name && S.showSkin !== false ? c.querySelector('.friends-skins') : null);
   $('#hInst').textContent = last ? `${last.name} · ${last.mc} ${LNAME[last.loader] || ''}` : 'Noch keine Instanz';
   $('#hGo').onclick = () => last ? play(last) : newInstance();
   const pickItems = () => insts.length ? insts.map((i) => ({ l: `${i.name}  (${i.mc})`, a: () => pickHome(i) })) : [{ l: 'Neue Instanz ...', a: newInstance }];
@@ -2411,6 +2445,7 @@ const SET_BUILD = {
       optRow(roomStyle(), Object.entries(ROOMS), (k) => setS({ roomStyle: k, room: true }))));
     c.appendChild(sec('Inhalte', '', toggles([
       ['Instanz-Details', 'Spalte rechts mit Spielzeit, Welten und Mods', S.showDetails !== false, (v) => setS({ showDetails: v })],
+      ['Online-Freunde als 3D-Skins', 'Zeigt die Minecraft-Figuren deiner Online-Freunde hinter deinem Skin.', S.showFriendsSkins !== false, (v) => setS({ showFriendsSkins: v }).then(() => { if (view === 'home') renderHome(); })],
       ['Instanz-Karten', 'Alle Instanzen als Karten unter dem Spielen-Knopf', S.showCards !== false, (v) => setS({ showCards: v })],
     ])));
   },
@@ -2433,7 +2468,7 @@ const SET_BUILD = {
         : `Version ${info.version} verfügbar · ${Math.ceil(info.bytes / 1000000)} MB`
       : info?.supported === false ? 'App-Updates sind im portablen Windows-Build verfügbar.'
         : `Installierte Version ${info?.current || window.__ver || '–'}`, controls));
-    c.appendChild(toggles([['Modstack automatisch aktualisieren', 'Updates werden im Hintergrund geladen und beim Beenden installiert.', S.autoAppUpdate !== false, (v) => setS({ autoAppUpdate: v }).then(() => { if (v) checkAppUpdate(false); })]]));
+    c.appendChild(toggles([['Modstack automatisch aktualisieren', 'Updates werden beim Start gesucht und beim Start oder Beenden installiert.', S.autoAppUpdate !== false, (v) => setS({ autoAppUpdate: v }).then(() => { if (v) checkAppUpdate(false); })]]));
     const n = updTotal();
     const st = document.createElement('div');
     st.innerHTML = `<div class="kv"><span>Gefundene Updates</span><b>${n}</b></div><div class="kv"><span>Zuletzt geprüft</span><b>${lastCheck ? lastCheck.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr' : 'noch nicht'}</b></div>`;
@@ -2462,6 +2497,7 @@ const SET_BUILD = {
   play(c) {
     c.appendChild(sec('Beim Spielen', '', toggles([
       ['Modstack minimieren', 'Nach dem Klick auf Spielen', !!S.minimizeOnPlay, (v) => setS({ minimizeOnPlay: v })],
+      ['Spielzeit messen', 'Beim Schließen kannst du Modstack bis zum Minecraft-Ende im Windows-Infobereich weiterlaufen lassen.', S.trackPlaytime !== false, (v) => setS({ trackPlaytime: v })],
       ['Absturzdiagnose', 'Nach dem Spielen nach Crash-Reports und auffälligen Fehlern suchen.', S.crashDiagnostics !== false, (v) => setS({ crashDiagnostics: v }).then(() => { renderHead(); if (view === 'inst' && tab === 'settings') renderSettings(); })],
       ['Pack-Synchronisierung', 'Gemeinsame Packs mit Freunden und Gruppen verwalten.', S.packSync !== false, (v) => setS({ packSync: v }).then(() => { renderHead(); if (tab === 'settings') renderSettings(); if (v) updatePackSyncStatus(); })],
       ['Pack-Änderungen automatisch teilen', 'Neue Pack-Versionen erscheinen nach Änderungen direkt im verknüpften Chat.', autoSharePackChanges(), (v) => setS({ packSyncAuto: v }).then(sendPendingSync)],
@@ -2594,8 +2630,10 @@ async function autoCheck(manual) {
   } else if (manual) toast(n ? n + ' Update(s) verfügbar' : 'Alles aktuell');
 }
 
-let appUpdateInfo, appUpdateChecking = false;
-async function checkAppUpdate(manual) {
+let appUpdateInfo, appUpdateChecking = false, startupInteracted = false;
+for (const type of ['pointerdown', 'keydown']) window.addEventListener(type, () => { startupInteracted = true; }, { once: true, capture: true });
+const startupIdle = () => !startupInteracted && !busy && !document.querySelector('dialog[open]');
+async function checkAppUpdate(manual, startup = false) {
   if (appUpdateChecking) return;
   appUpdateChecking = true;
   try {
@@ -2604,6 +2642,13 @@ async function checkAppUpdate(manual) {
     appUpdateInfo = await api.invoke('appUpdate:check');
     if (appUpdateInfo.version && !appUpdateInfo.prepared && S.autoAppUpdate !== false) {
       appUpdateInfo = await api.invoke('appUpdate:prepare');
+    }
+    if (startup && appUpdateInfo.prepared && S.autoAppUpdate !== false && startupIdle()) {
+      const active = await api.invoke('playtime:active').catch(() => null);
+      if (active && !active.length && startupIdle()) {
+        await api.invoke('appUpdate:install');
+        return;
+      }
     }
     if (appUpdateInfo.prepared && (manual || !wasPrepared)) {
       toast('Modstack ' + appUpdateInfo.version + ' wird beim Beenden installiert.');
@@ -2687,6 +2732,8 @@ function about() {
   call('app:version').then((v) => ask({ title: 'Über Modstack', text: `Version ${v}. Minecraft-Mods von Modrinth installieren, CurseForge-Profile importieren und über den offiziellen Launcher spielen.`, okText: 'Schließen' }));
 }
 window.addEventListener('focus', () => { if (view === 'inst' && cur) checkInstanceCrash(cur); });
+window.addEventListener('focus', () => { if (view === 'inst' && cur) refreshFolderMods(cur); });
+setInterval(() => { if (view === 'inst' && tab === 'mods' && !document.hidden) refreshFolderMods(cur); }, 6000);
 
 // ---------- Neue Instanz ----------
 async function newInstance() {
@@ -2741,6 +2788,7 @@ document.addEventListener('drop', (e) => e.preventDefault());
 (async () => {
   try { S = await call('settings:get', undefined, true); } catch { S = {}; }
   applySettings();
+  checkAppUpdate(false, true);
   call('app:version', undefined, true).then((v) => { window.__ver = v; }).catch(() => {});
   try { account = await call('mc:account', undefined, true); } catch { account = null; }
   markView(S.startView || 'home');
@@ -2748,9 +2796,8 @@ document.addEventListener('drop', (e) => e.preventDefault());
   await load();
   startFriendNotifications();
   api.invoke('appUpdate:ready').then((error) => { if (error) toast('App-Update fehlgeschlagen. ' + error, true); }).catch(() => {});
-  setTimeout(() => checkAppUpdate(false), 4000);
   setInterval(() => checkAppUpdate(false), 2 * 3600000);
-  if (S.autoCheck !== false) setTimeout(() => autoCheck(false), 2500);
+  if (S.autoCheck !== false) autoCheck(false);
   scheduleChecks();
 })();
 </script>

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain: rawIpc, shell, dialog, nativeImage, Notification, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain: rawIpc, shell, dialog, nativeImage, Notification, clipboard, Tray, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -15,6 +15,7 @@ const MR = 'https://api.modrinth.com/v2';
 const LOADERS = ['fabric', 'forge', 'neoforge', 'quilt'];
 
 let win;
+let tray, quitting = false, askingToClose = false, hiddenForGame = false;
 // Datenordner vom alten Namen behalten, damit vorhandene Instanzen bleiben
 app.setPath('userData', path.join(app.getPath('appData'), 'modmanager'));
 const hasAppLock = !app.isPackaged || app.requestSingleInstanceLock();
@@ -111,13 +112,13 @@ function saveNewInst(inst) {
 }
 
 // ---------- Instanzen ----------
-ipcMain.handle('instances:list', () => {
+ipcMain.handle('instances:list', async () => {
   fs.mkdirSync(instRoot(), { recursive: true });
   const out = [];
   for (const d of fs.readdirSync(instRoot())) {
     const f = path.join(instRoot(), d, 'instance.json');
     if (fs.existsSync(f)) {
-      try { out.push(readJson(f)); } catch {}
+      try { out.push(await instanceWork(d, () => reconcileMods(readJson(f)))); } catch {}
     }
   }
   return out;
@@ -158,6 +159,41 @@ function modFile(name) {
   return name;
 }
 const entryPath = (id, m) => path.join(instDir(id), KIND_DIR[kindOf(m)], modFile(m.file) + (m.disabled ? '.disabled' : ''));
+
+function reconcileMods(inst) {
+  const base = instDir(inst.id);
+  if (fs.lstatSync(base, { throwIfNoEntry: false })?.isSymbolicLink()) return inst;
+  const key = (kind, file) => kind + ':' + file.toLowerCase();
+  const present = new Map();
+  for (const [kind, dir] of Object.entries(KIND_DIR)) {
+    const folder = path.join(base, dir);
+    if (!fs.lstatSync(folder, { throwIfNoEntry: false })?.isDirectory()) continue;
+    for (const item of fs.readdirSync(folder, { withFileTypes: true })) {
+      if (!item.isFile()) continue;
+      const disabled = /\.disabled$/i.test(item.name);
+      let file;
+      try { file = modFile(disabled ? item.name.slice(0, -9) : item.name); } catch { continue; }
+      const id = key(kind, file);
+      if (!present.has(id) || !disabled) present.set(id, { kind, file, disabled });
+    }
+  }
+  const mods = [];
+  let changed = false;
+  for (const old of inst.mods || []) {
+    const id = key(kindOf(old), old.file);
+    const current = present.get(id);
+    if (!current) { changed = true; continue; }
+    present.delete(id);
+    if (current.disabled === !!old.disabled && current.file === old.file) mods.push(old);
+    else { mods.push({ ...old, ...current }); changed = true; }
+  }
+  for (const item of present.values()) {
+    mods.push({ ...item, title: item.file.replace(/\.(jar|zip)$/i, ''), manual: true });
+    changed = true;
+  }
+  if (changed) { inst.mods = mods; saveInst(inst); }
+  return inst;
+}
 
 ipcMain.handle('mr:search', async ({ query, mc, loader, offset, type }) => {
   type = type || 'mod';
@@ -239,6 +275,7 @@ function instanceWork(id, fn) {
   instanceJobs.set(key, task);
   return task.finally(() => { if (instanceJobs.get(key) === task) instanceJobs.delete(key); });
 }
+ipcMain.handle('instances:rescanMods', (id) => instanceWork(id, () => reconcileMods(readInst(id))));
 const syncLocal = require('./sync-local')({
   readInst, saveInst, instDir, instRoot, newInstId, saveNewInst, instanceWork, kindOf, entryPath,
   resolveLoaderVersion, fetchVersion: (id) => getJson(`${MR}/version/${encodeURIComponent(id)}`),
@@ -325,6 +362,23 @@ ipcMain.handle('instances:keybinds:save', async (change) => {
 });
 const conc = () => Math.max(1, Math.min(12, appSettings().downloads || 6));
 
+ipcMain.handle('mr:project', async ({ id, projectId, kind }) => {
+  if (typeof projectId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(projectId)) throw new Error('Ungültiges Modrinth-Projekt.');
+  const inst = readInst(id);
+  const slug = encodeURIComponent(projectId);
+  const params = new URLSearchParams({ game_versions: JSON.stringify([inst.mc]), include_changelog: 'false' });
+  if (kind === 'mod') params.set('loaders', JSON.stringify(loaderList(inst)));
+  const [project, versions] = await Promise.all([getJson(`${MR}/project/${slug}`), getJson(`${MR}/project/${slug}/version?${params}`)]);
+  const media = (url) => typeof url === 'string' && /^https:\/\/cdn\.modrinth\.com\//.test(url) ? url : '';
+  return {
+    title: String(project.title || '').slice(0, 100), summary: String(project.description || '').slice(0, 500),
+    description: String(project.body || '').slice(0, 16000), icon: media(project.icon_url),
+    gallery: (project.gallery || []).slice(0, 6).map((item) => media(item.url)).filter(Boolean),
+    downloads: project.downloads, versions: versions.slice(0, 15).map((v) => ({ version: v.version_number, channel: v.version_type })),
+    url: 'https://modrinth.com/project/' + slug,
+  };
+});
+
 async function latestVersion(inst, projectId, kind) {
   let url = `${MR}/project/${projectId}/version?game_versions=${encodeURIComponent(JSON.stringify([inst.mc]))}`;
   if ((kind || 'mod') === 'mod') url += `&loaders=${encodeURIComponent(JSON.stringify(loaderList(inst)))}`;
@@ -357,14 +411,14 @@ async function installProject(inst, projectId, isDep, kind, warnings) {
   }
 }
 
-ipcMain.handle('mr:install', async ({ id, projectId, kind }) => {
+ipcMain.handle('mr:install', ({ id, projectId, kind }) => instanceWork(id, async () => {
   const inst = readInst(id);
   const warnings = [];
   await installProject(inst, projectId, false, kind, warnings);
   packChanged(id);
   status(warnings.length ? 'Installiert, aber: ' + warnings.join('; ') : 'Fertig');
   return { inst: readInst(id), warnings };
-});
+}));
 
 // Prueft alle Modrinth-Eintraege einer Instanz; meldet nur echte Updates (neuer als die installierte Version)
 async function checkInst(inst, quiet) {
@@ -534,7 +588,7 @@ ipcMain.handle('mods:toggle', ({ id, file }) => {
   return inst;
 });
 
-ipcMain.handle('mods:addFiles', async ({ id, paths }) => {
+ipcMain.handle('mods:addFiles', ({ id, paths }) => instanceWork(id, async () => {
   const inst = readInst(id);
   const added = [];
   for (const p of paths) {
@@ -557,7 +611,7 @@ ipcMain.handle('mods:addFiles', async ({ id, paths }) => {
   packChanged(id);
   status(added.length + ' Datei(en) hinzugefuegt');
   return inst;
-});
+}));
 
 // ---------- Instanz-Extras ----------
 ipcMain.handle('instances:duplicate', (id) => {
@@ -634,14 +688,24 @@ ipcMain.handle('instances:details', (id) => {
   const dir = instDir(id);
   const worlds = worldStats(dir);
   const count = (sub, re) => { try { return fs.readdirSync(path.join(dir, sub)).filter((f) => !re || re.test(f)).length; } catch { return 0; } };
-  return { ticks: worlds.reduce((s, w) => s + w.ticks, 0), worlds, screenshots: count('screenshots', /\.png$/i), bytes: dirSize(dir) };
+  return { ticks: playtime.ticks(id, worlds.reduce((s, w) => s + w.ticks, 0)), worlds, screenshots: count('screenshots', /\.png$/i), bytes: dirSize(dir) };
 });
 
 ipcMain.handle('instances:playtimes', () => {
   const out = {};
-  try { for (const d of fs.readdirSync(instRoot())) out[d] = worldStats(path.join(instRoot(), d)).reduce((s, w) => s + w.ticks, 0); } catch {}
+  try { for (const d of fs.readdirSync(instRoot())) out[d] = playtime.ticks(d, legacyPlaytime(d)); } catch {}
   return out;
 });
+
+const legacyPlaytime = (id) => worldStats(instDir(id)).reduce((s, w) => s + w.ticks, 0);
+const playtime = require('./instance-playtime')({
+  file: path.join(app.getPath('userData'), 'instance-playtime.json'),
+  running: runningModstackInstances, legacyTicks: legacyPlaytime,
+  enabled: () => appSettings().trackPlaytime !== false,
+  resolveId(id) { try { return readInst(id).id; } catch { return null; } },
+  onSample(active) { if (hiddenForGame && !active.length) app.quit(); },
+});
+ipcMain.handle('playtime:active', () => playtime.sample());
 
 ipcMain.handle('instances:info', (id) => {
   const dir = instDir(id);
@@ -1134,7 +1198,10 @@ ipcMain.handle('share:importCode', async (code) => {
   const m = /^MS1-([A-Za-z0-9_-]+)$/.exec(String(code || '').trim().replace(/\s+/g, ''));
   if (!m || m[1].length > 350000) throw new Error('Das ist kein gueltiger Modstack-Code');
   let d; try { d = JSON.parse(zlib.inflateRawSync(Buffer.from(m[1], 'base64url'), { maxOutputLength: 1048576 }).toString('utf8')); } catch { throw new Error('Code ist beschaedigt oder unvollstaendig'); }
-  if (!d || typeof d.mc !== 'string' || !d.mc || !LOADERS.includes(d.l)) throw new Error('Code enthaelt keine gueltige Version');
+  const safeVersion = (v) => typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.+\-]{0,63}$/.test(v);
+  if (!d || !safeVersion(d.mc) || (d.lv != null && !safeVersion(d.lv)) || !LOADERS.includes(d.l)) {
+    throw new Error('Code enthaelt keine gueltige Version');
+  }
   if ([d.m, d.r, d.s].some((ids) => ids != null && (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id))))) {
     throw new Error('Code enthaelt ungueltige Dateien');
   }
@@ -1158,7 +1225,8 @@ ipcMain.handle('share:importCode', async (code) => {
     const kind = kindOfV.get(v.id) || 'mod';
     const f = v.files.find((x) => x.primary) || v.files[0];
     try {
-      await download(f.url, path.join(instDir(id), KIND_DIR[kind], f.filename), f.hashes && f.hashes.sha1);
+      if (!kindOfV.has(v.id)) throw new Error('Unerwartete Modrinth-Version.');
+      await downloadModrinth(f, path.join(instDir(id), KIND_DIR[kind], modFile(f.filename)));
       const p = projs[v.project_id] || {};
       inst.mods.push({ file: f.filename, projectId: v.project_id, versionId: v.id, version: v.version_number, title: p.title || f.filename, icon: p.icon_url || undefined, kind });
     } catch (e) { failed.push((projs[v.project_id] || {}).title || f.filename); }
@@ -1474,7 +1542,7 @@ ipcMain.handle('app:showMod', ({ id, file }) => {
   return true;
 });
 ipcMain.handle('app:openUrl', (url) => { if (/^https:\/\//.test(url)) shell.openExternal(url); return true; });
-ipcMain.handle('app:quit', () => { app.quit(); return true; });
+ipcMain.handle('app:quit', () => { win?.close(); return true; });
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('win:devtools', () => { win.webContents.toggleDevTools(); return true; });
 ipcMain.handle('win:zoom', (d) => {
@@ -1489,6 +1557,37 @@ ipcMain.handle('win:overlay', ({ color }) => {
 ipcMain.handle('win:fullscreen', () => { win.setFullScreen(!win.isFullScreen()); return true; });
 
 // ---------- Fenster ----------
+function showMainWindow() {
+  if (!win || win.isDestroyed()) return;
+  hiddenForGame = false;
+  tray?.destroy(); tray = undefined;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+function hideForPlaytime() {
+  if (!tray) {
+    const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAx0lEQVR4nO3X3QYCURQF4PNM67EiIiIiIiIiIiIiIspkNBr9KCklpaTUY8wbrO7OTTX6mZkj7cW+3t/FvlhbKYlP4KSJQYZws8QwR4zzxKRATIvErETMy8SiQiyrxKpGrOvEpkFsm8SuRezbxKHDz5b3UwwKgKP1HgJ2kkEDcLJfQ6CXYFgAnB1/BKw4wwbg4j5GoBtjVABcR/cIAQhAAM8Anud9NQL4/RsQgAAEEBlAma5kGmGylGqEyVquESYfE40w+Zr9TW4D7GHVFsS5owAAAABJRU5ErkJggg==');
+    tray = new Tray(icon);
+    tray.setToolTip('Modstack · Spielzeit wird gemessen');
+    tray.on('click', showMainWindow);
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: 'Modstack öffnen', click: showMainWindow },
+      { label: 'Modstack beenden', click: () => app.quit() },
+    ]));
+  }
+  hiddenForGame = true;
+  win.hide();
+}
+
+ipcMain.handle('win:closeDecision', (choice) => {
+  if (!askingToClose) return;
+  askingToClose = false;
+  if (choice === 'quit') app.quit();
+  else if (choice === 'background') hideForPlaytime();
+});
+
 function createWindow() {
   win = new BrowserWindow({
     show: process.env.MODSTACK_UPDATE_VERIFY_ONLY !== '1',
@@ -1507,18 +1606,29 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+  win.on('close', (event) => {
+    if (quitting || appSettings().trackPlaytime === false || process.env.MODSTACK_UPDATE_VERIFY_ONLY === '1') return;
+    event.preventDefault();
+    if (askingToClose) return;
+    askingToClose = true;
+    playtime.sample().catch(() => []).then((active) => {
+      if (quitting || !win || win.isDestroyed()) return;
+      if (!active.length) { askingToClose = false; app.quit(); }
+      else win.webContents.send('playtimeClose');
+    });
+  });
   win.loadFile('index.html');
 }
 
-const { Menu } = require('electron');
 Menu.setApplicationMenu(null); // eigenes Menue im Fenster
+app.on('before-quit', () => { quitting = true; });
+app.on('will-quit', () => tray?.destroy());
 if (hasAppLock) {
   if (process.platform === 'win32') app.setAppUserModelId('com.modstack.app');
   app.whenReady().then(createWindow);
-  app.on('second-instance', () => {
-    if (!win || win.isDestroyed()) return;
-    if (win.isMinimized()) win.restore();
-    win.focus();
-  });
+  app.on('second-instance', showMainWindow);
+  if (process.env.MODSTACK_UPDATE_VERIFY_ONLY !== '1') setInterval(() => {
+    if (hiddenForGame || appSettings().trackPlaytime !== false) playtime.sample().catch(() => {});
+  }, 9000).unref();
 } else app.quit();
 app.on('window-all-closed', () => app.quit());

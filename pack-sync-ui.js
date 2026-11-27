@@ -208,13 +208,14 @@ async function sendPendingSync() {
   }
 }
 
-function renderSharedSyncCard(bubble, row, chat) {
+function renderSharedSyncCard(bubble, row, chat, closeProfile = () => {}) {
   const title = document.createElement('strong');
   title.textContent = 'Gemeinsames Pack: ' + row.title + ' · Version ' + row.revision;
   const summary = document.createElement('small'); summary.textContent = row.summary;
   bubble.append(title, summary);
   if (S.packSync === false) return;
   bubble.append(syncButton('Beitreten', async () => {
+    closeProfile();
     const linked = insts.find((instance) => instance.sync?.packId === row.content);
     if (linked) { openPackSettings(linked); return; }
     const card = await api.invoke('friends:sync:card', { key: row.content, chat });
