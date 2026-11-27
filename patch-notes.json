@@ -1,17 +1,13 @@
 {
-  "version": "1.26.0",
+  "version": "1.26.1",
   "changes": [
     {
-      "title": "Patchnotes beim Start",
-      "text": "Nach einem Update zeigt Modstack einmal die Änderungen zur installierten Version. Über Hilfe → Patchnotes kannst du sie jederzeit wieder öffnen."
+      "title": "Schmaler Ladebalken",
+      "text": "Oben am Fenster siehst du, wenn eine Suche, Installation oder andere Aktion länger dauert. Bei Downloads mit bekanntem Fortschritt füllt sich der Balken entsprechend."
     },
     {
-      "title": "Discord-Aktivität",
-      "text": "Unter Optionen → Minecraft → Spielstart kannst du Discord Rich Presence einschalten und optional den Namen des laufenden Modpacks anzeigen."
-    },
-    {
-      "title": "Neues Modstack-Icon",
-      "text": "Die drei gestapelten Ebenen aus der Modstack-Titelleiste haben jetzt ein eigenes Windows-Icon."
+      "title": "Discord-Aktivität standardmäßig aktiv",
+      "text": "Modstack zeigt seinen Status in Discord an, wenn du die Funktion noch nicht ausgeschaltet hast. Den Namen deines laufenden Modpacks kannst du separat freigeben."
     }
   ]
 }

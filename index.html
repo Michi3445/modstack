@@ -117,10 +117,16 @@
   #bar { height: 28px; padding: 0 14px; background: var(--bg0); border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   #bar.err #barMsg { color: #ff8f88; }
   #barMsg { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #prog { width: 160px; height: 4px; background: var(--bg3); border-radius: 4px; overflow: hidden; display: none; }
+  #prog { position: absolute; z-index: 1; inset: auto 0 0; height: 3px; background: var(--bg3); overflow: hidden; pointer-events: none; }
+  #prog[hidden] { display: none; }
   #prog i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
   #prog.ind i { width: 35%; animation: ind 1.1s infinite ease-in-out; }
   @keyframes ind { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+  body.noanim #prog.ind i { width: 100%; opacity: .65; }
+  @media (prefers-reduced-motion: reduce) {
+    #prog i { transition: none; }
+    #prog.ind i { width: 100%; animation: none; opacity: .65; }
+  }
 
   .spin { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: sp .7s linear infinite; display: inline-block; }
   @keyframes sp { to { transform: rotate(360deg); } }
@@ -733,6 +739,7 @@
 <div id="titlebar">
   <div id="logo"><i></i><svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--c1)"/><stop offset="1" style="stop-color:var(--c2)"/></linearGradient></defs><path d="M12 2.5l9 4.5-9 4.5-9-4.5z" fill="url(#lg)"/><path d="M3 12l9 4.5 9-4.5" stroke="url(#lg)" stroke-width="2" stroke-linejoin="round" opacity=".8"/><path d="M3 16.5l9 4.5 9-4.5" stroke="url(#lg)" stroke-width="2" stroke-linejoin="round" opacity=".55"/></svg><span>Modstack</span></div>
   <div id="menubar"></div>
+  <div id="prog" role="progressbar" aria-label="Modstack lädt" hidden><i></i></div>
 </div>
 
 <div id="app">
@@ -778,7 +785,7 @@
     <div id="content"></div>
   </div>
 </div>
-<div id="bar"><span id="barMsg">Bereit</span><div id="prog"><i></i></div></div>
+<div id="bar"><span id="barMsg">Bereit</span></div>
 <div id="toasts"></div>
 <div class="menu" id="ctx"></div>
 <script src="node_modules/skinview3d/bundles/skinview3d.bundle.js"></script>
@@ -888,13 +895,57 @@ const LCOL = { fabric: 'var(--fabric)', forge: 'var(--forge)', neoforge: 'var(--
 const LNAME = { fabric: 'Fabric', forge: 'Forge', neoforge: 'NeoForge', quilt: 'Quilt' };
 
 // ---------- Status / Toasts ----------
+const loadingTasks = new Set();
+const loadingBar = $('#prog');
+let loadingTimer, stopSearchLoading;
+
+function drawLoadingProgress(percent) {
+  loadingBar.classList.toggle('ind', percent == null);
+  loadingBar.firstElementChild.style.width = percent == null ? '' : percent + '%';
+  if (percent == null) loadingBar.removeAttribute('aria-valuenow');
+  else loadingBar.setAttribute('aria-valuenow', Math.round(percent));
+}
+
+function beginLoading() {
+  const task = {};
+  if (!loadingTasks.size) {
+    drawLoadingProgress();
+    loadingTimer = setTimeout(() => { loadingBar.hidden = false; }, 150);
+  }
+  loadingTasks.add(task);
+  return () => {
+    if (!loadingTasks.delete(task) || loadingTasks.size) return;
+    clearTimeout(loadingTimer);
+    loadingBar.hidden = true;
+  };
+}
+
+async function withLoading(fn) {
+  const done = beginLoading();
+  try { return await fn(); } finally { done(); }
+}
+
+function cancelSearchLoading() {
+  stopSearchLoading?.();
+  stopSearchLoading = undefined;
+}
+
+async function searchModrinth(query) {
+  const done = beginLoading();
+  stopSearchLoading?.();
+  stopSearchLoading = done;
+  try { return await api.invoke('mr:search', query); }
+  finally {
+    if (stopSearchLoading === done) stopSearchLoading = undefined;
+    done();
+  }
+}
+
 function setBar(msg, err) {
   $('#barMsg').textContent = msg; $('#bar').className = err ? 'err' : '';
-  const m = /(\d+)\/(\d+)/.exec(msg || '');
-  const p = $('#prog');
-  if (busy && m && +m[2] > 0) { p.style.display = 'block'; p.className = ''; p.firstElementChild.style.width = (100 * m[1] / m[2]) + '%'; }
-  else if (busy) { p.style.display = 'block'; p.className = 'ind'; p.firstElementChild.style.width = ''; }
-  else p.style.display = 'none';
+  if (!busy) return;
+  const count = /(\d+)\/(\d+)/.exec(msg || '');
+  drawLoadingProgress(!err && count && Number(count[2]) > 0 ? Math.min(100, 100 * count[1] / count[2]) : undefined);
 }
 function toast(msg, err) {
   const t = document.createElement('div'); t.className = 'toast' + (err ? ' err' : ''); t.textContent = msg;
@@ -904,17 +955,19 @@ api.onStatus((m) => setBar(m));
 
 function errText(e) { return String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
 async function call(ch, data, quiet) {
-  try { return await api.invoke(ch, data); }
+  try {
+    const invoke = () => api.invoke(ch, data);
+    return await (quiet || busy ? invoke() : withLoading(invoke));
+  }
   catch (e) { const m = errText(e); setBar(m, true); if (!quiet) toast(m, true); throw e; }
 }
 async function work(label, fn) {
+  const done = beginLoading();
   busy++; setBar(label);
   try { return await fn(); } finally {
     busy--;
-    if (!busy) {
-      $('#prog').style.display = 'none';
-      queueMicrotask(sendPendingSync);
-    }
+    if (!busy) { drawLoadingProgress(); queueMicrotask(sendPendingSync); }
+    done();
     refreshMenus();
   }
 }
@@ -1169,6 +1222,7 @@ document.querySelectorAll('.tab').forEach((t) => t.onclick = () => setTab(t.data
 $('#mcPreparation').onclick = () => watchMinecraftPreparation(cur, true);
 
 function render() {
+  cancelSearchLoading();
   const c = $('#content');
   if (view === 'packs') return renderPacks();
   if (view === 'home') return renderHome();
@@ -1346,7 +1400,7 @@ function renderSearch(type) {
     }
     more.replaceChildren();
     let hits;
-    try { hits = await api.invoke('mr:search', { query: st.q, mc: instance.mc, loader: instance.loader, offset, type }); }
+    try { hits = await searchModrinth({ query: st.q, mc: instance.mc, loader: instance.loader, offset, type }); }
     catch {
       if (!results.isConnected || request !== generation) return;
       if (!append) results.innerHTML = '<div class="empty">Suche fehlgeschlagen.</div>';
@@ -1362,6 +1416,7 @@ function renderSearch(type) {
   };
   input.oninput = (event) => {
     clearTimeout(timer);
+    cancelSearchLoading();
     generation++;
     st.q = input.value.trim();
     more.replaceChildren();
@@ -1429,18 +1484,28 @@ async function renderPacks() {
   $('#pq').value = packState.q; $('#pl').value = packState.loader;
   const fillV = () => { $('#pv').innerHTML = '<option value="">Alle Versionen</option>' + versionGroups(allVersions || []); $('#pv').value = packState.mc; fancySelect($('#pv')); };
   if (allVersions) fillV(); else call('mc:versions', undefined, true).then((v) => { allVersions = v; if ($('#pv')) fillV(); }).catch(() => {});
+  const results = $('#res');
+  const more = $('#more');
+  let generation = 0;
   const run = async (append) => {
-    if (!append) { packState.q = $('#pq').value; packState.loader = $('#pl').value; packState.mc = $('#pv').value; packState.offset = 0; $('#res').innerHTML = '<div class="empty"><span class="spin"></span></div>'; }
+    if (!results.isConnected) return;
+    const request = ++generation;
+    if (!append) { packState.q = $('#pq').value; packState.loader = $('#pl').value; packState.mc = $('#pv').value; packState.offset = 0; results.innerHTML = '<div class="empty"><span class="spin"></span></div>'; }
+    more.replaceChildren();
     let hits;
-    try { hits = await call('mr:search', { query: packState.q, type: 'modpack', loader: packState.loader, mc: packState.mc, offset: packState.offset }); }
-    catch { if ($('#res')) $('#res').innerHTML = '<div class="empty">Suche fehlgeschlagen.</div>'; return; }
-    if (view !== 'packs' || !$('#res')) return;
-    const res = $('#res'); if (!append) res.innerHTML = '';
-    if (!hits.length && !append) res.innerHTML = '<div class="empty">Keine Modpacks gefunden.</div>';
-    for (const h of hits) res.appendChild(packRow(h));
+    try { hits = await searchModrinth({ query: packState.q, type: 'modpack', loader: packState.loader, mc: packState.mc, offset: packState.offset }); }
+    catch {
+      if (!results.isConnected || request !== generation) return;
+      if (!append) results.innerHTML = '<div class="empty">Suche fehlgeschlagen.</div>';
+      more.append(syncButton('Erneut versuchen', () => run(append)));
+      return;
+    }
+    if (!results.isConnected || request !== generation) return;
+    if (!append) results.replaceChildren();
+    if (!hits.length && !append) results.innerHTML = '<div class="empty">Keine Modpacks gefunden.</div>';
+    for (const h of hits) results.appendChild(packRow(h));
     packState.offset += hits.length;
-    $('#more').innerHTML = hits.length === 20 ? '<button class="ghost" id="mb">Mehr laden</button>' : '';
-    if ($('#mb')) $('#mb').onclick = () => run(true);
+    if (hits.length === 20) more.append(syncButton('Mehr laden', () => run(true)));
   };
   $('#pgo').onclick = () => run(false);
   $('#pq').onkeydown = (e) => { if (e.key === 'Enter') run(false); };
@@ -2578,7 +2643,7 @@ const SET_BUILD = {
       })],
     ])));
     c.appendChild(sec('Discord Rich Presence', '', toggles([
-      ['Discord-Aktivität anzeigen', 'Zeigt Modstack in deiner geöffneten Discord-Desktop-App.', S.discordEnabled === true, (v) => setS({ discordEnabled: v })],
+      ['Discord-Aktivität anzeigen', 'Zeigt Modstack in deiner geöffneten Discord-Desktop-App.', S.discordEnabled !== false, (v) => setS({ discordEnabled: v })],
       ['Namen des laufenden Modpacks anzeigen', 'Zeigt den Pack-Namen als Teil deiner Discord-Aktivität.', S.discordShowPack === true, (v) => setS({ discordShowPack: v })],
     ])));
     c.appendChild(sec('So funktioniert Spielen', 'Modstack startet Minecraft über den offiziellen Launcher. Dort wählst du das Profil „[Modstack] Name“ und klickst auf Spielen. Der Mojang-Launcher muss vorher geschlossen sein.'));
@@ -2685,7 +2750,7 @@ function refreshUpdBadges() {
 }
 async function autoCheck(manual) {
   if (busy && !manual) return;
-  try { upd = await call('mr:checkAll', undefined, true); } catch { return; }
+  try { upd = await call('mr:checkAll', undefined, !manual); } catch { return; }
   lastCheck = new Date();
   const n = updTotal();
   refreshUpdBadges();
@@ -2712,6 +2777,7 @@ const startupIdle = () => !startupInteracted && !busy && !document.querySelector
 async function checkAppUpdate(manual, startup = false) {
   if (appUpdateChecking) return;
   appUpdateChecking = true;
+  const done = manual ? beginLoading() : undefined;
   try {
     const previous = appUpdateInfo?.version;
     const wasPrepared = appUpdateInfo?.prepared;
@@ -2736,6 +2802,7 @@ async function checkAppUpdate(manual, startup = false) {
   } catch (err) {
     if (manual) toast(errText(err), true);
   } finally {
+    done?.();
     appUpdateChecking = false;
     if ($('#setDlg').open && setSec === 'updates') renderSettingsBody();
   }

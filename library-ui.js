@@ -27,7 +27,7 @@ async function openModPage(instance, item) {
     call('app:openUrl', 'https://modrinth.com/project/' + encodeURIComponent(item.projectId))));
   body.textContent = item.projectId ? 'Modrinth-Projekt wird geladen …' : 'Suche die Datei auf Modrinth …';
   try {
-    const project = await api.invoke('mr:project', { id: instance.id, projectId: item.projectId, kind, file: item.file });
+    const project = await withLoading(() => api.invoke('mr:project', { id: instance.id, projectId: item.projectId, kind, file: item.file }));
     if (!dialog.open) return;
     if (!project) {
       body.textContent = 'Für „' + item.file + '“ wurde keine passende Projektseite auf Modrinth gefunden.';
@@ -135,7 +135,8 @@ async function refreshFolderMods(instance, explicit = false) {
   if (!instance || scanningMods || (busy && !explicit)) return;
   scanningMods = true;
   try {
-    const next = await api.invoke('instances:rescanMods', instance.id);
+    const scan = () => api.invoke('instances:rescanMods', instance.id);
+    const next = await (explicit ? withLoading(scan) : scan());
     if (JSON.stringify(next.mods) === JSON.stringify(instance.mods)) {
       if (explicit) toast('Instanzordner ist abgeglichen');
       return;

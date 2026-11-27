@@ -851,7 +851,7 @@ function openFriendChat(entry, stage, back, remove, membersDialog) {
     button.disabled = true;
     try {
       if (confirm && !await confirm()) return false;
-      await api.invoke(channel, { id: entry.id, ...data });
+      await withLoading(() => api.invoke(channel, { id: entry.id, ...data }));
       await refresh();
       return true;
     } catch (error) {

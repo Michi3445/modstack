@@ -82,7 +82,7 @@ function packDiffText(data) {
 }
 
 async function checkPackBeforeJoin(instance, optional = instance.sync.optional, apply = false) {
-  const data = await api.invoke('friends:sync:status', { id: instance.id, optional });
+  const data = await withLoading(() => api.invoke('friends:sync:status', { id: instance.id, optional }));
   if (data.detached) { await load(instance.id); toast('Das Pack ist jetzt eine normale Instanz.'); return; }
   const different = data.platform || data.added.length || data.updated.length || data.removed.length;
   const text = packDiffText(data);

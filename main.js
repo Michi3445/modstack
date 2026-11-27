@@ -31,7 +31,7 @@ const appIcon = path.join(__dirname, 'assets', 'modstack.ico');
 let discordPlaying = [];
 
 function refreshDiscordPresence(settings = appSettings()) {
-  if (process.platform !== 'win32' || settings.discordEnabled !== true ||
+  if (process.platform !== 'win32' || settings.discordEnabled === false ||
       process.env.MODSTACK_UPDATE_VERIFY_ONLY === '1' || quitting) {
     discordPresence.stop();
     return;
@@ -1707,7 +1707,7 @@ if (hasAppLock) {
   app.on('second-instance', showMainWindow);
   if (process.env.MODSTACK_UPDATE_VERIFY_ONLY !== '1') setInterval(() => {
     const settings = appSettings();
-    if (hiddenForGame || settings.trackPlaytime !== false || settings.discordEnabled === true) playtime.sample().catch(() => {});
+    if (hiddenForGame || settings.trackPlaytime !== false || settings.discordEnabled !== false) playtime.sample().catch(() => {});
   }, 9000).unref();
 } else app.quit();
 app.on('window-all-closed', () => app.quit());
