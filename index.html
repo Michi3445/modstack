@@ -466,7 +466,7 @@
   .library-description { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); user-select: text; }
   .friend-library-head { display: flex; align-items: center; gap: 10px; }
   .friend-library-pack { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
-  .mod-title-button { padding: 0; border: 0; background: transparent; color: inherit; font-weight: inherit; text-align: left; display: inline; white-space: normal; }
+  .mod-title-button { padding: 1px 0; border: 0; background: transparent; color: var(--accent); font-weight: inherit; text-align: left; display: inline; white-space: normal; }
   #content .mod-title-button { background: transparent; }
   .mod-title-button:hover { text-decoration: underline; }
   .home-skins { position: relative; width: min(560px, 100%); }
@@ -1217,12 +1217,15 @@ function drawMods() {
   for (const m of list) {
     const u = upFor(m);
     const r = document.createElement('div'); r.className = 'row' + (m.disabled ? ' off' : '') + (u ? ' hasupd' : '');
-    r.innerHTML = '<div class="ph">▣</div><div class="t"><b></b><span></span></div>' + (u ? '<button class="primary sm upbtn">Aktualisieren</button>' : '') + '<div class="sw" title="Ein/Aus"></div><button class="iconbtn more" title="Mehr">⋯</button>';
+    r.innerHTML = '<div class="ph">▣</div><div class="t"><b></b><span></span></div>' + (u ? '<button class="primary sm upbtn">Aktualisieren</button>' : '') + '<button type="button" class="ghost sm mod-details">Details</button><div class="sw" title="Ein/Aus"></div><button class="iconbtn more" title="Mehr">⋯</button>';
     if (m.icon) { const im = document.createElement('img'); im.src = m.icon; im.alt = ''; im.onerror = () => im.replaceWith(Object.assign(document.createElement('div'), { className: 'ph', textContent: '▣' })); r.firstChild.replaceWith(im); }
     const [cls, lbl] = modTag(m);
     const b = r.querySelector('b');
     const details = syncButton(m.title, () => openModPage(cur, m));
     details.className = 'mod-title-button'; b.append(details);
+    const detailsButton = r.querySelector('.mod-details');
+    detailsButton.setAttribute('aria-label', 'Details zu ' + m.title);
+    detailsButton.onclick = () => openModPage(cur, m);
     b.insertAdjacentHTML('beforeend', `<span class="tag ${cls}">${lbl}</span>`);
     if (kindOf(m) !== 'mod') b.insertAdjacentHTML('beforeend', `<span class="tag man">${KIND[kindOf(m)]}</span>`);
     if (S.packSync !== false && cur.sync && packSyncState.get(cur.id)?.extraFiles.includes(m.file)) {
@@ -1341,6 +1344,7 @@ function hitRow(h, type) {
     setBtn();
   };
   r.oncontextmenu = (e) => { e.preventDefault(); showAt([
+    { l: 'Mod-Seite öffnen', a: () => info.click() },
     { l: 'Installieren', d: cur.mods.some((m) => m.projectId === h.id), a: () => btn.click() },
     { l: 'Auf Modrinth öffnen', a: () => call('app:openUrl', 'https://modrinth.com/project/' + (h.slug || h.id)) },
   ], e.clientX, e.clientY); };

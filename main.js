@@ -55,8 +55,8 @@ function notifyFriendChat({ arrived, unread, contactsChanged, requested = 0, req
 
 // ---------- Hilfsfunktionen ----------
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, ''));
-async function getJson(url) {
-  const r = await fetch(url, { headers: { 'User-Agent': UA } });
+async function getJson(url, signal) {
+  const r = await fetch(url, { headers: { 'User-Agent': UA }, signal });
   if (!r.ok) throw new Error(`HTTP ${r.status} bei ${url}`);
   return r.json();
 }
@@ -362,19 +362,45 @@ ipcMain.handle('instances:keybinds:save', async (change) => {
 });
 const conc = () => Math.max(1, Math.min(12, appSettings().downloads || 6));
 
-ipcMain.handle('mr:project', async ({ id, projectId, kind }) => {
-  if (typeof projectId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(projectId)) throw new Error('Ungültiges Modrinth-Projekt.');
+ipcMain.handle('mr:project', async ({ id, projectId, kind, file }) => {
   const inst = readInst(id);
+  const installed = file && inst.mods.find((m) => m.file === file && kindOf(m) === kind);
+  if (file && !installed) return null;
+  if (installed) {
+    projectId = installed.projectId;
+    if (!projectId) {
+      const source = entryPath(id, installed);
+      const base = instDir(id);
+      const folder = path.dirname(source);
+      if (fs.lstatSync(base, { throwIfNoEntry: false })?.isDirectory() &&
+          fs.lstatSync(folder, { throwIfNoEntry: false })?.isDirectory() &&
+          fs.lstatSync(source, { throwIfNoEntry: false })?.isFile()) {
+        const hash = crypto.createHash('sha1');
+        for await (const chunk of fs.createReadStream(source)) hash.update(chunk);
+        const response = await fetch(`${MR}/version_file/${hash.digest('hex')}?algorithm=sha1`, {
+          headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000),
+        });
+        if (response.ok) projectId = (await response.json()).project_id;
+        else if (response.status !== 404) throw new Error('Modrinth konnte die Datei gerade nicht zuordnen. Bitte versuche es erneut.');
+      }
+      if (!projectId) return null;
+    }
+  }
+  if (typeof projectId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(projectId)) throw new Error('Ungültiges Modrinth-Projekt.');
   const slug = encodeURIComponent(projectId);
   const params = new URLSearchParams({ game_versions: JSON.stringify([inst.mc]), include_changelog: 'false' });
   if (kind === 'mod') params.set('loaders', JSON.stringify(loaderList(inst)));
-  const [project, versions] = await Promise.all([getJson(`${MR}/project/${slug}`), getJson(`${MR}/project/${slug}/version?${params}`)]);
+  const signal = AbortSignal.timeout(8000);
+  const [project, versions] = await Promise.all([
+    getJson(`${MR}/project/${slug}`, signal),
+    getJson(`${MR}/project/${slug}/version?${params}`, signal).catch(() => null),
+  ]);
   const media = (url) => typeof url === 'string' && /^https:\/\/cdn\.modrinth\.com\//.test(url) ? url : '';
   return {
     title: String(project.title || '').slice(0, 100), summary: String(project.description || '').slice(0, 500),
     description: String(project.body || '').slice(0, 16000), icon: media(project.icon_url),
     gallery: (project.gallery || []).slice(0, 6).map((item) => media(item.url)).filter(Boolean),
-    downloads: project.downloads, versions: versions.slice(0, 15).map((v) => ({ version: v.version_number, channel: v.version_type })),
+    downloads: project.downloads, versions: versions?.slice(0, 15).map((v) => ({ version: v.version_number, channel: v.version_type })),
     url: 'https://modrinth.com/project/' + slug,
   };
 });

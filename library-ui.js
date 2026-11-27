@@ -22,15 +22,17 @@ async function openModPage(instance, item) {
   if (!instance || document.querySelector('dialog[open]')) return;
   const kind = kindOf(item);
   const { dialog, heading, body, footer } = detailDialog(item.title || item.file, 'mod-detail-dialog');
-  if (!item.projectId) {
-    body.textContent = 'Lokale Datei · ' + item.file;
-    footer.append(syncButton('Im Ordner zeigen', () => call('app:showMod', { id: instance.id, file: item.file })));
-    return;
-  }
-  body.textContent = 'Modrinth-Projekt wird geladen …';
+  if (item.file) footer.append(syncButton('Im Ordner zeigen', () => call('app:showMod', { id: instance.id, file: item.file })));
+  if (item.projectId) footer.append(syncButton('Auf Modrinth öffnen', () =>
+    call('app:openUrl', 'https://modrinth.com/project/' + encodeURIComponent(item.projectId))));
+  body.textContent = item.projectId ? 'Modrinth-Projekt wird geladen …' : 'Suche die Datei auf Modrinth …';
   try {
-    const project = await api.invoke('mr:project', { id: instance.id, projectId: item.projectId, kind });
+    const project = await api.invoke('mr:project', { id: instance.id, projectId: item.projectId, kind, file: item.file });
     if (!dialog.open) return;
+    if (!project) {
+      body.textContent = 'Für „' + item.file + '“ wurde keine passende Projektseite auf Modrinth gefunden.';
+      return;
+    }
     heading.textContent = project.title;
     body.replaceChildren();
     const summary = document.createElement('p'); summary.textContent = project.summary;
@@ -50,7 +52,8 @@ async function openModPage(instance, item) {
       body.append(gallery);
     }
     const versions = document.createElement('p');
-    versions.textContent = project.versions.length
+    if (!project.versions) versions.textContent = 'Die Versionsliste konnte gerade nicht geladen werden.';
+    else versions.textContent = project.versions.length
       ? 'Passende Versionen · ' + project.versions.map((v) => v.version + (v.channel === 'release' ? '' : ' (' + v.channel + ')')).join(', ')
       : 'Für diese Instanz wurde keine passende Version gefunden.';
     body.append(versions);
@@ -59,10 +62,10 @@ async function openModPage(instance, item) {
       description.className = 'library-description'; description.textContent = project.description;
       body.append(description);
     }
-    footer.append(syncButton('Auf Modrinth öffnen', () => call('app:openUrl', project.url)));
+    if (!item.projectId) footer.append(syncButton('Auf Modrinth öffnen', () => call('app:openUrl', project.url)));
     const selected = cur?.id === instance.id ? cur : insts.find((i) => i.id === instance.id);
-    const installed = selected?.mods.some((m) => m.projectId === item.projectId);
-    if (!installed && project.versions.length) {
+    const installed = item.file || selected?.mods.some((m) => m.projectId === item.projectId);
+    if (!installed && project.versions?.length) {
       footer.append(syncButton('Installieren', async () => {
         const result = await work('Installiere ' + project.title + ' …', () => api.invoke('mr:install', {
           id: instance.id, projectId: item.projectId, kind,
