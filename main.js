@@ -6,6 +6,9 @@ const zlib = require('zlib');
 const { execFile, spawn } = require('child_process');
 const { bindings, writeBinding, presetBindings, savePresetBinding, applyOptionDefaults } = require('./minecraft-keybinds');
 const { updateOptionDefaults } = require('./minecraft-options');
+const { createPresence } = require('./discord-presence');
+const discordProject = require('./discord-project.json');
+const patchNotes = require('./patch-notes.json');
 
 // ipcMain.handle ruft (event, daten) auf; die Handler unten erwarten nur die Daten.
 const ipcMain = { handle: (ch, fn) => rawIpc.handle(ch, (_e, data) => fn(data)) };
@@ -22,6 +25,30 @@ const hasAppLock = !app.isPackaged || app.requestSingleInstanceLock();
 require('./updater')(ipcMain, app, status, appSettings);
 const instRoot = () => path.join(app.getPath('userData'), 'instances');
 const mcDir = () => path.join(process.env.APPDATA || '', '.minecraft');
+const discordPresence = createPresence();
+const discordStarted = Math.floor(Date.now() / 1000);
+const appIcon = path.join(__dirname, 'assets', 'modstack.ico');
+let discordPlaying = [];
+
+function refreshDiscordPresence(settings = appSettings()) {
+  if (process.platform !== 'win32' || settings.discordEnabled !== true ||
+      process.env.MODSTACK_UPDATE_VERIFY_ONLY === '1' || quitting) {
+    discordPresence.stop();
+    return;
+  }
+  let pack;
+  if (settings.discordShowPack === true && discordPlaying.length) {
+    try { pack = Array.from(String(readInst(discordPlaying[0]).name || '')).slice(0, 115).join(''); } catch {}
+  }
+  discordPresence.update(discordProject.applicationId, {
+    details: discordPlaying.length ? 'Spielt Minecraft' : 'Verwaltet Modpacks',
+    ...(pack ? { state: 'Modpack: ' + pack } : {}),
+    timestamps: { start: discordStarted },
+    assets: { large_image: discordProject.image, large_text: 'Modstack' },
+    buttons: [{ label: 'Modstack holen', url: discordProject.download }],
+    instance: false,
+  });
+}
 
 function status(msg) {
   if (win && !win.isDestroyed()) win.webContents.send('status', msg);
@@ -730,7 +757,11 @@ const playtime = require('./instance-playtime')({
   running: runningModstackInstances, legacyTicks: legacyPlaytime,
   enabled: () => appSettings().trackPlaytime !== false,
   resolveId(id) { try { return readInst(id).id; } catch { return null; } },
-  onSample(active) { if (hiddenForGame && !active.length) app.quit(); },
+  onSample(active) {
+    if (hiddenForGame && !active.length) { app.quit(); return; }
+    discordPlaying = active;
+    refreshDiscordPresence();
+  },
 });
 ipcMain.handle('playtime:active', () => playtime.sample());
 
@@ -747,10 +778,19 @@ function saveAppSettings(patch) {
   const s = { ...appSettings(), ...patch };
   fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
   fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2));
+  if (Object.hasOwn(patch, 'discordEnabled') || Object.hasOwn(patch, 'discordShowPack')) refreshDiscordPresence(s);
   return s;
 }
 ipcMain.handle('settings:get', appSettings);
 ipcMain.handle('settings:set', saveAppSettings);
+ipcMain.handle('patchNotes:get', ({ unseen } = {}) => {
+  if (process.env.MODSTACK_UPDATE_VERIFY_ONLY === '1' || patchNotes.version !== app.getVersion()) return null;
+  if (unseen && appSettings().seenPatchNotes === patchNotes.version) return null;
+  return patchNotes;
+});
+ipcMain.handle('patchNotes:seen', (version) => {
+  if (process.env.MODSTACK_UPDATE_VERIFY_ONLY !== '1' && version === app.getVersion()) saveAppSettings({ seenPatchNotes: version });
+});
 ipcMain.handle('settings:keybinds:get', () => presetBindings(appSettings().defaultKeybinds));
 ipcMain.handle('settings:keybinds:save', (change) => {
   const defaultKeybinds = savePresetBinding(appSettings().defaultKeybinds, change);
@@ -1605,7 +1645,7 @@ function showMainWindow() {
 
 function hideForPlaytime() {
   if (!tray) {
-    const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAx0lEQVR4nO3X3QYCURQF4PNM67EiIiIiIiIiIiIiIspkNBr9KCklpaTUY8wbrO7OTTX6mZkj7cW+3t/FvlhbKYlP4KSJQYZws8QwR4zzxKRATIvErETMy8SiQiyrxKpGrOvEpkFsm8SuRezbxKHDz5b3UwwKgKP1HgJ2kkEDcLJfQ6CXYFgAnB1/BKw4wwbg4j5GoBtjVABcR/cIAQhAAM8Anud9NQL4/RsQgAAEEBlAma5kGmGylGqEyVquESYfE40w+Zr9TW4D7GHVFsS5owAAAABJRU5ErkJggg==');
+    const icon = nativeImage.createFromPath(appIcon);
     tray = new Tray(icon);
     tray.setToolTip('Modstack · Spielzeit wird gemessen');
     tray.on('click', showMainWindow);
@@ -1633,6 +1673,7 @@ function createWindow() {
     minWidth: 860,
     minHeight: 560,
     backgroundColor: '#14161b',
+    icon: appIcon,
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#101216', symbolColor: '#c9ced8', height: 36 },
     autoHideMenuBar: true,
@@ -1659,13 +1700,14 @@ function createWindow() {
 
 Menu.setApplicationMenu(null); // eigenes Menue im Fenster
 app.on('before-quit', () => { quitting = true; });
-app.on('will-quit', () => tray?.destroy());
+app.on('will-quit', () => { discordPresence.stop(); tray?.destroy(); });
 if (hasAppLock) {
   if (process.platform === 'win32') app.setAppUserModelId('com.modstack.app');
-  app.whenReady().then(createWindow);
+  app.whenReady().then(() => { createWindow(); refreshDiscordPresence(); });
   app.on('second-instance', showMainWindow);
   if (process.env.MODSTACK_UPDATE_VERIFY_ONLY !== '1') setInterval(() => {
-    if (hiddenForGame || appSettings().trackPlaytime !== false) playtime.sample().catch(() => {});
+    const settings = appSettings();
+    if (hiddenForGame || settings.trackPlaytime !== false || settings.discordEnabled === true) playtime.sample().catch(() => {});
   }, 9000).unref();
 } else app.quit();
 app.on('window-all-closed', () => app.quit());

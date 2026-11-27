@@ -24,6 +24,12 @@ async function main() {
     /(?:\.log$|[\\/](?:\.env(?:\.[^\\/]+)?|update-signing-key\.pem|launcher_accounts[^\\/]*\.json|friends-session))$/i.test(name));
   if (privateFile) throw new Error('Die Windows-App enthält eine lokale Datei: ' + path.basename(privateFile));
   const { version } = JSON.parse(extractFile(asar, 'package.json').toString('utf8'));
+  const notes = JSON.parse(extractFile(asar, 'patch-notes.json').toString('utf8'));
+  if (notes.version !== version || !Array.isArray(notes.changes) || !notes.changes.length ||
+      notes.changes.some((change) => !change || typeof change.title !== 'string' || !change.title.trim() ||
+        typeof change.text !== 'string' || !change.text.trim())) {
+    throw new Error('Patchnotes für diese App-Version fehlen oder sind unvollständig.');
+  }
   const electron = fs.readFileSync(path.join(appDir, 'version'), 'utf8').trim();
   if (!VERSION.test(version) || version !== require('../package.json').version || !VERSION.test(electron)) {
     throw new Error('Versionen der Windows-App prüfen.');

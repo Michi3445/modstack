@@ -461,6 +461,12 @@
   .mod-detail-dialog[open] { display: flex; flex-direction: column; }
   .mod-detail-dialog .library-dialog-body { max-height: none; min-height: 0; }
   .mod-detail-dialog .df { flex-wrap: wrap; }
+  .patch-notes-dialog { width: min(470px, 90vw); }
+  .patch-notes-dialog .dh { font-size: 20px; padding-top: 20px; }
+  .patch-notes-dialog .db section { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .patch-notes-dialog .db h3 { margin: 0; color: var(--text); font-size: 13px; }
+  .patch-notes-dialog .db p { margin-bottom: 0; color: var(--muted); line-height: 1.5; }
+  .patch-notes-dialog .df { justify-content: space-between; }
   .friend-library-dialog { width: min(560px, 94vw); }
   .library-dialog-body { max-height: 65vh; overflow: auto; }
   .library-icon { width: 54px; height: 54px; border-radius: 10px; float: left; margin: 0 12px 8px 0; }
@@ -787,6 +793,7 @@
 <script src="pack-sync-ui.js"></script>
 <script src="screenshots-ui.js"></script>
 <script src="library-ui.js"></script>
+<script src="patch-notes-ui.js"></script>
 <script src="minecraft-preparation-ui.js"></script>
 <script src="home-friends-ui.js"></script>
 
@@ -970,6 +977,7 @@ const MENUS = [
     { l: 'Entwicklertools', k: 'Strg+Umschalt+I', a: () => call('win:devtools') },
   ]],
   ['Hilfe', () => [
+    { l: 'Patchnotes', a: () => showPatchNotes() },
     { l: 'Modrinth öffnen', a: () => call('app:openUrl', 'https://modrinth.com/mods') },
     { l: 'CurseForge öffnen', a: () => call('app:openUrl', 'https://www.curseforge.com/minecraft') },
     '-',
@@ -2569,6 +2577,10 @@ const SET_BUILD = {
         if (view !== 'friends') { renderHead(); render(); }
       })],
     ])));
+    c.appendChild(sec('Discord Rich Presence', '', toggles([
+      ['Discord-Aktivität anzeigen', 'Zeigt Modstack in deiner geöffneten Discord-Desktop-App.', S.discordEnabled === true, (v) => setS({ discordEnabled: v })],
+      ['Namen des laufenden Modpacks anzeigen', 'Zeigt den Pack-Namen als Teil deiner Discord-Aktivität.', S.discordShowPack === true, (v) => setS({ discordShowPack: v })],
+    ])));
     c.appendChild(sec('So funktioniert Spielen', 'Modstack startet Minecraft über den offiziellen Launcher. Dort wählst du das Profil „[Modstack] Name“ und klickst auf Spielen. Der Mojang-Launcher muss vorher geschlossen sein.'));
   },
   data(c) {
@@ -2852,6 +2864,7 @@ document.addEventListener('drop', (e) => e.preventDefault());
 (async () => {
   try { S = await call('settings:get', undefined, true); } catch { S = {}; }
   applySettings();
+  await showPatchNotes(true);
   checkAppUpdate(false, true);
   call('app:version', undefined, true).then((v) => { window.__ver = v; }).catch(() => {});
   try { account = await call('mc:account', undefined, true); } catch { account = null; }
