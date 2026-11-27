@@ -401,6 +401,7 @@
   .fpop .mi.sel { color: #fff; } .fpop .mi.sel .k { color: var(--c1); font-weight: 700; }
   .fpop .mi.act { background: rgba(255,255,255,.07); }
   .fgrp { font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); padding: 8px 10px 4px; }
+  .fgrp.pinned { color: var(--accent); font-weight: 700; }
 
   /* Titelleiste */
   #logo { gap: 9px; }
@@ -1810,7 +1811,11 @@ function fancySelect(sel) {
         const opts = node.tagName === 'OPTGROUP' ? [...node.children] : [node];
         const vis = opts.filter((o) => !q || o.textContent.toLowerCase().includes(q));
         if (!vis.length) continue;
-        if (node.tagName === 'OPTGROUP') { const h = document.createElement('div'); h.className = 'fgrp'; h.textContent = node.label; list.appendChild(h); }
+        if (node.tagName === 'OPTGROUP') {
+          const h = document.createElement('div');
+          h.className = node.hasAttribute('data-pinned') ? 'fgrp pinned' : 'fgrp';
+          h.textContent = node.label; list.appendChild(h);
+        }
         for (const o of vis) {
           const d = document.createElement('div'); d.className = 'mi' + (o.value === sel.value ? ' sel' : '');
           d.innerHTML = '<span></span><span class="k">' + (o.value === sel.value ? '✓' : '') + '</span>';
@@ -1840,7 +1845,8 @@ function fancySelect(sel) {
     }
     pop.style.left = left + 'px'; pop.style.top = top + 'px';
     btn.classList.add('open');
-    const sc = list.querySelector('.sel'); if (sc) sc.scrollIntoView({ block: 'center' });
+    const sc = list.querySelector('.sel');
+    if (sc && !sel.querySelector('optgroup[data-pinned]')) sc.scrollIntoView({ block: 'center' });
     const inp = pop.querySelector('.fsearch');
     const keys = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); btn.focus(); }
@@ -2879,11 +2885,22 @@ window.addEventListener('focus', () => { if (view === 'inst' && cur) refreshFold
 setInterval(() => { if (view === 'inst' && tab === 'mods' && !document.hidden) refreshFolderMods(cur); }, 6000);
 
 // ---------- Neue Instanz ----------
+const recommendedMinecraftVersions = {
+  fabric: ['1.21.1', '1.21.11', '1.20.1', '26.3'],
+  forge: ['1.20.1', '1.19.2', '1.21.1', '26.3'],
+  neoforge: ['1.21.1', '1.21.11', '26.3'],
+  quilt: ['1.20.1', '1.21.1', '1.21.11', '26.3'],
+};
+const newMinecraftSelect = $('#nMc');
+let pickedMinecraftVersion = false;
+newMinecraftSelect.onchange = () => { pickedMinecraftVersion = true; };
+
 async function newInstance() {
   if (document.querySelector('dialog[open]')) return;
   if (!allVersions) {
     try { allVersions = await work('Lade Versionen ...', () => call('mc:versions')); setBar('Bereit'); } catch { return; }
   }
+  pickedMinecraftVersion = false;
   fillVersions(); $('#dlg').showModal(); $('#nName').focus();
 }
 function versionGroups(vs) {
@@ -2891,8 +2908,28 @@ function versionGroups(vs) {
   for (const v of vs) { const p = v.split('.'); const k = p[0] === '1' ? '1.' + p[1] : p[0] + '.x'; if (!g.has(k)) g.set(k, []); g.get(k).push(v); }
   return [...g].map(([k, l]) => `<optgroup label="Minecraft ${k}">${l.map((v) => `<option>${v}</option>`).join('')}</optgroup>`).join('');
 }
-function fillVersions() { $('#nMc').innerHTML = versionGroups(allVersions); fancySelect($('#nMc')); }
-document.querySelectorAll('#nLoader div').forEach((d) => d.onclick = () => { document.querySelectorAll('#nLoader div').forEach((x) => x.classList.toggle('on', x === d)); });
+function fillVersions() {
+  const loader = $('#nLoader .on').dataset.v;
+  const previous = newMinecraftSelect.value;
+  const available = new Set(allVersions);
+  const pinned = recommendedMinecraftVersions[loader].filter((version) => available.has(version));
+  newMinecraftSelect.__fs?.close();
+  newMinecraftSelect.innerHTML = versionGroups(allVersions.filter((version) => !pinned.includes(version)));
+  if (pinned.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Empfohlen für ' + LNAME[loader];
+    group.dataset.pinned = '';
+    group.append(...pinned.map((version) => new Option(version, version)));
+    newMinecraftSelect.prepend(group);
+  }
+  newMinecraftSelect.value = pickedMinecraftVersion && available.has(previous) ? previous : (pinned[0] || allVersions[0] || '');
+  fancySelect(newMinecraftSelect);
+}
+document.querySelectorAll('#nLoader div').forEach((d) => d.onclick = () => {
+  if (d.classList.contains('on')) return;
+  document.querySelectorAll('#nLoader div').forEach((x) => x.classList.toggle('on', x === d));
+  fillVersions();
+});
 $('#nCancel').onclick = () => $('#dlg').close();
 $('#nName').onkeydown = (e) => { if (e.key === 'Enter') $('#nOk').click(); };
 $('#nOk').onclick = async () => {
