@@ -2,6 +2,8 @@
 
 A lightweight Minecraft mod manager for Windows, built with Electron.
 
+[Download Modstack Setup for Windows x64](https://github.com/Michi3445/modstack/releases/download/windows-installer/Modstack-Setup.exe)
+
 ## Features
 
 - Create instances with a Minecraft version and loader (Fabric, Forge, NeoForge, Quilt)
@@ -70,6 +72,13 @@ Sharing uses the Modstack code format. For local files or mod configuration, use
 `.mrpack` export. Publish the current rules file before enabling chat in a Firebase project.
 
 ## Windows app updates
+
+The Windows x64 installer downloads and verifies the latest published Modstack app release, installs it
+under `%LOCALAPPDATA%\Programs\Modstack`, and creates a Start menu shortcut.
+The installer link stays the same when the app is updated. To rebuild the installer
+on Windows, run `./installer/build.ps1 -Output <path-to-Modstack-Setup.exe>` and
+replace the installer asset in the `windows-installer` release. Keep that release
+out of GitHub's “Latest” slot so app updates find the current app release.
 
 The portable Windows x64 app checks for signed GitHub releases at startup and under
 **Optionen → Updates**. Firebase can announce a version at `modstackUpdates/windows-x64`
