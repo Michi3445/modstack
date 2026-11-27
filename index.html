@@ -457,18 +457,31 @@
   .screenshot-large button { padding: 8px 0; font-size: 22px; }
   .screenshot-viewer .df { flex-wrap: wrap; }
   .chat-screenshot { display: block; width: min(360px, 100%); max-height: 320px; object-fit: contain; border-radius: 8px; }
-  .mod-detail-dialog { width: min(720px, 94vw); }
+  .mod-detail-dialog { width: min(720px, 94vw); max-height: calc(100dvh - 48px); }
+  .mod-detail-dialog[open] { display: flex; flex-direction: column; }
+  .mod-detail-dialog .library-dialog-body { max-height: none; min-height: 0; }
+  .mod-detail-dialog .df { flex-wrap: wrap; }
   .friend-library-dialog { width: min(560px, 94vw); }
   .library-dialog-body { max-height: 65vh; overflow: auto; }
   .library-icon { width: 54px; height: 54px; border-radius: 10px; float: left; margin: 0 12px 8px 0; }
   .library-gallery { clear: both; display: grid; grid-template-columns: repeat(auto-fit,minmax(145px,1fr)); gap: 8px; margin: 12px 0; }
   .library-gallery img { width: 100%; object-fit: cover; aspect-ratio: 16/9; border-radius: 8px; }
-  .library-description { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); user-select: text; }
+  .library-description { clear: both; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); overflow-wrap: anywhere; line-height: 1.55; user-select: text; }
+  .mod-detail-dialog .library-description p { white-space: normal; max-height: none; overflow: visible; margin: 10px 0; }
+  .library-description a { color: var(--accent); }
+  .library-description img { max-width: 100%; height: auto; vertical-align: middle; }
+  .library-description pre, .library-description table { max-width: 100%; overflow: auto; }
+  .library-description table { display: block; border-collapse: collapse; }
+  .library-description th, .library-description td { padding: 4px 8px; border: 1px solid var(--line); }
+  .library-description hr { border: 0; border-top: 1px solid var(--line); }
+  .library-description blockquote { margin: 12px 0; padding-left: 12px; border-left: 2px solid var(--line); color: var(--muted); }
   .friend-library-head { display: flex; align-items: center; gap: 10px; }
   .friend-library-pack { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
   .mod-title-button { padding: 1px 0; border: 0; background: transparent; color: var(--accent); font-weight: inherit; text-align: left; display: inline; white-space: normal; }
   #content .mod-title-button { background: transparent; }
   .mod-title-button:hover { text-decoration: underline; }
+  .row.mod-page-row { cursor: pointer; }
+  .row.mod-page-row button:disabled { pointer-events: auto; }
   .home-skins { position: relative; width: min(560px, 100%); }
   .friends-skins { position: absolute; inset: 0; pointer-events: none; }
   .home-friend-skin { position: absolute; top: 77px; padding: 0; display: grid; gap: 1px; background: transparent !important; border-color: transparent !important; opacity: .78; pointer-events: auto; }
@@ -701,7 +714,7 @@
   .shopt textarea { font-family: "Cascadia Code", Consolas, monospace; font-size: 11.5px; word-break: break-all; resize: none; }
   .shrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
   .shskip { color: var(--warn); font-size: 11.5px; }
-  #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
+  #toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; pointer-events: none; }
   .toast { background: #22262e; border: 1px solid #3a404c; border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: pop .15s ease-out; }
   .toast.err { border-left-color: var(--danger); }
 </style>
@@ -760,6 +773,8 @@
 <div id="toasts"></div>
 <div class="menu" id="ctx"></div>
 <script src="node_modules/skinview3d/bundles/skinview3d.bundle.js"></script>
+<script src="node_modules/markdown-it/dist/browser/markdown-it.umd.min.js"></script>
+<script src="node_modules/dompurify/dist/purify.min.js"></script>
 <script src="friends-ui.js"></script>
 <script src="keybinds-ui.js"></script>
 <script src="minecraft-option-definitions.js"></script>
@@ -1204,6 +1219,13 @@ function renderMods() {
   drawMods();
 }
 
+function modPageRow(row, open) {
+  row.classList.add('mod-page-row');
+  row.addEventListener('click', (event) => {
+    if (!event.defaultPrevented && !event.target.closest('button, .sw')) open();
+  });
+}
+
 function drawMods() {
   const box = $('#mods'); if (!box) return; box.innerHTML = '';
   const f = modFilter.trim().toLowerCase();
@@ -1217,15 +1239,17 @@ function drawMods() {
   for (const m of list) {
     const u = upFor(m);
     const r = document.createElement('div'); r.className = 'row' + (m.disabled ? ' off' : '') + (u ? ' hasupd' : '');
+    const openDetails = () => openModPage(cur, m);
+    modPageRow(r, openDetails);
     r.innerHTML = '<div class="ph">▣</div><div class="t"><b></b><span></span></div>' + (u ? '<button class="primary sm upbtn">Aktualisieren</button>' : '') + '<button type="button" class="ghost sm mod-details">Details</button><div class="sw" title="Ein/Aus"></div><button class="iconbtn more" title="Mehr">⋯</button>';
     if (m.icon) { const im = document.createElement('img'); im.src = m.icon; im.alt = ''; im.onerror = () => im.replaceWith(Object.assign(document.createElement('div'), { className: 'ph', textContent: '▣' })); r.firstChild.replaceWith(im); }
     const [cls, lbl] = modTag(m);
     const b = r.querySelector('b');
-    const details = syncButton(m.title, () => openModPage(cur, m));
+    const details = syncButton(m.title, openDetails);
     details.className = 'mod-title-button'; b.append(details);
     const detailsButton = r.querySelector('.mod-details');
     detailsButton.setAttribute('aria-label', 'Details zu ' + m.title);
-    detailsButton.onclick = () => openModPage(cur, m);
+    detailsButton.onclick = openDetails;
     b.insertAdjacentHTML('beforeend', `<span class="tag ${cls}">${lbl}</span>`);
     if (kindOf(m) !== 'mod') b.insertAdjacentHTML('beforeend', `<span class="tag man">${KIND[kindOf(m)]}</span>`);
     if (S.packSync !== false && cur.sync && packSyncState.get(cur.id)?.extraFiles.includes(m.file)) {
@@ -1241,7 +1265,7 @@ function drawMods() {
     sw.onclick = () => toggleMod(m);
     if (u) r.querySelector('.upbtn').onclick = (e) => updateOne(m, e.currentTarget);
     const items = () => [
-      { l: 'Mod-Seite öffnen', a: () => openModPage(cur, m) },
+      { l: 'Mod-Seite öffnen', a: openDetails },
       { l: 'Aktualisieren auf ' + (u ? u.to : ''), d: !u || busy, a: () => updateOne(m) },
       { l: 'Vorherige Version wiederherstellen', d: busy || !cur.history?.some((item) => item.next?.file === m.file && item.next?.versionId === m.versionId),
         a: async () => {
@@ -1325,10 +1349,12 @@ function baseRow(h) {
 
 function hitRow(h, type) {
   const r = baseRow(h);
+  const openDetails = () => openModPage(cur, { ...h, projectId: h.id, kind: type });
+  modPageRow(r, openDetails);
   const btn = r.querySelector('button');
   const setBtn = () => { const has = cur.mods.some((m) => m.projectId === h.id); btn.textContent = has ? '✓ Installiert' : 'Installieren'; btn.disabled = has; btn.className = has ? 'ghost' : 'primary'; };
   setBtn();
-  const info = syncButton(h.title, () => openModPage(cur, { ...h, projectId: h.id, kind: type }));
+  const info = syncButton(h.title, openDetails);
   info.className = 'mod-title-button';
   r.querySelector('.t b').replaceChildren(info);
   btn.onclick = async () => {
@@ -1344,7 +1370,7 @@ function hitRow(h, type) {
     setBtn();
   };
   r.oncontextmenu = (e) => { e.preventDefault(); showAt([
-    { l: 'Mod-Seite öffnen', a: () => info.click() },
+    { l: 'Mod-Seite öffnen', a: openDetails },
     { l: 'Installieren', d: cur.mods.some((m) => m.projectId === h.id), a: () => btn.click() },
     { l: 'Auf Modrinth öffnen', a: () => call('app:openUrl', 'https://modrinth.com/project/' + (h.slug || h.id)) },
   ], e.clientX, e.clientY); };

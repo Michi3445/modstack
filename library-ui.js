@@ -59,7 +59,8 @@ async function openModPage(instance, item) {
     body.append(versions);
     if (project.description) {
       const description = document.createElement('div');
-      description.className = 'library-description'; description.textContent = project.description;
+      description.className = 'library-description';
+      showModDescription(description, project.description);
       body.append(description);
     }
     if (!item.projectId) footer.append(syncButton('Auf Modrinth öffnen', () => call('app:openUrl', project.url)));
@@ -76,6 +77,37 @@ async function openModPage(instance, item) {
       }, true));
     }
   } catch (error) { body.textContent = errText(error); }
+}
+
+function showModDescription(container, markdown) {
+  const html = window.markdownit({ html: true }).render(markdown);
+  const content = window.DOMPurify.sanitize(html, {
+    RETURN_DOM_FRAGMENT: true,
+    ALLOWED_TAGS: ['p', 'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'img', 'br', 'hr',
+      'strong', 'b', 'em', 'i', 's', 'del', 'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
+      'details', 'summary', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+    ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'width', 'height', 'align', 'colspan', 'rowspan', 'start'],
+    ALLOWED_URI_REGEXP: /^https:\/\//i,
+    ALLOW_DATA_ATTR: false,
+    ALLOW_ARIA_ATTR: false,
+  });
+  for (const link of content.querySelectorAll('a[href]')) {
+    const url = URL.parse(link.href);
+    if (url?.protocol !== 'https:' || url.username || url.password) {
+      link.removeAttribute('href');
+      continue;
+    }
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      call('app:openUrl', url.href);
+    });
+    link.addEventListener('auxclick', (event) => event.preventDefault());
+    link.addEventListener('contextmenu', (event) => event.preventDefault());
+  }
+  for (const img of content.querySelectorAll('img[src]')) {
+    img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+  }
+  container.replaceChildren(content);
 }
 
 api.onPlaytimeClose(() => {
